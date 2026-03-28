@@ -1,11 +1,19 @@
 <script lang="ts">
   import type { Entity, OrbitalComponent } from '@lib/ecs/types'
-  import { updateComponent, syncComponentToThreeObject } from '@lib/stores/sceneStore.svelte'
+  import { updateComponent, syncComponentToThreeObject, getGraph } from '@lib/stores/sceneStore.svelte'
+  import { orbitalPeriod, formatDerived } from '@lib/physics/PhysicsProperties'
   import SliderControl from '@ui/controls/SliderControl.svelte'
 
   let { entity }: { entity: Entity } = $props()
 
   let comp = $derived(entity.components['orbital'] as OrbitalComponent | undefined)
+
+  let derivedPeriod = $derived.by(() => {
+    if (!comp || !entity.parentId) return comp?.period ?? 0
+    const parent = getGraph().get(entity.parentId)
+    if (!parent) return comp?.period ?? 0
+    return orbitalPeriod(parent.mass, comp.orbitRadius)
+  })
 
   function updateOrbital(field: string, value: number) {
     if (!comp) return
@@ -30,14 +38,15 @@
       oninput={(v) => updateOrbital('orbitRadius', v)}
     />
 
-    <SliderControl
-      label="Period"
-      value={comp.period}
-      min={5}
-      max={100}
-      step={1}
-      oninput={(v) => updateOrbital('period', v)}
-    />
+    <div class="flex flex-col gap-1">
+      <div class="flex justify-between text-xs">
+        <span style="color: var(--label)">Period</span>
+        <span class="font-mono tabular-nums" style="color: var(--text-muted)">{formatDerived(derivedPeriod)}</span>
+      </div>
+      <div class="text-[10px]" style="color: var(--text-muted); opacity: 0.6">
+        Derived from parent mass + orbit radius
+      </div>
+    </div>
 
     <SliderControl
       label="Inclination"
