@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glowing Translucent Polyhedron</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050208;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        #ui-top {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #d187ff;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(186, 73, 255, 0.5);
+            z-index: 10;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 10, 30, 0.8);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(209, 135, 255, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 20;
+            backdrop-filter: blur(5px);
+            color: white;
+            min-width: 180px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #d187ff;
+            font-weight: bold;
+        }
+        select, input[type="color"], input[type="range"] {
+            background: #1a0b2e;
+            border: 1px solid #4a2b6e;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            outline: none;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #2a1b3d;
+            border: none;
+            padding: 0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #bc13fe;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(188, 19, 254, 0.5);
+        }
+        input[type="color"] {
+            height: 40px;
+            width: 100%;
+            padding: 2px;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-top">
+        <h1>Celestial Object</h1>
+        <p>Click to zip & spin • Depth-Masked Translucency</p>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="shapeSelect">Geometry (Faces)</label>
+            <select id="shapeSelect">
+                <option value="4">Tetrahedron (4)</option>
+                <option value="6" selected>Hexahedron/Cube (6)</option>
+                <option value="8">Octahedron (8)</option>
+                <option value="12">Dodecahedron (12)</option>
+                <option value="20">Icosahedron (20)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="opacitySlider">Face Opacity</label>
+            <input type="range" id="opacitySlider" min="0" max="1" step="0.01" value="0.25">
+        </div>
+        <div class="control-group">
+            <label for="colorPicker">Object Color</label>
+            <input type="color" id="colorPicker" value="#bc13fe">
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, polyGroup, glowSprite, coreMesh, wireframeMesh, depthMesh, pointLight;
+        let targetPosition = new THREE.Vector3(0, 0, 0);
+        let moveRotationAxis = new THREE.Vector3(0, 1, 0);
+        let moveRotationSpeed = 0;
+        
+        let currentColor = new THREE.Color(0xbc13fe);
+        let currentOpacity = 0.25;
+        const IDLE_SPIN_SPEED = 0.01;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+
+            // --- BACKGROUND (Translucency Proof) ---
+            const gridHelper = new THREE.GridHelper(30, 30, 0x442266, 0x221133);
+            gridHelper.rotation.x = Math.PI / 2;
+            gridHelper.position.z = -3;
+            scene.add(gridHelper);
+
+            const starGeometry = new THREE.BufferGeometry();
+            const starCount = 600;
+            const posArray = new Float32Array(starCount * 3);
+            for(let i = 0; i < starCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 40;
+            }
+            starGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const starMaterial = new THREE.PointsMaterial({ size: 0.04, color: 0xffffff });
+            scene.add(new THREE.Points(starGeometry, starMaterial));
+
+            // --- POLYHEDRON GROUP ---
+            polyGroup = new THREE.Group();
+            scene.add(polyGroup);
+
+            // Setup Glow Sprite
+            const glowCanvas = document.createElement('canvas');
+            glowCanvas.width = 128;
+            glowCanvas.height = 128;
+            const ctx = glowCanvas.getContext('2d');
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 128, 128);
+
+            const glowTexture = new THREE.CanvasTexture(glowCanvas);
+            const spriteMat = new THREE.SpriteMaterial({ 
+                map: glowTexture, 
+                transparent: true, 
+                blending: THREE.AdditiveBlending,
+                color: currentColor
+            });
+            glowSprite = new THREE.Sprite(spriteMat);
+            glowSprite.scale.set(4, 4, 1);
+            glowSprite.renderOrder = 10; // Ensure glow is on top of everything
+            polyGroup.add(glowSprite);
+
+            // Internal Light
+            pointLight = new THREE.PointLight(currentColor, 1.5, 10);
+            polyGroup.add(pointLight);
+
+            // Initial Geometry
+            updateGeometry(6);
+
+            // Lighting
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(5, 5, 5);
+            scene.add(dirLight);
+            scene.add(new THREE.AmbientLight(0x444444));
+
+            // Event Listeners
+            window.addEventListener('mousedown', (e) => {
+                const isUI = e.target.closest('#controls') || e.target.closest('#ui-top');
+                if(!isUI) {
+                    handleMove(e.clientX, e.clientY);
+                }
+            });
+            window.addEventListener('resize', onWindowResize);
+            
+            document.getElementById('shapeSelect').addEventListener('change', (e) => {
+                updateGeometry(parseInt(e.target.value));
+            });
+            
+            document.getElementById('colorPicker').addEventListener('input', (e) => {
+                updateColors(e.target.value);
+            });
+
+            document.getElementById('opacitySlider').addEventListener('input', (e) => {
+                currentOpacity = parseFloat(e.target.value);
+                if (coreMesh) {
+                    coreMesh.material.opacity = currentOpacity;
+                    coreMesh.material.transparent = (currentOpacity < 1.0);
+                    coreMesh.material.needsUpdate = true;
+                }
+            });
+
+            animate();
+        }
+
+        function updateGeometry(faces) {
+            // Remove all existing parts
+            if (coreMesh) polyGroup.remove(coreMesh);
+            if (wireframeMesh) polyGroup.remove(wireframeMesh);
+            if (depthMesh) polyGroup.remove(depthMesh);
+
+            let geometry;
+            const size = 1.1;
+
+            switch(faces) {
+                case 4:  geometry = new THREE.TetrahedronGeometry(size); break;
+                case 8:  geometry = new THREE.OctahedronGeometry(size); break;
+                case 12: geometry = new THREE.DodecahedronGeometry(size); break;
+                case 20: geometry = new THREE.IcosahedronGeometry(size); break;
+                default: geometry = new THREE.BoxGeometry(size, size, size); break;
+            }
+
+            // 1. DEPTH PRE-PASS MESH (The Key Fix)
+            // This mesh is invisible but writes to the depth buffer.
+            // It ensures that only the front-most surface is drawn for the other meshes.
+            const depthMat = new THREE.MeshBasicMaterial({
+                colorWrite: false, // Don't draw pixels
+                side: THREE.FrontSide,
+                depthWrite: true
+            });
+            depthMesh = new THREE.Mesh(geometry, depthMat);
+            depthMesh.renderOrder = 1; // Render first
+            polyGroup.add(depthMesh);
+
+            // 2. CORE TRANSLUCENT MESH
+            const coreMat = new THREE.MeshPhongMaterial({
+                color: currentColor,
+                transparent: (currentOpacity < 1.0),
+                opacity: currentOpacity,
+                shininess: 80,
+                side: THREE.FrontSide, 
+                depthWrite: false // Don't overwrite the depth buffer we just set
+            });
+            coreMesh = new THREE.Mesh(geometry, coreMat);
+            coreMesh.renderOrder = 2; // Render after depth pass
+            polyGroup.add(coreMesh);
+
+            // 3. WIREFRAME EDGES
+            const edgeGeo = new THREE.EdgesGeometry(geometry);
+            const edgeMat = new THREE.LineBasicMaterial({ 
+                color: currentColor, 
+                linewidth: 2,
+                depthTest: true // This will now respect the Depth Pre-pass
+            });
+            wireframeMesh = new THREE.LineSegments(edgeGeo, edgeMat);
+            wireframeMesh.renderOrder = 3; // Render edges last
+            polyGroup.add(wireframeMesh);
+        }
+
+        function updateColors(hex) {
+            currentColor.set(hex);
+            if (coreMesh) coreMesh.material.color.set(currentColor);
+            if (wireframeMesh) wireframeMesh.material.color.set(currentColor);
+            if (glowSprite) glowSprite.material.color.set(currentColor);
+            if (pointLight) pointLight.color.set(currentColor);
+            document.querySelector('#opacitySlider').style.background = `linear-gradient(to right, ${hex}, #2a1b3d)`;
+        }
+
+        function handleMove(clientX, clientY) {
+            const vec = new THREE.Vector3();
+            const pos = new THREE.Vector3();
+
+            vec.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1, 0.5);
+            vec.unproject(camera);
+            vec.sub(camera.position).normalize();
+            const distance = -camera.position.z / vec.z;
+            pos.copy(camera.position).add(vec.multiplyScalar(distance));
+
+            const travelVector = new THREE.Vector3().subVectors(pos, polyGroup.position);
+            
+            if (travelVector.length() > 0.1) {
+                const zAxis = new THREE.Vector3(0, 0, 1);
+                moveRotationAxis.crossVectors(travelVector, zAxis).normalize();
+                moveRotationSpeed = Math.min(travelVector.length() * 0.15, 0.4);
+            }
+
+            targetPosition.copy(pos);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            polyGroup.position.lerp(targetPosition, 0.08);
+
+            if (moveRotationSpeed > 0.001) {
+                polyGroup.rotateOnWorldAxis(moveRotationAxis, moveRotationSpeed);
+                moveRotationSpeed *= 0.96;
+            }
+
+            polyGroup.rotation.x += IDLE_SPIN_SPEED;
+            polyGroup.rotation.y += IDLE_SPIN_SPEED;
+
+            const pulse = Math.sin(Date.now() * 0.005) * 0.4 + 3.8;
+            glowSprite.scale.set(pulse, pulse, 1);
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

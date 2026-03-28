@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glowing Translucent Polyhedron</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050208;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        #ui-top {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #d187ff;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(186, 73, 255, 0.5);
+            z-index: 10;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 10, 30, 0.85);
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(209, 135, 255, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 20;
+            backdrop-filter: blur(8px);
+            color: white;
+            width: 300px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        #controls::-webkit-scrollbar { width: 6px; }
+        #controls::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        #controls::-webkit-scrollbar-thumb { background: #4a2b6e; border-radius: 4px; }
+
+        /* Accordion Styling */
+        details {
+            background: rgba(42, 27, 61, 0.4);
+            border-radius: 6px;
+            border: 1px solid rgba(74, 43, 110, 0.5);
+            padding: 2px;
+        }
+        details[open] {
+            background: rgba(42, 27, 61, 0.8);
+            border-color: #4a2b6e;
+        }
+        summary {
+            cursor: pointer;
+            color: #d187ff;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            padding: 8px 10px;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        summary::-webkit-details-marker { display: none; }
+        summary::after {
+            content: '▼';
+            font-size: 0.6rem;
+            transition: transform 0.2s;
+        }
+        details[open] summary::after { transform: rotate(180deg); }
+        .details-content {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-top: 1px solid rgba(74, 43, 110, 0.3);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #d187ff;
+            font-weight: bold;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            text-transform: none;
+            color: #fff;
+        }
+        select, input[type="color"] {
+            background: #1a0b2e;
+            border: 1px solid #4a2b6e;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            outline: none;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #2a1b3d;
+            border-radius: 3px;
+            outline: none;
+            padding: 0;
+            margin: 6px 0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #bc13fe;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(188, 19, 254, 0.5);
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        input[type="color"] { height: 32px; padding: 2px; }
+
+        .dual-slider-container {
+            position: relative;
+            width: 100%;
+            height: 20px;
+            margin: 4px 0;
+        }
+        .dual-slider-track {
+            position: absolute;
+            top: 7px;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: #2a1b3d;
+            border-radius: 3px;
+        }
+        .dual-slider-fill {
+            position: absolute;
+            top: 7px;
+            height: 6px;
+            background: #bc13fe;
+            border-radius: 3px;
+        }
+        .dual-slider-container input[type="range"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            margin: 0;
+            background: transparent;
+            pointer-events: none;
+        }
+        .dual-slider-container input[type="range"]::-webkit-slider-thumb {
+            pointer-events: auto;
+            position: relative;
+            z-index: 2;
+        }
+        .dual-slider-container input[type="range"]::-webkit-slider-runnable-track {
+            background: transparent;
+            border: none;
+        }
+
+        .val-display {
+            font-size: 0.7rem;
+            color: #aaa;
+            font-family: monospace;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+        .editable-val {
+            cursor: text;
+            border-bottom: 1px dashed #bc13fe;
+            padding: 0 2px;
+            transition: all 0.2s;
+        }
+        .editable-val:hover {
+            color: #fff;
+            background: rgba(188, 19, 254, 0.2);
+            border-radius: 2px;
+        }
+        .edit-input {
+            background: #2a1b3d;
+            border: 1px solid #bc13fe;
+            color: white;
+            font-family: monospace;
+            font-size: 0.7rem;
+            outline: none;
+            border-radius: 2px;
+            text-align: center;
+            padding: 0 2px;
+            margin: 0;
+        }
+        .edit-input::-webkit-outer-spin-button, .edit-input::-webkit-inner-spin-button {
+            -webkit-appearance: none; margin: 0;
+        }
+        .edit-input[type=number] { -moz-appearance: textfield; }
+
+        .btn-action {
+            background: #2a1b3d;
+            border: 1px solid #bc13fe;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        .btn-action:hover { background: #bc13fe; box-shadow: 0 0 8px rgba(188, 19, 254, 0.6); }
+
+        .stepper-ui {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            background: #1a0b2e;
+            padding: 4px;
+            border-radius: 6px;
+            border: 1px solid #4a2b6e;
+        }
+        .stepper-ui button {
+            background: transparent;
+            border: 1px solid transparent;
+            color: #d187ff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .stepper-ui button:hover { background: rgba(188, 19, 254, 0.2); }
+        .stepper-ui .bookend { background: #2a1b3d; font-size: 1.1rem; padding: 4px 12px; }
+        .stepper-ui .bookend:hover { background: #4a2b6e; }
+        #step-buttons-container { display: flex; gap: 4px; flex-grow: 1; }
+        .step-stop { flex-grow: 1; font-size: 0.75rem; background: #2a1b3d !important; border: 1px solid #4a2b6e !important; }
+        .step-stop.active {
+            background: #bc13fe !important;
+            color: white !important;
+            box-shadow: 0 0 8px rgba(188, 19, 254, 0.6);
+            border-color: #d187ff !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-top">
+        <h1>Celestial Object</h1>
+        <p>Advanced Orbital Editor</p>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <select id="presetSelect">
+                <option value="default">Presets: Default Theme</option>
+                <option value="blackhole">Presets: Black Hole</option>
+                <option value="crystal">Presets: Pure Crystal</option>
+                <option value="neon">Presets: Neon Ghost</option>
+            </select>
+        </div>
+
+        <details open>
+            <summary>Geometry & Appearance</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <select id="shapeSelect">
+                        <option value="4">Tetrahedron (4)</option>
+                        <option value="6" selected>Hexahedron/Cube (6)</option>
+                        <option value="8">Octahedron (8)</option>
+                        <option value="12">Dodecahedron (12)</option>
+                        <option value="20">Icosahedron (20)</option>
+                    </select>
+                </div>
+                
+                <div class="control-row">
+                    <label>Master Color</label>
+                    <input type="color" id="masterColorPicker" value="#bc13fe" style="width: 50%;">
+                </div>
+
+                <details>
+                    <summary style="padding: 4px; font-size: 0.65rem; color: #aaa;">Specific Colors</summary>
+                    <div class="details-content" style="padding: 4px 0 0 0; border: none; gap: 4px;">
+                        <div class="control-row"><label style="font-size:0.6rem;">Faces</label><input type="color" id="faceColorPicker" value="#bc13fe" style="width: 60%;"></div>
+                        <div class="control-row"><label style="font-size:0.6rem;">Edges</label><input type="color" id="edgeColorPicker" value="#bc13fe" style="width: 60%;"></div>
+                        <div class="control-row"><label style="font-size:0.6rem;">Aura</label><input type="color" id="auraColorPicker" value="#bc13fe" style="width: 60%;"></div>
+                    </div>
+                </details>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Face Opacity</label>
+                        <div class="val-display"><span id="opacityVal">0.25</span></div>
+                    </div>
+                    <input type="range" id="opacitySlider" min="0" max="1" step="0.01" value="0.25">
+                </div>
+
+                <label class="checkbox-label"><input type="checkbox" id="maskToggle" checked> Hollow Core View</label>
+                <label class="checkbox-label"><input type="checkbox" id="interiorEdgesToggle" checked> Show Interior Edges</label>
+                <label class="checkbox-label"><input type="checkbox" id="specularToggle" checked> Specular Highlights</label>
+            </div>
+        </details>
+
+        <details>
+            <summary>Aura Core Settings</summary>
+            <div class="details-content">
+                <label class="checkbox-label"><input type="checkbox" id="auraToggle" checked> Enable Aura Glow</label>
+                
+                <div id="auraIntensityWrapper" class="control-group">
+                    <div class="control-row">
+                        <label>Intensity</label>
+                        <div class="val-display"><span id="auraVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="auraIntensity" min="0" max="3" step="0.01" value="1.0">
+                    
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label>Pulse Rate</label>
+                        <div class="val-display"><span id="pulseRateVal">0.005</span></div>
+                    </div>
+                    <input type="range" id="pulseRateSlider" min="0.001" max="0.02" step="0.001" value="0.005">
+                    
+                    <button class="btn-action" id="btn-spike" style="margin-top: 5px;">Spike Amplitude</button>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>Camera & Z-Scale</summary>
+            <div class="details-content">
+                <label class="checkbox-label"><input type="checkbox" id="orthoToggle"> Orthographic</label>
+                
+                <div class="control-group" id="fovGroup">
+                    <div class="control-row">
+                        <label>Perspective FOV</label>
+                        <div class="val-display"><span id="fovVal">45</span>&deg;</div>
+                    </div>
+                    <input type="range" id="fovSlider" min="10" max="120" step="1" value="45">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Scale Bounds</label>
+                        <div class="val-display">[<span id="rangeMinVal">0.25</span> - <span id="rangeMaxVal">3.00</span>]</div>
+                    </div>
+                    <div class="dual-slider-container">
+                        <div class="dual-slider-track"></div>
+                        <div class="dual-slider-fill" id="dualSliderFill"></div>
+                        <input type="range" id="rangeMin" min="0.25" max="3" value="0.25" step="0.01">
+                        <input type="range" id="rangeMax" min="0.25" max="3" value="3.0" step="0.01">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Z-Depth Scale</label>
+                        <div class="val-display"><span id="zDepthVal">1.10</span></div>
+                    </div>
+                    <input type="range" id="zDepthSlider" min="0.25" max="3" step="0.01" value="1.1">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Depth Stops</label>
+                        <div class="val-display"><span id="stepsVal">3</span> Steps</div>
+                    </div>
+                    <div class="stepper-ui">
+                        <button class="bookend" id="btn-step-minus">-</button>
+                        <div id="step-buttons-container"></div>
+                        <button class="bookend" id="btn-step-plus">+</button>
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details open>
+            <summary>Movement & Pathing</summary>
+            <div class="details-content">
+                <div class="control-row">
+                    <label class="checkbox-label"><input type="checkbox" id="pathToggle"> Auto-Path</label>
+                    <button class="btn-action" id="btn-pause" style="padding: 4px 8px;">Pause</button>
+                </div>
+
+                <div id="pathSettings" style="display: none; flex-direction: column; gap: 8px;">
+                    <div class="control-row">
+                        <label>Path Type</label>
+                        <select id="pathTypeSelect" style="width: auto; padding: 4px;">
+                            <option value="direct">Direct Path (Eased)</option>
+                            <option value="curve">Smooth Arcs</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-row">
+                            <label>Speed</label>
+                            <div class="val-display"><span id="speedVal">1.0</span>&nbsp;pc/s</div>
+                        </div>
+                        <input type="range" id="speedSlider" min="0.1" max="10.0" step="0.1" value="1.0">
+                    </div>
+                </div>
+            </div>
+        </details>
+    </div>
+
+    <script>
+        let scene, camera, perspCamera, orthoCamera, renderer, polyGroup, glowSprite, coreMesh, wireframeMesh, depthMesh, pointLight;
+        const frustumSize = 8; // Slightly larger frustum to handle zoom
+        
+        let faceColor = new THREE.Color(0xbc13fe);
+        let edgeColor = new THREE.Color(0xbc13fe);
+        let auraColor = new THREE.Color(0xbc13fe);
+        
+        let currentOpacity = 0.25;
+        const IDLE_SPIN_SPEED = 0.01;
+
+        let isAuraEnabled = true;
+        let auraIntensity = 1.0;
+        let auraPulseRate = 0.005;
+        let auraSpike = 0.0;
+        
+        let isMaskEnabled = true;
+        let isInteriorEdgesEnabled = true;
+        let isSpecularEnabled = true;
+
+        let depth_range = { min: 0.25, max: 3.0 };
+        let z_depth = 1.1; 
+        
+        // Manual Scale Anim
+        let scale_anim_active = false;
+        let target_z_depth = 1.1;
+        let scale_anim_start_val = 1.1;
+        let scale_anim_start_time = 0;
+        
+        let steps = 3; 
+        let active_step = -1; 
+
+        // Movement / Pathing State
+        let targetPosition = new THREE.Vector3(0, 0, 0);
+        let moveRotationAxis = new THREE.Vector3(0, 1, 0);
+        let moveRotationSpeed = 0;
+
+        let isPathEnabled = false;
+        let pathType = 'direct';
+        let isPaused = false;
+        let pathSpeed = 1.0; // pc/s
+        
+        // Define path coordinates (Z values are normalized offsets -1 to 1)
+        const pathPoints = [
+            new THREE.Vector3(-4, 2, -0.8),
+            new THREE.Vector3(4, 3, 0.5),
+            new THREE.Vector3(3, -3, 1.0),
+            new THREE.Vector3(-3, -2, -0.5)
+        ];
+        const smoothCurve = new THREE.CatmullRomCurve3(pathPoints, true); // Closed curve
+        let pathProgress = 0; // 0 to 1 for smooth curve
+        let currentPathIndex = 0; // index for direct path
+        let segmentProgress = 0; // 0 to 1 for direct path segment
+
+        // Generic function to turn spans into bound-checked text inputs
+        function makeEditable(id, getMin, getMax, isFloat, onChange) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.add('editable-val');
+            el.title = "Click to type value";
+
+            el.addEventListener('click', () => {
+                const currentVal = el.innerText;
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = isFloat ? '0.01' : '1';
+                input.value = currentVal;
+                input.className = 'edit-input';
+                
+                input.style.width = Math.max(4, currentVal.length + 1) + 'ch';
+                el.style.display = 'none';
+                el.parentNode.insertBefore(input, el);
+                input.focus();
+                input.select();
+
+                function commit() {
+                    let val = parseFloat(input.value);
+                    if (isNaN(val)) val = parseFloat(currentVal);
+                    const min = typeof getMin === 'function' ? getMin() : getMin;
+                    const max = typeof getMax === 'function' ? getMax() : getMax;
+                    val = Math.max(min, Math.min(max, val)); 
+                    
+                    el.innerText = isFloat ? val.toFixed(input.step.includes('.') ? input.step.split('.')[1].length : 0) : Math.round(val).toString();
+                    el.style.display = '';
+                    if(input.parentNode) input.parentNode.removeChild(input);
+                    onChange(val);
+                }
+
+                input.addEventListener('blur', commit);
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') {
+                        el.style.display = '';
+                        if(input.parentNode) input.parentNode.removeChild(input);
+                    }
+                });
+            });
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            
+            const aspect = window.innerWidth / window.innerHeight;
+            
+            perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+            perspCamera.position.z = 7.5;
+
+            orthoCamera = new THREE.OrthographicCamera(frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, 0.1, 1000);
+            orthoCamera.position.z = 5;
+
+            camera = perspCamera;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+
+            const gridHelper = new THREE.GridHelper(30, 30, 0x442266, 0x221133);
+            gridHelper.rotation.x = Math.PI / 2;
+            gridHelper.position.z = -3;
+            scene.add(gridHelper);
+
+            const starGeometry = new THREE.BufferGeometry();
+            const starCount = 600;
+            const posArray = new Float32Array(starCount * 3);
+            for(let i = 0; i < starCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 40;
+            }
+            starGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const starMaterial = new THREE.PointsMaterial({ size: 0.04, color: 0xffffff });
+            scene.add(new THREE.Points(starGeometry, starMaterial));
+
+            polyGroup = new THREE.Group();
+            scene.add(polyGroup);
+
+            // Setup Aura Sprite
+            const glowCanvas = document.createElement('canvas');
+            glowCanvas.width = 128; glowCanvas.height = 128;
+            const ctx = glowCanvas.getContext('2d');
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 128, 128);
+
+            const glowTexture = new THREE.CanvasTexture(glowCanvas);
+            const spriteMat = new THREE.SpriteMaterial({ 
+                map: glowTexture, transparent: true, blending: THREE.AdditiveBlending, color: auraColor, depthWrite: false
+            });
+            glowSprite = new THREE.Sprite(spriteMat);
+            scene.add(glowSprite); 
+
+            pointLight = new THREE.PointLight(0xffffff, 1.5, 10);
+            polyGroup.add(pointLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(5, 5, 5);
+            scene.add(dirLight);
+            scene.add(new THREE.AmbientLight(0x444444));
+
+            updateGeometry(6);
+            polyGroup.scale.set(z_depth, z_depth, z_depth);
+            updateDualSliderUI();
+            updateStepsUI();
+
+            setupEventListeners();
+            setupEditableLabels();
+
+            animate();
+        }
+
+        function setupEditableLabels() {
+            makeEditable('opacityVal', 0, 1, true, (val) => { document.getElementById('opacitySlider').value = val; updateOpacity(val); });
+            makeEditable('auraVal', 0, 3, true, (val) => { document.getElementById('auraIntensity').value = val; auraIntensity = val; });
+            makeEditable('pulseRateVal', 0.001, 0.02, true, (val) => { document.getElementById('pulseRateSlider').value = val; auraPulseRate = val; });
+            makeEditable('fovVal', 10, 120, false, (val) => { document.getElementById('fovSlider').value = val; updateFOV(val); });
+            makeEditable('rangeMinVal', 0.25, () => depth_range.max, true, (val) => { document.getElementById('rangeMin').value = val; depth_range.min = val; handleRangeChange(); });
+            makeEditable('rangeMaxVal', () => depth_range.min, 3.00, true, (val) => { document.getElementById('rangeMax').value = val; depth_range.max = val; handleRangeChange(); });
+            makeEditable('zDepthVal', () => depth_range.min, () => depth_range.max, true, (val) => { document.getElementById('zDepthSlider').value = val; z_depth = val; scale_anim_active = false; active_step = -1; updateStepsUI(); });
+            makeEditable('speedVal', 0.1, 10.0, true, (val) => { document.getElementById('speedSlider').value = val; pathSpeed = val; });
+        }
+
+        function setupEventListeners() {
+            window.addEventListener('mousedown', (e) => {
+                const isUI = e.target.closest('#controls') || e.target.closest('#ui-top');
+                if(!isUI && !isPathEnabled) handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener('resize', onWindowResize);
+            
+            document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));
+            document.getElementById('shapeSelect').addEventListener('change', (e) => updateGeometry(parseInt(e.target.value)));
+            
+            // Color Logic
+            document.getElementById('masterColorPicker').addEventListener('input', (e) => {
+                const hex = e.target.value;
+                document.getElementById('faceColorPicker').value = hex;
+                document.getElementById('edgeColorPicker').value = hex;
+                document.getElementById('auraColorPicker').value = hex;
+                faceColor.set(hex); edgeColor.set(hex); auraColor.set(hex);
+                updateColors();
+            });
+            document.getElementById('faceColorPicker').addEventListener('input', (e) => { faceColor.set(e.target.value); updateColors(); });
+            document.getElementById('edgeColorPicker').addEventListener('input', (e) => { edgeColor.set(e.target.value); updateColors(); });
+            document.getElementById('auraColorPicker').addEventListener('input', (e) => { auraColor.set(e.target.value); updateColors(); });
+
+            // Appearance Toggles
+            document.getElementById('opacitySlider').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                document.getElementById('opacityVal').innerText = val.toFixed(2);
+                updateOpacity(val);
+            });
+            document.getElementById('maskToggle').addEventListener('change', (e) => { isMaskEnabled = e.target.checked; updateOpacity(currentOpacity); });
+            document.getElementById('interiorEdgesToggle').addEventListener('change', (e) => {
+                isInteriorEdgesEnabled = e.target.checked;
+                if(depthMesh) depthMesh.visible = !isInteriorEdgesEnabled;
+                updateOpacity(currentOpacity); 
+            });
+            document.getElementById('specularToggle').addEventListener('change', (e) => { isSpecularEnabled = e.target.checked; updateOpacity(currentOpacity); });
+
+            // Aura Toggles
+            document.getElementById('auraToggle').addEventListener('change', (e) => {
+                isAuraEnabled = e.target.checked;
+                glowSprite.visible = isAuraEnabled;
+                document.getElementById('auraIntensityWrapper').style.display = isAuraEnabled ? 'flex' : 'none';
+            });
+            document.getElementById('auraIntensity').addEventListener('input', (e) => {
+                auraIntensity = parseFloat(e.target.value); document.getElementById('auraVal').innerText = auraIntensity.toFixed(2);
+            });
+            document.getElementById('pulseRateSlider').addEventListener('input', (e) => {
+                auraPulseRate = parseFloat(e.target.value); document.getElementById('pulseRateVal').innerText = auraPulseRate.toFixed(3);
+            });
+            document.getElementById('btn-spike').addEventListener('click', () => { auraSpike = 1.0; });
+
+            // Camera Toggles
+            document.getElementById('orthoToggle').addEventListener('change', (e) => {
+                camera = e.target.checked ? orthoCamera : perspCamera;
+                document.getElementById('fovGroup').style.opacity = e.target.checked ? '0.3' : '1';
+                document.getElementById('fovSlider').disabled = e.target.checked;
+            });
+            document.getElementById('fovSlider').addEventListener('input', (e) => {
+                const val = parseInt(e.target.value); document.getElementById('fovVal').innerText = val; updateFOV(val);
+            });
+
+            // Scale Ranges
+            const rangeMinInput = document.getElementById('rangeMin');
+            const rangeMaxInput = document.getElementById('rangeMax');
+            rangeMinInput.addEventListener('input', (e) => {
+                let minVal = parseFloat(e.target.value); let maxVal = parseFloat(rangeMaxInput.value);
+                if (minVal > maxVal) { minVal = maxVal; e.target.value = minVal; }
+                depth_range.min = minVal; handleRangeChange();
+            });
+            rangeMaxInput.addEventListener('input', (e) => {
+                let maxVal = parseFloat(e.target.value); let minVal = parseFloat(rangeMinInput.value);
+                if (maxVal < minVal) { maxVal = minVal; e.target.value = maxVal; }
+                depth_range.max = maxVal; handleRangeChange();
+            });
+            document.getElementById('zDepthSlider').addEventListener('input', (e) => {
+                scale_anim_active = false;
+                z_depth = parseFloat(e.target.value);
+                document.getElementById('zDepthVal').innerText = z_depth.toFixed(2);
+                active_step = -1; updateStepsUI();
+            });
+            document.getElementById('btn-step-minus').addEventListener('click', () => { if (steps > 2) { steps--; updateStepsUI(); }});
+            document.getElementById('btn-step-plus').addEventListener('click', () => { if (steps < 5) { steps++; updateStepsUI(); }});
+
+            // Path Controls
+            document.getElementById('pathToggle').addEventListener('change', (e) => {
+                isPathEnabled = e.target.checked;
+                document.getElementById('pathSettings').style.display = isPathEnabled ? 'flex' : 'none';
+                if(isPathEnabled) {
+                    polyGroup.position.set(0,0,0);
+                    targetPosition.copy(pathPoints[0]);
+                    pathProgress = 0; currentPathIndex = 0; segmentProgress = 0;
+                }
+            });
+            document.getElementById('btn-pause').addEventListener('click', (e) => {
+                isPaused = !isPaused;
+                e.target.innerText = isPaused ? "Resume" : "Pause";
+                e.target.style.background = isPaused ? "#bc13fe" : "";
+            });
+            document.getElementById('pathTypeSelect').addEventListener('change', (e) => { pathType = e.target.value; });
+            document.getElementById('speedSlider').addEventListener('input', (e) => {
+                pathSpeed = parseFloat(e.target.value); document.getElementById('speedVal').innerText = pathSpeed.toFixed(1);
+            });
+        }
+
+        function applyPreset(preset) {
+            const setUI = (id, val, strVal) => {
+                const el = document.getElementById(id);
+                if (el.type === 'checkbox') { el.checked = val; el.dispatchEvent(new Event('change')); }
+                else { el.value = val; if(strVal) document.getElementById(id.replace('Slider','Val').replace('Picker','Val')).innerText = strVal; el.dispatchEvent(new Event('input')); }
+            };
+
+            if (preset === 'blackhole') {
+                setUI('maskToggle', true); setUI('interiorEdgesToggle', false);
+                setUI('auraIntensity', 1.8, "1.80"); setUI('pulseRateSlider', 0.015, "0.015");
+                setUI('faceColorPicker', '#000000'); setUI('edgeColorPicker', '#bc13fe'); setUI('auraColorPicker', '#bc13fe');
+                setUI('opacitySlider', 1.0, "1.00");
+            } else if (preset === 'crystal') {
+                setUI('maskToggle', false); setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
+                setUI('auraIntensity', 0.8, "0.80"); setUI('pulseRateSlider', 0.002, "0.002");
+                setUI('faceColorPicker', '#00e5ff'); setUI('edgeColorPicker', '#ffffff'); setUI('auraColorPicker', '#00e5ff');
+                setUI('opacitySlider', 0.15, "0.15");
+            } else if (preset === 'neon') {
+                setUI('maskToggle', true); setUI('interiorEdgesToggle', true); setUI('specularToggle', false);
+                setUI('auraIntensity', 1.5, "1.50"); setUI('pulseRateSlider', 0.008, "0.008");
+                setUI('faceColorPicker', '#ff00ff'); setUI('edgeColorPicker', '#00ffcc'); setUI('auraColorPicker', '#ff00ff');
+                setUI('opacitySlider', 0.0, "0.00"); // completely transparent faces
+            } else { // Default
+                setUI('maskToggle', true); setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
+                setUI('auraIntensity', 1.0, "1.00"); setUI('pulseRateSlider', 0.005, "0.005");
+                document.getElementById('masterColorPicker').value = '#bc13fe';
+                document.getElementById('masterColorPicker').dispatchEvent(new Event('input'));
+                setUI('opacitySlider', 0.25, "0.25");
+            }
+        }
+
+        function updateFOV(val) {
+            perspCamera.fov = val;
+            perspCamera.updateProjectionMatrix();
+        }
+
+        function updateOpacity(val) {
+            currentOpacity = val;
+            if (coreMesh) {
+                const isSolid = currentOpacity >= 0.99;
+                if (isMaskEnabled) {
+                    coreMesh.visible = false;
+                } else {
+                    coreMesh.visible = true;
+                    coreMesh.material.opacity = currentOpacity;
+                    coreMesh.material.transparent = !isSolid;
+                    coreMesh.material.depthWrite = isSolid;
+                    coreMesh.material.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
+                    
+                    if (isSpecularEnabled) {
+                        coreMesh.material.specular = new THREE.Color(0x333333);
+                        coreMesh.material.shininess = 80;
+                    } else {
+                        coreMesh.material.specular = new THREE.Color(0x000000);
+                        coreMesh.material.shininess = 0;
+                    }
+                }
+                coreMesh.material.needsUpdate = true;
+            }
+        }
+
+        function handleRangeChange() {
+            updateDualSliderUI();
+            document.getElementById('rangeMinVal').innerText = depth_range.min.toFixed(2);
+            document.getElementById('rangeMaxVal').innerText = depth_range.max.toFixed(2);
+            const zSlider = document.getElementById('zDepthSlider');
+            zSlider.min = depth_range.min; zSlider.max = depth_range.max;
+            if (z_depth < depth_range.min) triggerScaleAnimation(depth_range.min, -1);
+            if (z_depth > depth_range.max) triggerScaleAnimation(depth_range.max, -1);
+            updateStepsUI();
+        }
+
+        function updateDualSliderUI() {
+            const minInput = document.getElementById('rangeMin');
+            const maxInput = document.getElementById('rangeMax');
+            const fill = document.getElementById('dualSliderFill');
+            const totalRange = parseFloat(minInput.max) - parseFloat(minInput.min);
+            const percentMin = ((depth_range.min - parseFloat(minInput.min)) / totalRange) * 100;
+            const percentMax = ((depth_range.max - parseFloat(minInput.min)) / totalRange) * 100;
+            fill.style.left = percentMin + '%';
+            fill.style.width = (percentMax - percentMin) + '%';
+        }
+
+        function getDepthStops() {
+            let stops = [];
+            for (let i = 0; i < steps; i++) {
+                let t = i / (steps - 1);
+                stops.push(depth_range.min + t * (depth_range.max - depth_range.min));
+            }
+            return stops;
+        }
+
+        function updateStepsUI() {
+            document.getElementById('stepsVal').innerText = steps;
+            const container = document.getElementById('step-buttons-container');
+            container.innerHTML = '';
+            const stops = getDepthStops();
+            for (let i = 0; i < steps; i++) {
+                const btn = document.createElement('button');
+                btn.className = `step-stop ${i === active_step ? 'active' : ''}`;
+                btn.innerText = `S${i+1}`;
+                btn.title = `Scale: ${stops[i].toFixed(2)}`;
+                btn.onclick = () => { active_step = i; updateStepsUI(); triggerScaleAnimation(stops[i], i); };
+                container.appendChild(btn);
+            }
+        }
+
+        function triggerScaleAnimation(target_scale, step_index) {
+            if (Math.abs(z_depth - target_scale) < 0.001) return;
+            active_step = step_index;
+            target_z_depth = target_scale;
+            scale_anim_start_val = z_depth;
+            scale_anim_start_time = performance.now();
+            scale_anim_active = true;
+        }
+
+        function updateGeometry(faces) {
+            if (coreMesh) polyGroup.remove(coreMesh);
+            if (wireframeMesh) polyGroup.remove(wireframeMesh);
+            if (depthMesh) polyGroup.remove(depthMesh);
+
+            let geometry; const size = 1.0; 
+            switch(faces) {
+                case 4: geometry = new THREE.TetrahedronGeometry(size); break;
+                case 8: geometry = new THREE.OctahedronGeometry(size); break;
+                case 12: geometry = new THREE.DodecahedronGeometry(size); break;
+                case 20: geometry = new THREE.IcosahedronGeometry(size); break;
+                default: geometry = new THREE.BoxGeometry(size, size, size); break;
+            }
+
+            const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.FrontSide, depthWrite: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+            depthMesh = new THREE.Mesh(geometry, depthMat);
+            depthMesh.renderOrder = 2; 
+            depthMesh.visible = !isInteriorEdgesEnabled;
+            polyGroup.add(depthMesh);
+
+            const isSolid = currentOpacity >= 0.99;
+            const coreMat = new THREE.MeshPhongMaterial({
+                color: faceColor, transparent: !isSolid, opacity: currentOpacity,
+                shininess: isSpecularEnabled ? 80 : 0, specular: isSpecularEnabled ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
+                side: isSolid ? THREE.FrontSide : THREE.DoubleSide, depthWrite: isSolid, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+            });
+            coreMesh = new THREE.Mesh(geometry, coreMat);
+            coreMesh.renderOrder = 3; 
+            coreMesh.visible = !isMaskEnabled; 
+            polyGroup.add(coreMesh);
+
+            const edgeGeo = new THREE.EdgesGeometry(geometry);
+            const edgeMat = new THREE.LineBasicMaterial({ color: edgeColor, linewidth: 2, depthTest: true });
+            wireframeMesh = new THREE.LineSegments(edgeGeo, edgeMat);
+            wireframeMesh.renderOrder = 4; 
+            polyGroup.add(wireframeMesh);
+            
+            updateColors(); // sync lighting
+        }
+
+        function updateColors() {
+            if (coreMesh) coreMesh.material.color.copy(faceColor);
+            if (wireframeMesh) wireframeMesh.material.color.copy(edgeColor);
+            if (glowSprite) glowSprite.material.color.copy(auraColor);
+            if (pointLight) pointLight.color.copy(faceColor);
+            
+            // UI Sync
+            document.querySelector('#opacitySlider').style.background = `linear-gradient(to right, #${faceColor.getHexString()}, #2a1b3d)`;
+            document.querySelector('.dual-slider-fill').style.background = `#${edgeColor.getHexString()}`;
+        }
+
+        function handleMove(clientX, clientY) {
+            const mouse = new THREE.Vector2((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+            const pos = new THREE.Vector3();
+            if (raycaster.ray.intersectPlane(plane, pos)) {
+                const travelVector = new THREE.Vector3().subVectors(pos, polyGroup.position);
+                if (travelVector.length() > 0.1) {
+                    moveRotationAxis.crossVectors(travelVector, new THREE.Vector3(0, 0, 1)).normalize();
+                    moveRotationSpeed = Math.min(travelVector.length() * 0.15, 0.4);
+                }
+                targetPosition.copy(pos);
+            }
+        }
+
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            perspCamera.aspect = aspect; perspCamera.updateProjectionMatrix();
+            orthoCamera.left = -frustumSize * aspect / 2; orthoCamera.right = frustumSize * aspect / 2;
+            orthoCamera.top = frustumSize / 2; orthoCamera.bottom = -frustumSize / 2; orthoCamera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let dt = 0.016; // approx 60fps delta
+
+            // --- MOVEMENT & PATHING ---
+            if (!isPaused) {
+                if (isPathEnabled) {
+                    // Normalize the path's generic Z (-1 to 1) relative to current Z-Depth allowable range 
+                    // This pushes the "plane" forward or backward
+                    let pathZOffset = ((z_depth - depth_range.min) / (depth_range.max - depth_range.min)) * 2.0 - 1.0; 
+                    
+                    if (pathType === 'curve') {
+                        // Constant Speed along smooth curve
+                        pathProgress += (pathSpeed * 0.02) * dt; 
+                        if (pathProgress > 1) pathProgress -= 1;
+                        let rawPt = smoothCurve.getPointAt(pathProgress);
+                        targetPosition.set(rawPt.x, rawPt.y, rawPt.z + pathZOffset);
+                        
+                        // Look ahead for rotation logic
+                        let nextPt = smoothCurve.getPointAt((pathProgress + 0.01) % 1);
+                        let travelVector = new THREE.Vector3().subVectors(nextPt, rawPt);
+                        moveRotationAxis.crossVectors(travelVector, new THREE.Vector3(0, 0, 1)).normalize();
+                        moveRotationSpeed = 0.1; 
+
+                    } else {
+                        // Direct Path with Sine Easing (Peak Speed in middle)
+                        let p0 = pathPoints[currentPathIndex];
+                        let p1 = pathPoints[(currentPathIndex + 1) % pathPoints.length];
+                        let segmentLength = p0.distanceTo(p1);
+                        
+                        // Increment progress. The Sine easing ensures it starts slow, peaks at "speed", and ends slow.
+                        segmentProgress += (pathSpeed * 1.5 / segmentLength) * dt; 
+                        
+                        if (segmentProgress >= 1.0) {
+                            segmentProgress = 0;
+                            currentPathIndex = (currentPathIndex + 1) % pathPoints.length;
+                        } else {
+                            // Ease in out using Sine
+                            let easedT = Math.sin((segmentProgress - 0.5) * Math.PI) * 0.5 + 0.5; 
+                            let rawPt = new THREE.Vector3().copy(p0).lerp(p1, easedT);
+                            targetPosition.set(rawPt.x, rawPt.y, rawPt.z + pathZOffset);
+                            
+                            // Rotation push
+                            let travelVector = new THREE.Vector3().subVectors(p1, p0);
+                            moveRotationAxis.crossVectors(travelVector, new THREE.Vector3(0, 0, 1)).normalize();
+                            // Spin faster during peak speed
+                            moveRotationSpeed = Math.sin(segmentProgress * Math.PI) * 0.2; 
+                        }
+                    }
+                    polyGroup.position.lerp(targetPosition, 0.2); // Tight lerp to path
+                } else {
+                    polyGroup.position.lerp(targetPosition, 0.08); // Loose lerp for mouse dragging
+                }
+
+                // Rotations
+                if (moveRotationSpeed > 0.001) {
+                    polyGroup.rotateOnWorldAxis(moveRotationAxis, moveRotationSpeed);
+                    if(!isPathEnabled) moveRotationSpeed *= 0.96; // decay if manual
+                }
+                polyGroup.rotation.x += IDLE_SPIN_SPEED;
+                polyGroup.rotation.y += IDLE_SPIN_SPEED;
+            }
+
+            // --- Z-DEPTH SCALE INTERPOLATION ---
+            if (scale_anim_active) {
+                const elapsed = performance.now() - scale_anim_start_time;
+                // Base the travel time strictly on 2000ms interpolation so it matches the old slider feel
+                const progress = Math.min(elapsed / 2000, 1.0);
+                const ease = progress * progress * (3 - 2 * progress); 
+                z_depth = scale_anim_start_val + (target_z_depth - scale_anim_start_val) * ease;
+                
+                document.getElementById('zDepthSlider').value = z_depth;
+                document.getElementById('zDepthVal').innerText = z_depth.toFixed(2);
+
+                if (progress >= 1.0) { z_depth = target_z_depth; scale_anim_active = false; }
+            }
+            polyGroup.scale.set(z_depth, z_depth, z_depth);
+
+            // --- AURA EFFECTS ---
+            if (isAuraEnabled && glowSprite) {
+                // Decay spike
+                auraSpike *= 0.92;
+
+                const baseScale = 4.0 * auraIntensity * z_depth;
+                const pulseOffset = Math.sin(Date.now() * auraPulseRate) * (0.4 * auraIntensity) * z_depth;
+                const spikeBonus = baseScale * 0.10 * auraSpike; // 10% peak amplitude jump
+                
+                let finalScale = baseScale + pulseOffset + spikeBonus;
+
+                if (isMaskEnabled) {
+                    const pushBackDist = 5.0; 
+                    if (camera.isPerspectiveCamera) {
+                        const sightLine = new THREE.Vector3().subVectors(polyGroup.position, camera.position).normalize();
+                        glowSprite.position.copy(polyGroup.position).addScaledVector(sightLine, pushBackDist);
+                        const distToObject = camera.position.distanceTo(polyGroup.position);
+                        const distToAura = camera.position.distanceTo(glowSprite.position);
+                        finalScale *= (distToAura / distToObject);
+                    } else {
+                        let camDir = new THREE.Vector3();
+                        camera.getWorldDirection(camDir);
+                        glowSprite.position.copy(polyGroup.position).addScaledVector(camDir, pushBackDist);
+                    }
+                } else {
+                    glowSprite.position.copy(polyGroup.position);
+                }
+                glowSprite.scale.set(finalScale, finalScale, 1);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
