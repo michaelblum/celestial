@@ -95,6 +95,18 @@ export interface OortCloudComponent {
   opacity: number
 }
 
+export interface GalaxyComponent {
+  type: 'galaxy'
+  armCount: number
+  twist: number
+  spread: number
+  starCount: number
+  radius: number
+  bulgeSize: number
+  innerColor: string
+  outerColor: string
+}
+
 // ─── Component Union ────────────────────────────────────────────────────────
 
 export type Component =
@@ -106,6 +118,7 @@ export type Component =
   | ImpostorComponent
   | AlienTechComponent
   | OortCloudComponent
+  | GalaxyComponent
 
 export type ComponentType = Component['type']
 
@@ -129,6 +142,8 @@ export interface Entity {
   type: EntityType
   parentId: string | null
   childIds: string[]
+  mass: number
+  size: number
   components: Record<string, Component>
 }
 
