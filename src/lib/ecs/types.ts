@@ -116,6 +116,7 @@ export type EntityType =
   | 'planet'
   | 'moon'
   | 'nebula'
+  | 'galaxy'
   | 'oort-cloud'
   | 'alien-tech'
   | 'placeholder'

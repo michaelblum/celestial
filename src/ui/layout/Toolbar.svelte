@@ -12,6 +12,7 @@
     { type: 'star', icon: '★', label: 'Star' },
     { type: 'planet', icon: '●', label: 'Planet' },
     { type: 'nebula', icon: '☁', label: 'Nebula' },
+    { type: 'galaxy', icon: '🌀', label: 'Galaxy' },
     { type: 'alien-tech', icon: '◆', label: 'Alien Tech' },
   ]
 

@@ -7,6 +7,7 @@ import { generateStar, defaultStarConfig } from '@lib/generators/StarGenerator'
 import { generatePlanet, defaultPlanetConfig } from '@lib/generators/PlanetGenerator'
 import { generateNebula, defaultNebulaConfig } from '@lib/generators/NebulaGenerator'
 import { generateAlienTech, defaultAlienTechConfig } from '@lib/generators/AlienTechGenerator'
+import { generateGalaxy, defaultGalaxyConfig } from '@lib/generators/GalaxyGenerator'
 import { createOrbitPath, getOrbitalPosition, defaultOrbitalConfig } from '@lib/generators/OrbitalSystem'
 import { LODManager } from '@lib/impostor/LODManager'
 import type { AlienTechComponent, OrbitalComponent } from '@lib/ecs/types'
@@ -326,6 +327,16 @@ function buildThreeObject(entity: Entity): THREE.Group {
     return group
   }
 
+  // Galaxy
+  if (type === 'galaxy') {
+    const galaxyConfig = defaultGalaxyConfig()
+    const group = generateGalaxy(galaxyConfig)
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh || child instanceof THREE.Points) child.userData.entityId = entity.id
+    })
+    return group
+  }
+
   // Alien Tech
   if (type === 'alien-tech') {
     const techComp = (entity.components['alien-tech'] as AlienTechComponent) ?? defaultAlienTechConfig()
@@ -408,6 +419,7 @@ function getEntityColor(type: EntityType): number {
     case 'planet': return 0x4488ff
     case 'moon': return 0x888888
     case 'nebula': return 0xff44aa
+    case 'galaxy': return 0xaabb44
     case 'oort-cloud': return 0x446688
     case 'alien-tech': return 0x44ffaa
     case 'placeholder': return 0x666666
