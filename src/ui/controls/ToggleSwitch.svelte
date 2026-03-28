@@ -11,18 +11,47 @@
 </script>
 
 <label class="flex items-center justify-between gap-3 cursor-pointer group">
-  <span class="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">{label}</span>
+  <span class="text-xs transition-colors" style="color: var(--label)">{label}</span>
   <button
     type="button"
     role="switch"
     aria-checked={checked}
     onclick={() => { checked = !checked; onchange?.(checked) }}
-    class="relative w-9 h-5 rounded-full transition-colors duration-200
-           {checked ? 'bg-violet-500' : 'bg-white/15'}"
+    class="toggle"
+    class:active={checked}
   >
-    <span
-      class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200
-             {checked ? 'translate-x-4' : 'translate-x-0'}"
-    ></span>
+    <span class="toggle-thumb" class:on={checked}></span>
   </button>
 </label>
+
+<style>
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--bg-control-hover);
+    border: 1px solid var(--border-control);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .toggle.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  .toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease;
+  }
+  .toggle-thumb.on {
+    transform: translateX(16px);
+  }
+</style>

@@ -11,14 +11,26 @@
 </script>
 
 <div class="flex items-center justify-between gap-2">
-  <span class="text-xs text-gray-400">{label}</span>
+  <span class="text-xs" style="color: var(--label)">{label}</span>
   <div class="flex items-center gap-2">
     <input
       type="color"
       bind:value
       oninput={() => oninput?.(value)}
-      class="w-6 h-6 rounded cursor-pointer bg-transparent border border-white/10 p-0"
+      class="color-input"
     />
-    <span class="text-[10px] text-gray-500 font-mono w-16">{value}</span>
+    <span class="text-[10px] font-mono w-16" style="color: var(--text-muted)">{value}</span>
   </div>
 </div>
+
+<style>
+  .color-input {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--bg-control);
+    border: 1px solid var(--border-control);
+    padding: 0;
+  }
+</style>

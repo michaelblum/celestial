@@ -18,8 +18,8 @@
 
 <div class="flex flex-col gap-1">
   <div class="flex justify-between text-xs">
-    <span class="text-gray-400">{label}</span>
-    <span class="text-gray-300 font-mono tabular-nums">{value.toFixed(step < 1 ? 2 : 0)}</span>
+    <span style="color: var(--label)">{label}</span>
+    <span class="font-mono tabular-nums" style="color: var(--text-muted)">{value.toFixed(step < 1 ? 2 : 0)}</span>
   </div>
   <input
     type="range"
@@ -28,10 +28,32 @@
     {max}
     {step}
     oninput={() => oninput?.(value)}
-    class="w-full h-1.5 rounded-full appearance-none cursor-pointer
-           bg-white/10 accent-violet-500
-           [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-           [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-violet-400
-           [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer"
+    class="slider"
   />
 </div>
+
+<style>
+  .slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    appearance: none;
+    cursor: pointer;
+    background: var(--bg-control-hover);
+    outline: none;
+    margin: 6px 0;
+  }
+  .slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 5px var(--accent-glow);
+    transition: transform 0.1s ease;
+  }
+  .slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+</style>
