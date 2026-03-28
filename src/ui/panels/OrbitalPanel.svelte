@@ -17,7 +17,7 @@
 
 {#if comp}
   <div class="flex flex-col gap-3">
-    <h3 class="text-xs uppercase tracking-wider text-gray-500 font-semibold border-b border-white/5 pb-1">
+    <h3 class="section-heading">
       Orbit
     </h3>
 

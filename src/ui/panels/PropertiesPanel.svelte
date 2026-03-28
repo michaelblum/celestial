@@ -48,7 +48,7 @@
     <!-- Entity Info -->
     <div class="flex flex-col gap-1">
       <div class="flex items-center gap-2">
-        <span class="text-xs uppercase tracking-wider text-violet-400 font-semibold">
+        <span class="text-xs uppercase tracking-wider font-semibold" style="color: var(--label)">
           {selectedEntity.type}
         </span>
       </div>
@@ -58,14 +58,14 @@
         oninput={(e) => {
           if (selectedEntity) selectedEntity.name = (e.target as HTMLInputElement).value
         }}
-        class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-gray-100
-               focus:outline-none focus:border-violet-500/50 w-full"
+        class="rounded-lg px-3 py-1.5 text-sm w-full outline-none"
+        style="background: var(--bg-control); border: 1px solid var(--border-control); color: var(--text-primary)"
       />
     </div>
 
     <!-- Mass & Size -->
     <div class="flex flex-col gap-3">
-      <h3 class="text-xs uppercase tracking-wider text-gray-500 font-semibold border-b border-white/5 pb-1">
+      <h3 class="section-heading">
         Physics
       </h3>
       <SliderControl
@@ -89,7 +89,7 @@
     <!-- Transform -->
     {#if transform}
       <div class="flex flex-col gap-3">
-        <h3 class="text-xs uppercase tracking-wider text-gray-500 font-semibold border-b border-white/5 pb-1">
+        <h3 class="section-heading">
           Transform
         </h3>
 
@@ -99,11 +99,11 @@
           {@const isScale = field === 'scale'}
 
           <div class="flex flex-col gap-1.5">
-            <span class="text-[10px] text-gray-500 uppercase tracking-wider">{field}</span>
+            <span class="text-[10px] uppercase tracking-wider" style="color: var(--icon-default)">{field}</span>
             <div class="grid grid-cols-3 gap-2">
               {#each labels as label, i}
                 <div class="flex flex-col gap-0.5">
-                  <span class="text-[10px] text-gray-600">{label}</span>
+                  <span class="text-[10px]" style="color: var(--text-muted)">{label}</span>
                   <input
                     type="number"
                     value={values[i]}
@@ -115,9 +115,8 @@
                         parseFloat((e.target as HTMLInputElement).value) || 0
                       )
                     }}
-                    class="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs
-                           text-gray-200 font-mono tabular-nums
-                           focus:outline-none focus:border-violet-500/50"
+                    class="w-full rounded px-2 py-1 text-xs font-mono tabular-nums outline-none"
+                    style="background: var(--bg-control); border: 1px solid var(--border-control); color: var(--text-primary)"
                   />
                 </div>
               {/each}
