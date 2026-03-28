@@ -35,7 +35,10 @@
     const selectedEntity = selectedId ? getGraph().get(selectedId) : null
 
     if (type === 'planet' && selectedEntity?.type === 'star') {
-      const orbitRadius = 3 + Math.random() * 5
+      // Minimum orbit radius = star size + planet size + gap
+      const starEntity = selectedEntity
+      const minOrbit = (starEntity?.size ?? 2.0) + 1.5
+      const orbitRadius = minOrbit + Math.random() * 5
       const orbital = defaultOrbitalConfig(orbitRadius)
 
       addEntity(type, undefined, selectedId, {
@@ -55,11 +58,45 @@
       return
     }
 
-    const offset = Math.random() * 8 - 4
+    // Default: find a non-overlapping position
+    const newSize = type === 'star' ? 2.0 : type === 'nebula' ? 4.0 : type === 'galaxy' ? 12.0 : type === 'alien-tech' ? 3.0 : 1.0
+    let position: [number, number, number] = [
+      Math.random() * 8 - 4,
+      Math.random() * 2 - 1,
+      Math.random() * 4 - 2,
+    ]
+
+    // Push away from existing entities if overlapping
+    const existing = getEntities()
+    for (let attempt = 0; attempt < 10; attempt++) {
+      let overlapping = false
+      for (const other of existing) {
+        const otherObj = getThreeObject(other.id)
+        if (!otherObj) continue
+        const otherPos = otherObj.position
+        const dx = position[0] - otherPos.x
+        const dy = position[1] - otherPos.y
+        const dz = position[2] - otherPos.z
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const minDist = ((other.size ?? 1.0) + newSize) * 1.2
+        if (dist < minDist) {
+          overlapping = true
+          // Push outward
+          position = [
+            position[0] + (Math.random() - 0.5) * minDist * 2,
+            position[1] + (Math.random() - 0.5) * 2,
+            position[2] + (Math.random() - 0.5) * minDist * 2,
+          ]
+          break
+        }
+      }
+      if (!overlapping) break
+    }
+
     addEntity(type, undefined, null, {
       transform: {
         type: 'transform',
-        position: [offset, Math.random() * 2 - 1, Math.random() * 4 - 2],
+        position,
         rotation: [0, 0, 0],
         scale: [1, 1, 1],
       },
