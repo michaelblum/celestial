@@ -144,6 +144,7 @@ export interface Entity {
   childIds: string[]
   mass: number
   size: number
+  velocity: number
   components: Record<string, Component>
 }
 

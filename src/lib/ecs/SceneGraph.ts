@@ -51,14 +51,26 @@ export class SceneGraph {
       'placeholder': 1.0,
     }
 
+    const defaultMasses: Record<string, number> = {
+      'star': 333000,
+      'planet': 1.0,
+      'moon': 0.012,
+      'nebula': 0.001,
+      'galaxy': 1000000000,
+      'alien-tech': 100,
+      'oort-cloud': 0.001,
+      'placeholder': 1.0,
+    }
+
     const entity: Entity = {
       id,
       name: name ?? `${defaultNames[type]} ${this.entities.size + 1}`,
       type,
       parentId: parentId ?? null,
       childIds: [],
-      mass: 1.0,
+      mass: defaultMasses[type] ?? 1.0,
       size: defaultSizes[type] ?? 1.0,
+      velocity: 0,
       components: {
         transform: defaultTransform(),
         ...components,
