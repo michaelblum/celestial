@@ -40,6 +40,17 @@ export class SceneGraph {
     components?: Record<string, Component>
   ): Entity {
     const id = generateId()
+    const defaultSizes: Record<string, number> = {
+      'star': 2.0,
+      'planet': 1.0,
+      'moon': 0.5,
+      'nebula': 4.0,
+      'galaxy': 12.0,
+      'alien-tech': 3.0,
+      'oort-cloud': 5.0,
+      'placeholder': 1.0,
+    }
+
     const entity: Entity = {
       id,
       name: name ?? `${defaultNames[type]} ${this.entities.size + 1}`,
@@ -47,7 +58,7 @@ export class SceneGraph {
       parentId: parentId ?? null,
       childIds: [],
       mass: 1.0,
-      size: 1.0,
+      size: defaultSizes[type] ?? 1.0,
       components: {
         transform: defaultTransform(),
         ...components,

@@ -469,79 +469,87 @@ export function clearScene(): void {
 
 function buildThreeObject(entity: Entity): THREE.Group {
   const type = entity.type
+  let group: THREE.Group
 
   // Star
   if (type === 'star') {
     const starComp = (entity.components['star'] as StarComponent) ?? defaultStarConfig()
     if (!entity.components['star']) entity.components['star'] = starComp
-    const group = generateStar(starComp)
+    group = generateStar(starComp)
     // Tag meshes with entityId for raycasting
     group.traverse((child) => {
       if (child instanceof THREE.Mesh) child.userData.entityId = entity.id
     })
-    return group
-  }
 
   // Planet
-  if (type === 'planet' || type === 'moon') {
+  } else if (type === 'planet' || type === 'moon') {
     const planetComp = (entity.components['planet'] as PlanetComponent) ?? defaultPlanetConfig()
     if (!entity.components['planet']) entity.components['planet'] = planetComp
-    const group = generatePlanet(planetComp)
+    group = generatePlanet(planetComp)
     group.traverse((child) => {
       if (child instanceof THREE.Mesh) child.userData.entityId = entity.id
     })
-    return group
-  }
 
   // Nebula
-  if (type === 'nebula') {
+  } else if (type === 'nebula') {
     const nebulaComp = (entity.components['nebula'] as NebulaComponent) ?? defaultNebulaConfig()
     if (!entity.components['nebula']) entity.components['nebula'] = nebulaComp
-    const group = generateNebula(nebulaComp)
+    group = generateNebula(nebulaComp)
     group.traverse((child) => {
       if (child instanceof THREE.Mesh || child instanceof THREE.Points) child.userData.entityId = entity.id
     })
-    return group
-  }
 
   // Galaxy
-  if (type === 'galaxy') {
+  } else if (type === 'galaxy') {
     const galaxyComp = (entity.components['galaxy'] as GalaxyComponent) ?? {
       type: 'galaxy' as const,
       ...defaultGalaxyConfig(),
     }
     if (!entity.components['galaxy']) entity.components['galaxy'] = galaxyComp
-    const group = generateGalaxy(galaxyComp)
+    group = generateGalaxy(galaxyComp)
     group.traverse((child) => {
       if (child instanceof THREE.Mesh || child instanceof THREE.Points) child.userData.entityId = entity.id
     })
-    return group
-  }
 
   // Alien Tech
-  if (type === 'alien-tech') {
+  } else if (type === 'alien-tech') {
     const techComp = (entity.components['alien-tech'] as AlienTechComponent) ?? defaultAlienTechConfig()
     if (!entity.components['alien-tech']) entity.components['alien-tech'] = techComp
-    const group = generateAlienTech(techComp)
+    group = generateAlienTech(techComp)
     group.traverse((child) => {
       if (child instanceof THREE.Mesh) child.userData.entityId = entity.id
     })
-    return group
-  }
 
   // Fallback: placeholder icosahedron
-  const group = new THREE.Group()
-  const geo = new THREE.IcosahedronGeometry(0.8, 1)
-  const mat = new THREE.MeshStandardMaterial({
-    color: getEntityColor(type),
-    roughness: 0.4,
-    metalness: 0.3,
-    emissive: getEntityColor(type),
-    emissiveIntensity: 0.15,
+  } else {
+    group = new THREE.Group()
+    const geo = new THREE.IcosahedronGeometry(0.8, 1)
+    const mat = new THREE.MeshStandardMaterial({
+      color: getEntityColor(type),
+      roughness: 0.4,
+      metalness: 0.3,
+      emissive: getEntityColor(type),
+      emissiveIntensity: 0.15,
+    })
+    const mesh = new THREE.Mesh(geo, mat)
+    mesh.userData.entityId = entity.id
+    group.add(mesh)
+  }
+
+  // Add invisible bounding sphere to ALL entities (transparent so raycasting still works)
+  const boundRadius = entity.size ?? 1.0
+  const boundGeo = new THREE.SphereGeometry(boundRadius, 8, 6)
+  const boundMat = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
   })
-  const mesh = new THREE.Mesh(geo, mat)
-  mesh.userData.entityId = entity.id
-  group.add(mesh)
+  const boundMesh = new THREE.Mesh(boundGeo, boundMat)
+  boundMesh.name = 'bounding-sphere'
+  boundMesh.userData.entityId = entity.id
+  boundMesh.userData.isBoundingSphere = true
+  group.add(boundMesh)
+
   return group
 }
 
