@@ -85,17 +85,27 @@ function applyHighlight(entityId: string): void {
   if (!obj) return
 
   obj.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-      highlightedMesh = child
-      originalEmissiveIntensity = child.material.emissiveIntensity
-      child.material.emissiveIntensity = 0.6
+    if (child instanceof THREE.Mesh && !child.userData.isBoundingSphere) {
+      if (child.material instanceof THREE.MeshStandardMaterial) {
+        highlightedMesh = child
+        originalEmissiveIntensity = child.material.emissiveIntensity
+        child.material.emissiveIntensity = Math.max(child.material.emissiveIntensity + 0.4, 0.6)
+      } else if (child.material instanceof THREE.ShaderMaterial && child.material.uniforms) {
+        highlightedMesh = child
+        // Store original values for restore
+        originalEmissiveIntensity = 0
+        // No direct emissive on ShaderMaterial — skip visual highlight for now
+        // The bounding sphere selection itself is the feedback
+      }
     }
   })
 }
 
 function clearHighlight(): void {
-  if (highlightedMesh && highlightedMesh.material instanceof THREE.MeshStandardMaterial) {
-    highlightedMesh.material.emissiveIntensity = originalEmissiveIntensity
+  if (highlightedMesh) {
+    if (highlightedMesh.material instanceof THREE.MeshStandardMaterial) {
+      highlightedMesh.material.emissiveIntensity = originalEmissiveIntensity
+    }
   }
   highlightedMesh = null
 }
