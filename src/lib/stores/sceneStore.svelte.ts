@@ -10,6 +10,7 @@ import { generateAlienTech, defaultAlienTechConfig } from '@lib/generators/Alien
 import { generateGalaxy, defaultGalaxyConfig } from '@lib/generators/GalaxyGenerator'
 import { createOrbitPath, getOrbitalPosition, defaultOrbitalConfig } from '@lib/generators/OrbitalSystem'
 import { LODManager } from '@lib/impostor/LODManager'
+import { luminosity, isBlackHole, orbitalPeriod, escapeVelocity } from '@lib/physics/PhysicsProperties'
 import type { AlienTechComponent, OrbitalComponent } from '@lib/ecs/types'
 
 // ─── Reactive State ─────────────────────────────────────────────────────────
@@ -182,6 +183,60 @@ export function updateComponent(entityId: string, component: Component): void {
   sync()
 }
 
+/** Update a top-level entity field (mass, size, velocity) with cascading physics effects */
+export function updateEntityField(entityId: string, field: 'mass' | 'size' | 'velocity', value: number): void {
+  const entity = graph.get(entityId)
+  if (!entity) return
+
+  entity[field] = value
+
+  // Cascade 1: Star luminosity → corona uniforms
+  if (entity.type === 'star' && (field === 'mass' || field === 'size')) {
+    const starComp = entity.components['star'] as StarComponent | undefined
+    if (starComp) {
+      const lum = luminosity(entity.mass)
+      // Scale corona intensity from luminosity (log scale for usable range)
+      const logLum = lum > 0 ? Math.log10(lum) : 0
+      const coronaIntensity = Math.max(0.1, Math.min(3.0, logLum * 0.15))
+      const updated = { ...starComp, coronaIntensity }
+      updateComponent(entityId, updated)
+      syncComponentToThreeObject(entityId, 'star')
+    }
+  }
+
+  // Cascade 2: Black hole auto-detection
+  if (entity.type === 'star' && (field === 'mass' || field === 'size')) {
+    const starComp = entity.components['star'] as StarComponent | undefined
+    if (starComp) {
+      const shouldBeBlackHole = isBlackHole(entity.mass, entity.size)
+      const isCurrentlyBlackHole = starComp.variant === 'black-hole'
+      if (shouldBeBlackHole !== isCurrentlyBlackHole) {
+        const newVariant = shouldBeBlackHole ? 'black-hole' : 'main-sequence'
+        const updated = { ...starComp, variant: newVariant }
+        updateComponent(entityId, updated)
+        regenerateEntity(entityId)
+      }
+    }
+  }
+
+  // Cascade 3: Parent mass/size change → recalculate child orbital periods
+  if (field === 'mass') {
+    for (const childId of entity.childIds) {
+      const child = graph.get(childId)
+      if (!child) continue
+      const orbital = child.components['orbital'] as OrbitalComponent | undefined
+      if (orbital) {
+        const newPeriod = orbitalPeriod(entity.mass, orbital.orbitRadius)
+        const updated = { ...orbital, period: newPeriod }
+        graph.setComponent(childId, updated)
+        syncComponentToThreeObject(childId, 'orbital')
+      }
+    }
+  }
+
+  sync()
+}
+
 /** Sync an ECS component change to the live Three.js object */
 export function syncComponentToThreeObject(entityId: string, componentType: string): void {
   const entity = graph.get(entityId)
@@ -278,6 +333,31 @@ export function syncComponentToThreeObject(entityId: string, componentType: stri
   if (componentType === 'orbital') {
     const comp = entity.components['orbital'] as OrbitalComponent | undefined
     if (!comp) return
+
+    // Recalculate period from parent mass + orbit radius
+    if (entity.parentId) {
+      const parentEntity = graph.get(entity.parentId)
+      if (parentEntity) {
+        const newPeriod = orbitalPeriod(parentEntity.mass, comp.orbitRadius)
+        if (Math.abs(comp.period - newPeriod) > 0.01) {
+          comp.period = newPeriod
+          graph.setComponent(entityId, comp)
+        }
+      }
+    }
+
+    // Determine orbit path color: red if velocity > escape velocity
+    let pathColor = 0x334466
+    if (entity.parentId) {
+      const parentEntity = graph.get(entity.parentId)
+      if (parentEntity && entity.velocity > 0) {
+        const ev = escapeVelocity(parentEntity.mass, parentEntity.size)
+        if (entity.velocity > ev) {
+          pathColor = 0xff4444
+        }
+      }
+    }
+
     const engine = getEngine()
     if (!engine) return
     const parent = entity.parentId ? threeObjects.get(entity.parentId) : engine.scene
@@ -295,7 +375,7 @@ export function syncComponentToThreeObject(entityId: string, componentType: stri
         ;(child.material as THREE.Material).dispose()
       }
     })
-    const path = createOrbitPath(comp)
+    const path = createOrbitPath(comp, pathColor)
     path.userData.orbitFor = entityId
     if (entity.parentId) {
       const parentObj = threeObjects.get(entity.parentId)
