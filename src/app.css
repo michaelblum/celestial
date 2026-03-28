@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* Glass morphism utility */
+@layer components {
+  .glass-panel {
+    @apply bg-black/70 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl;
+  }
+}
+
+/* Global resets for the 3D app */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+}
+
+/* Custom scrollbar for panels */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Range input styling */
+input[type="range"] {
+  accent-color: #7c3aed;
+}
+
+/* Color picker reset */
+input[type="color"] {
+  -webkit-appearance: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}

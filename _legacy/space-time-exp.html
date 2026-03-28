@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Spacetime Gravity Well</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(15, 15, 20, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 320px;
+            max-height: 90vh;
+            overflow-y: auto;
+            pointer-events: auto;
+        }
+        
+        /* Custom Scrollbar for Panel */
+        #ui-panel::-webkit-scrollbar { width: 6px; }
+        #ui-panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        #ui-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        p {
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .section-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #4facfe;
+            margin: 20px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .control-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            color: #ddd;
+        }
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #4facfe;
+        }
+        select, input[type=checkbox] {
+            accent-color: #4facfe;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 4px;
+            border-radius: 4px;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .stats {
+            margin-top: 20px;
+            font-size: 0.75rem;
+            color: #888;
+            text-align: center;
+        }
+    </style>
+    <!-- Load Three.js and OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <h1>3D Voxel Gravity Well</h1>
+        <p>Interactive volumetric spacetime distortion.</p>
+        
+        <div class="section-title">View Mode</div>
+        <div class="control-group">
+            <select id="renderMode" style="width: 100%;">
+                <option value="wireframe">Wireframe Grid</option>
+                <option value="points">Voxel Points</option>
+            </select>
+        </div>
+
+        <div class="section-title">Universe Setup</div>
+        <div class="control-group">
+            <label for="densitySlider"><span>Grid Density</span> <span id="densityValue">16</span></label>
+            <input type="range" id="densitySlider" min="8" max="32" value="16" step="2">
+        </div>
+        <div class="control-group">
+            <label for="renderRadiusSlider"><span>Render Radius</span> <span id="renderRadiusValue">Full</span></label>
+            <input type="range" id="renderRadiusSlider" min="3.0" max="30.0" value="30.0" step="1.0">
+        </div>
+
+        <div class="section-title">Mass Controls</div>
+        <div class="control-group">
+            <label for="massSlider"><span>Central Mass</span> <span id="massValue">60</span></label>
+            <input type="range" id="massSlider" min="0" max="300" value="60" step="1">
+        </div>
+        <div class="control-group">
+            <label for="radiusSlider"><span>Event Horizon (Radius)</span> <span id="radiusValue">2.0</span></label>
+            <input type="range" id="radiusSlider" min="0.5" max="5" value="2.0" step="0.1">
+        </div>
+
+        <div class="section-title">Movement</div>
+        <div class="control-group">
+            <label class="checkbox-group">
+                <input type="checkbox" id="autoMoveToggle">
+                Auto-Move Mass in Space
+            </label>
+        </div>
+        <div class="control-group">
+            <label class="checkbox-group">
+                <input type="checkbox" id="moveUniverseToggle">
+                Relative Motion (Move Universe)
+            </label>
+        </div>
+        <div class="control-group">
+            <label for="speedSlider"><span>Time Scale (Speed)</span> <span id="speedValue">1.0</span></label>
+            <input type="range" id="speedSlider" min="0.0" max="10.0" value="1.0" step="0.1">
+        </div>
+
+        <div class="section-title" style="color: #ffaa00;">Experiments</div>
+        <div class="control-group">
+            <label class="checkbox-group">
+                <input type="checkbox" id="snowGlobeToggle">
+                Snow Globe (Strict Radius Boundary)
+            </label>
+        </div>
+        <div class="control-group">
+            <label class="checkbox-group">
+                <input type="checkbox" id="probeToggle">
+                Show Probe Sphere (Tidal Distortion)
+            </label>
+        </div>
+        
+        <div class="section-title" style="color: #ffaa00;">Particle Swarm</div>
+        <div class="control-group">
+            <label class="checkbox-group">
+                <input type="checkbox" id="swarmToggle" checked>
+                Enable Particle Swarm
+            </label>
+        </div>
+        <div id="swarmControls">
+            <div class="control-group">
+                <label for="swarmCountSlider"><span>Particle Count</span> <span id="swarmCountValue">2000</span></label>
+                <input type="range" id="swarmCountSlider" min="100" max="5000" value="2000" step="100">
+            </div>
+            
+            <div class="control-group" style="margin-top: 10px;">
+                <label class="checkbox-group">
+                    <input type="checkbox" id="swarmRandSizeToggle" checked>
+                    Randomize Size
+                </label>
+            </div>
+            <div class="control-group" id="swarmFixedSizeControl" style="display: none;">
+                <label for="swarmBaseSizeSlider"><span>Base Size</span> <span id="swarmBaseSizeValue">0.5</span></label>
+                <input type="range" id="swarmBaseSizeSlider" min="0.1" max="3.0" value="0.5" step="0.1">
+            </div>
+            <div class="control-group" id="swarmRandSizeControl">
+                <label for="swarmMinSizeSlider"><span>Min Size</span> <span id="swarmMinSizeValue">0.1</span></label>
+                <input type="range" id="swarmMinSizeSlider" min="0.1" max="1.5" value="0.1" step="0.1">
+                <label for="swarmMaxSizeSlider" style="margin-top: 5px;"><span>Max Size</span> <span id="swarmMaxSizeValue">1.5</span></label>
+                <input type="range" id="swarmMaxSizeSlider" min="0.5" max="5.0" value="1.5" step="0.1">
+            </div>
+
+            <div class="control-group" style="margin-top: 10px;">
+                <label for="swarmBaseColor"><span>Base Color</span></label>
+                <input type="color" id="swarmBaseColor" value="#ff00aa" style="width: 100%; height: 30px; border: none; padding: 0;">
+            </div>
+            <div class="control-group">
+                <label class="checkbox-group">
+                    <input type="checkbox" id="swarmRandColorToggle" checked>
+                    Randomize Color Hue
+                </label>
+            </div>
+            <div class="control-group" id="swarmRandColorControl">
+                <label for="swarmHueVarSlider"><span>Hue Variance</span> <span id="swarmHueVarValue">0.2</span></label>
+                <input type="range" id="swarmHueVarSlider" min="0.0" max="1.0" value="0.2" step="0.05">
+            </div>
+        </div>
+
+        <div class="control-group" style="margin-top: 20px;">
+            <label class="checkbox-group">
+                <input type="checkbox" id="blackHoleToggle">
+                Black Hole Mode
+            </label>
+        </div>
+
+        <div class="stats" style="color: #ddd; font-size: 0.85rem; padding-bottom: 5px;">
+            Absorbed: <span id="absorbedCount" style="color: #ffaa00; font-weight: bold; font-size: 1.1rem;">0</span>
+        </div>
+        <div class="stats" style="margin-top: 5px;">
+            Drag to rotate • Scroll to zoom
+        </div>
+        
+        <!-- Hidden elements to keep core logic happy without cluttering UI -->
+        <div style="display:none;">
+            <input type="range" id="opacitySlider" value="0.35">
+            <input type="range" id="pointSizeSlider" value="0.2">
+            <input type="range" id="colorIntensitySlider" value="1.0">
+            <div id="opacityControl"></div><div id="pointSizeControl"></div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // --- Setup UI references globally to prevent ReferenceErrors ---
+        const ui = {
+            renderMode: document.getElementById('renderMode'),
+            densitySlider: document.getElementById('densitySlider'),
+            renderRadiusSlider: document.getElementById('renderRadiusSlider'),
+            massSlider: document.getElementById('massSlider'),
+            radiusSlider: document.getElementById('radiusSlider'),
+            autoMoveToggle: document.getElementById('autoMoveToggle'),
+            moveUniverseToggle: document.getElementById('moveUniverseToggle'),
+            speedSlider: document.getElementById('speedSlider'),
+            snowGlobeToggle: document.getElementById('snowGlobeToggle'),
+            probeToggle: document.getElementById('probeToggle'),
+            blackHoleToggle: document.getElementById('blackHoleToggle'),
+            
+            // Swarm UI
+            swarmToggle: document.getElementById('swarmToggle'),
+            swarmControls: document.getElementById('swarmControls'),
+            swarmCountSlider: document.getElementById('swarmCountSlider'),
+            swarmRandSizeToggle: document.getElementById('swarmRandSizeToggle'),
+            swarmBaseSizeSlider: document.getElementById('swarmBaseSizeSlider'),
+            swarmMinSizeSlider: document.getElementById('swarmMinSizeSlider'),
+            swarmMaxSizeSlider: document.getElementById('swarmMaxSizeSlider'),
+            swarmBaseColor: document.getElementById('swarmBaseColor'),
+            swarmRandColorToggle: document.getElementById('swarmRandColorToggle'),
+            swarmHueVarSlider: document.getElementById('swarmHueVarSlider'),
+            swarmFixedSizeControl: document.getElementById('swarmFixedSizeControl'),
+            swarmRandSizeControl: document.getElementById('swarmRandSizeControl'),
+            swarmRandColorControl: document.getElementById('swarmRandColorControl')
+        };
+
+        // --- Setup Three.js Scene ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(18, 12, 18);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true; 
+        controls.autoRotateSpeed = 0.5;
+
+        // --- Core Objects ---
+        const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+        const sphereMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+        scene.add(sphere);
+
+        const haloGeo = new THREE.SphereGeometry(1.05, 32, 32);
+        const haloMat = new THREE.MeshBasicMaterial({
+            color: 0x4facfe, transparent: true, opacity: 0.3, side: THREE.BackSide
+        });
+        const halo = new THREE.Mesh(haloGeo, haloMat);
+        scene.add(halo);
+
+        // --- Black Hole Accretion Disk ---
+        const createDiskTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const center = 256;
+            const gradient = ctx.createRadialGradient(center, center, 50, center, center, 250);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            gradient.addColorStop(0.1, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.3, 'rgba(255, 150, 0, 0.9)');
+            gradient.addColorStop(0.7, 'rgba(100, 20, 0, 0.5)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            return new THREE.CanvasTexture(canvas);
+        };
+        const diskGeo = new THREE.PlaneGeometry(12, 12);
+        const diskMat = new THREE.MeshBasicMaterial({
+            map: createDiskTexture(), transparent: true, opacity: 0.9, 
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const accretionDisk = new THREE.Mesh(diskGeo, diskMat);
+        accretionDisk.rotation.x = Math.PI / 2.2; // Tilt it slightly
+        accretionDisk.visible = false;
+        scene.add(accretionDisk);
+
+        // --- Probe Sphere (Tidal Forces Visualization) ---
+        const probeGeo = new THREE.SphereGeometry(2, 24, 24);
+        const probeMat = new THREE.MeshBasicMaterial({
+            color: 0x00ff88, wireframe: true, transparent: true, opacity: 0.6
+        });
+        const probeSphere = new THREE.Mesh(probeGeo, probeMat);
+        probeSphere.position.set(6, 0, 0); // Offset it from center
+        probeSphere.visible = false;
+        scene.add(probeSphere);
+        
+        // Store original vertices of probe to warp them later
+        const probeBasePos = new Float32Array(probeGeo.attributes.position.array);
+
+        // --- Continuous Particle Swarm System ---
+        const maxSwarmParticles = 5000;
+        const swarmGeo = new THREE.BufferGeometry();
+        
+        const swarmPosArray = new Float32Array(maxSwarmParticles * 3);
+        const swarmVelArray = new Float32Array(maxSwarmParticles * 3);
+        const swarmColArray = new Float32Array(maxSwarmParticles * 3);
+        const swarmSizeArray = new Float32Array(maxSwarmParticles);
+
+        swarmGeo.setAttribute('position', new THREE.BufferAttribute(swarmPosArray, 3));
+        swarmGeo.setAttribute('customColor', new THREE.BufferAttribute(swarmColArray, 3));
+        swarmGeo.setAttribute('size', new THREE.BufferAttribute(swarmSizeArray, 1));
+        
+        // Custom Shader Material for per-particle sizing and coloring
+        const swarmVertexShader = `
+            attribute float size;
+            attribute vec3 customColor;
+            varying vec3 vColor;
+            void main() {
+                vColor = customColor;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = size * (300.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+        const swarmFragmentShader = `
+            uniform sampler2D pointTexture;
+            varying vec3 vColor;
+            void main() {
+                gl_FragColor = vec4(vColor, 1.0) * texture2D(pointTexture, gl_PointCoord);
+            }
+        `;
+
+        const createCloudTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.beginPath(); ctx.arc(16, 16, 14, 0, 2 * Math.PI, false);
+            ctx.fillStyle = 'white'; ctx.fill();
+            return new THREE.CanvasTexture(canvas);
+        };
+
+        const swarmMat = new THREE.ShaderMaterial({
+            uniforms: {
+                pointTexture: { value: createCloudTexture() }
+            },
+            vertexShader: swarmVertexShader,
+            fragmentShader: swarmFragmentShader,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            transparent: true
+        });
+
+        const swarmMesh = new THREE.Points(swarmGeo, swarmMat);
+        scene.add(swarmMesh);
+
+        // --- Swarm Emitter Logic ---
+        let currentSwarmEmitter = new THREE.Vector3(20, 5, 0);
+        function resetSwarmEmitter() {
+            const r = 20 + Math.random() * 10; 
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            currentSwarmEmitter.set(
+                r * Math.sin(phi) * Math.cos(theta),
+                r * Math.sin(phi) * Math.sin(theta),
+                r * Math.cos(phi)
+            );
+        }
+        resetSwarmEmitter();
+
+        // Helper to convert hex color to HSL, apply variance, and return RGB
+        const baseColorTemp = new THREE.Color();
+        const randColorTemp = new THREE.Color();
+        
+        function spawnSwarmParticle(index, mPos) {
+            // Spawn within an amorphous localized blob (radius 3.5) around the emitter
+            const r = 3.5 * Math.cbrt(Math.random()); 
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos(2 * Math.random() - 1);
+            
+            swarmPosArray[index*3]   = currentSwarmEmitter.x + r * Math.sin(phi) * Math.cos(theta);
+            swarmPosArray[index*3+1] = currentSwarmEmitter.y + r * Math.sin(phi) * Math.sin(theta);
+            swarmPosArray[index*3+2] = currentSwarmEmitter.z + r * Math.cos(phi);
+
+            // Initial velocity: gentle drift towards mass
+            const toCenter = new THREE.Vector3().subVectors(mPos, currentSwarmEmitter).normalize();
+            
+            // Mix in a tiny bit of tangential velocity so the cloud spirals slightly
+            const up = new THREE.Vector3(0, 1, 0);
+            let tangent = new THREE.Vector3().crossVectors(up, toCenter);
+            if (tangent.lengthSq() < 0.001) tangent.crossVectors(new THREE.Vector3(1, 0, 0), toCenter);
+            tangent.normalize();
+            
+            // Slow initial drift with slight random scatter to make the cloud diffuse
+            const driftV = 0.5 + Math.random() * 0.5;
+            const tangV = 0.4;
+            
+            swarmVelArray[index*3]   = toCenter.x * driftV + tangent.x * tangV + (Math.random()-0.5)*0.2;
+            swarmVelArray[index*3+1] = toCenter.y * driftV + tangent.y * tangV + (Math.random()-0.5)*0.2;
+            swarmVelArray[index*3+2] = toCenter.z * driftV + tangent.z * tangV + (Math.random()-0.5)*0.2;
+
+            // Size Logic
+            if (ui.swarmRandSizeToggle && ui.swarmRandSizeToggle.checked) {
+                const minS = parseFloat(ui.swarmMinSizeSlider.value);
+                const maxS = parseFloat(ui.swarmMaxSizeSlider.value);
+                swarmSizeArray[index] = minS + Math.random() * (maxS - minS);
+            } else if (ui.swarmBaseSizeSlider) {
+                swarmSizeArray[index] = parseFloat(ui.swarmBaseSizeSlider.value);
+            }
+
+            // Color Logic
+            if (ui.swarmBaseColor) {
+                baseColorTemp.set(ui.swarmBaseColor.value);
+                if (ui.swarmRandColorToggle && ui.swarmRandColorToggle.checked) {
+                    const hsl = {};
+                    baseColorTemp.getHSL(hsl);
+                    const varHue = parseFloat(ui.swarmHueVarSlider.value);
+                    // Shift hue randomly within the variance bound
+                    hsl.h = (hsl.h + (Math.random() * varHue - varHue/2) + 1.0) % 1.0;
+                    randColorTemp.setHSL(hsl.h, hsl.s, hsl.l);
+                    swarmColArray[index*3]   = randColorTemp.r;
+                    swarmColArray[index*3+1] = randColorTemp.g;
+                    swarmColArray[index*3+2] = randColorTemp.b;
+                } else {
+                    swarmColArray[index*3]   = baseColorTemp.r;
+                    swarmColArray[index*3+1] = baseColorTemp.g;
+                    swarmColArray[index*3+2] = baseColorTemp.b;
+                }
+            }
+        }
+
+        // Initialize all particles
+        for(let i=0; i<maxSwarmParticles; i++) {
+            spawnSwarmParticle(i, new THREE.Vector3(0,0,0));
+        }
+
+        // --- Probe State for Drifting ---
+        let probeWorldPos = new THREE.Vector3(15, 0, 0);
+        let probeVelocity = new THREE.Vector3(-1.5, 0, 0);
+
+        function resetProbe(mPos) {
+            const dist = 25; // Spawn distance
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            probeWorldPos.set(
+                mPos.x + dist * Math.sin(phi) * Math.cos(theta),
+                mPos.y + dist * Math.sin(phi) * Math.sin(theta),
+                mPos.z + dist * Math.cos(phi)
+            );
+            // Point velocity towards the mass (increased speed from 2.0 to 5.0)
+            probeVelocity.subVectors(mPos, probeWorldPos).normalize().multiplyScalar(5.0);
+        }
+
+        // --- Snow Globe Container ---
+        const glassGeo = new THREE.SphereGeometry(1, 64, 64);
+        const glassMat = new THREE.MeshBasicMaterial({
+            color: 0x4facfe, transparent: true, opacity: 0.05, 
+            wireframe: true, side: THREE.BackSide
+        });
+        const snowGlobeBoundary = new THREE.Mesh(glassGeo, glassMat);
+        snowGlobeBoundary.visible = false;
+        scene.add(snowGlobeBoundary);
+
+
+        // --- Create 3D Voxel Grid Attributes ---
+        let gridMesh, pointCloud, gridGeoLines, gridGeoPoints, gridMatLines, gridMatPoints;
+        let posAttr, colAttr, basePositions, positions, colors;
+        let totalPoints = 0;
+        const universeSize = 24.0; 
+        let currentDensity = 0;
+
+        const pointTexture = createCloudTexture();
+
+        function buildGrid(density) {
+            if (gridMesh) scene.remove(gridMesh);
+            if (pointCloud) scene.remove(pointCloud);
+            if (gridGeoLines) gridGeoLines.dispose();
+            if (gridGeoPoints) gridGeoPoints.dispose();
+
+            const gridSize = density;
+            const spacing = universeSize / gridSize;
+            totalPoints = gridSize * gridSize * gridSize;
+            
+            basePositions = new Float32Array(totalPoints * 3);
+            positions = new Float32Array(totalPoints * 3);
+            colors = new Float32Array(totalPoints * 3);
+
+            let i = 0;
+            const offset = (gridSize * spacing) / 2 - (spacing / 2);
+
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    for (let z = 0; z < gridSize; z++) {
+                        const px = x * spacing - offset;
+                        const py = y * spacing - offset;
+                        const pz = z * spacing - offset;
+
+                        basePositions[i * 3] = px; basePositions[i * 3 + 1] = py; basePositions[i * 3 + 2] = pz;
+                        positions[i * 3] = px; positions[i * 3 + 1] = py; positions[i * 3 + 2] = pz;
+                        i++;
+                    }
+                }
+            }
+
+            posAttr = new THREE.BufferAttribute(positions, 3);
+            colAttr = new THREE.BufferAttribute(colors, 3);
+            posAttr.setUsage(THREE.DynamicDrawUsage);
+            colAttr.setUsage(THREE.DynamicDrawUsage);
+
+            gridGeoLines = new THREE.BufferGeometry();
+            gridGeoLines.setAttribute('position', posAttr);
+            gridGeoLines.setAttribute('color', colAttr);
+
+            const indices = [];
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    for (let z = 0; z < gridSize; z++) {
+                        const currentIdx = (x * gridSize * gridSize) + (y * gridSize) + z;
+                        if (x < gridSize - 1) indices.push(currentIdx, currentIdx + gridSize * gridSize);
+                        if (y < gridSize - 1) indices.push(currentIdx, currentIdx + gridSize);
+                        if (z < gridSize - 1) indices.push(currentIdx, currentIdx + 1);
+                    }
+                }
+            }
+            gridGeoLines.setIndex(indices);
+
+            gridMatLines = new THREE.LineBasicMaterial({
+                vertexColors: true, transparent: true, opacity: 0.35, 
+                blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            gridMesh = new THREE.LineSegments(gridGeoLines, gridMatLines);
+            scene.add(gridMesh);
+
+            gridGeoPoints = new THREE.BufferGeometry();
+            gridGeoPoints.setAttribute('position', posAttr);
+            gridGeoPoints.setAttribute('color', colAttr);
+
+            gridMatPoints = new THREE.PointsMaterial({
+                size: 0.2, vertexColors: true, map: pointTexture, 
+                transparent: true, opacity: 0.9, alphaTest: 0.05, 
+                blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            pointCloud = new THREE.Points(gridGeoPoints, gridMatPoints);
+            scene.add(pointCloud);
+
+            if (ui.renderMode && ui.renderMode.value === 'points') {
+                gridMesh.visible = false;
+                pointCloud.visible = true;
+            } else {
+                gridMesh.visible = true;
+                pointCloud.visible = false;
+            }
+        }
+
+        buildGrid(16);
+        currentDensity = 16;
+
+        const tempColor = new THREE.Color();
+
+        function updateGravityWell(mass, objRadius, mPos, renderRadius, gridOffset = new THREE.Vector3(0, 0, 0)) {
+            const isBlackHole = ui.blackHoleToggle.checked;
+            const isSnowGlobe = ui.snowGlobeToggle.checked;
+            
+            sphere.scale.set(objRadius, objRadius, objRadius);
+            sphere.position.copy(mPos);
+            
+            halo.scale.set(objRadius, objRadius, objRadius);
+            halo.position.copy(mPos);
+            halo.visible = !isBlackHole; // Hide halo in BH mode
+
+            accretionDisk.position.copy(mPos);
+            // Scale accretion disk relative to event horizon
+            const diskScale = objRadius / 2.0;
+            accretionDisk.scale.set(diskScale, diskScale, diskScale);
+
+            if(isSnowGlobe) {
+                snowGlobeBoundary.visible = true;
+                snowGlobeBoundary.scale.set(renderRadius, renderRadius, renderRadius);
+                snowGlobeBoundary.position.copy(mPos);
+            } else {
+                snowGlobeBoundary.visible = false;
+            }
+
+            const maxRadius = 30.0;
+            const isInfinite = renderRadius >= maxRadius;
+            const fadeEdge = (universeSize / currentDensity) * 2.0; 
+
+            // Warp the main grid
+            for (let i = 0; i < totalPoints; i++) {
+                const bx = basePositions[i * 3] + gridOffset.x;
+                const by = basePositions[i * 3 + 1] + gridOffset.y;
+                const bz = basePositions[i * 3 + 2] + gridOffset.z;
+
+                const dx = bx - mPos.x;
+                const dy = by - mPos.y;
+                const dz = bz - mPos.z;
+                const distSq = dx*dx + dy*dy + dz*dz;
+                const dist = Math.sqrt(distSq);
+
+                // Black hole mode has a steeper gravity curve (x^3 instead of x^2) for a sharper horizon drop
+                let pull = isBlackHole 
+                    ? (mass / 2) / (Math.pow(dist, 1.5) + 1)
+                    : (mass / 10) / (distSq + 1); 
+
+                if (pull > dist - objRadius) pull = Math.max(0, dist - objRadius);
+
+                const newDist = dist - pull;
+
+                const nx = mPos.x + (dx / dist) * newDist;
+                const ny = mPos.y + (dy / dist) * newDist;
+                const nz = mPos.z + (dz / dist) * newDist;
+
+                posAttr.setXYZ(i, nx, ny, nz);
+
+                // --- Visibility Logic (Snow Globe vs Normal) ---
+                let visibility = 1.0;
+                if (isSnowGlobe) {
+                    // Strict Cutoff
+                    if (dist > renderRadius) visibility = 0.0;
+                } else if (!isInfinite) {
+                    // Soft Fade
+                    visibility = Math.max(0.0, Math.min(1.0, (renderRadius - dist) / fadeEdge));
+                }
+
+                if (visibility <= 0.0) {
+                    colAttr.setXYZ(i, 0, 0, 0);
+                    continue;
+                }
+
+                // --- Color Logic ---
+                const intensity = Math.min(1.0, pull / (objRadius * 1.5));
+                
+                // If BH mode, shift to deep orange/white heat. Else normal blue-to-red
+                const hue = isBlackHole 
+                    ? Math.max(0.05, 0.15 - (intensity * 0.15)) // Orange to Red
+                    : Math.max(0, 0.6 - (intensity * 0.6));     // Blue to Red
+                
+                const brightness = Math.min(1.0, 2.0 / newDist);
+                const lightness = isBlackHole && intensity > 0.8 
+                    ? 0.4 + (intensity * 0.5) // Super bright near event horizon
+                    : 0.4 + (intensity * 0.2) + (brightness * 0.2);
+                
+                tempColor.setHSL(hue, 1.0, lightness);
+                colAttr.setXYZ(i, tempColor.r * visibility, tempColor.g * visibility, tempColor.b * visibility);
+            }
+
+            posAttr.needsUpdate = true;
+            colAttr.needsUpdate = true;
+
+            // --- Warp the Probes (Spaghettification) ---
+            function warpProbeGeometry(geometry, basePosArray, worldPos) {
+                const pAttr = geometry.attributes.position;
+                for(let i=0; i < pAttr.count; i++) {
+                    const bx = basePosArray[i*3];
+                    const by = basePosArray[i*3+1];
+                    const bz = basePosArray[i*3+2];
+
+                    const wx = worldPos.x + bx;
+                    const wy = worldPos.y + by;
+                    const wz = worldPos.z + bz;
+
+                    const dx = wx - mPos.x;
+                    const dy = wy - mPos.y;
+                    const dz = wz - mPos.z;
+                    const distSq = dx*dx + dy*dy + dz*dz;
+                    const dist = Math.sqrt(distSq);
+
+                    let pull = isBlackHole 
+                        ? (mass / 2) / (Math.pow(dist, 1.5) + 1)
+                        : (mass / 10) / (distSq + 1); 
+                    if (pull > dist - objRadius) pull = Math.max(0, dist - objRadius);
+
+                    const newDist = dist - pull;
+                    
+                    const targetX = mPos.x + (dx / dist) * newDist;
+                    const targetY = mPos.y + (dy / dist) * newDist;
+                    const targetZ = mPos.z + (dz / dist) * newDist;
+
+                    pAttr.setXYZ(i, targetX - worldPos.x, targetY - worldPos.y, targetZ - worldPos.z);
+                }
+                pAttr.needsUpdate = true;
+            }
+
+            if (ui.probeToggle.checked) {
+                probeSphere.position.copy(probeWorldPos);
+                warpProbeGeometry(probeGeo, probeBasePos, probeWorldPos);
+            }
+        }
+
+        // --- UI Interactions ---
+        let massPos = new THREE.Vector3(0, 0, 0);
+        let gridOffset = new THREE.Vector3(0, 0, 0);
+
+        function syncUI() {
+            const newDensity = parseInt(ui.densitySlider.value);
+            if (newDensity !== currentDensity) {
+                buildGrid(newDensity);
+                currentDensity = newDensity;
+            }
+
+            document.getElementById('densityValue').innerText = ui.densitySlider.value;
+            const radiusVal = parseFloat(ui.renderRadiusSlider.value);
+            document.getElementById('renderRadiusValue').innerText = radiusVal >= 30.0 ? "Full" : radiusVal.toFixed(1);
+            document.getElementById('massValue').innerText = ui.massSlider.value;
+            document.getElementById('radiusValue').innerText = parseFloat(ui.radiusSlider.value).toFixed(1);
+            document.getElementById('speedValue').innerText = parseFloat(ui.speedSlider.value).toFixed(1);
+
+            if (ui.renderMode.value === 'wireframe') {
+                gridMesh.visible = true; pointCloud.visible = false;
+            } else {
+                gridMesh.visible = false; pointCloud.visible = true;
+            }
+
+            probeSphere.visible = ui.probeToggle.checked;
+            accretionDisk.visible = ui.blackHoleToggle.checked;
+
+            // Swarm UI Updates
+            swarmMesh.visible = ui.swarmToggle.checked;
+            ui.swarmControls.style.display = ui.swarmToggle.checked ? 'block' : 'none';
+            document.getElementById('swarmCountValue').innerText = ui.swarmCountSlider.value;
+            
+            if (ui.swarmRandSizeToggle.checked) {
+                ui.swarmFixedSizeControl.style.display = 'none';
+                ui.swarmRandSizeControl.style.display = 'block';
+                document.getElementById('swarmMinSizeValue').innerText = ui.swarmMinSizeSlider.value;
+                document.getElementById('swarmMaxSizeValue').innerText = ui.swarmMaxSizeSlider.value;
+            } else {
+                ui.swarmFixedSizeControl.style.display = 'block';
+                ui.swarmRandSizeControl.style.display = 'none';
+                document.getElementById('swarmBaseSizeValue').innerText = ui.swarmBaseSizeSlider.value;
+            }
+
+            ui.swarmRandColorControl.style.display = ui.swarmRandColorToggle.checked ? 'block' : 'none';
+            document.getElementById('swarmHueVarValue').innerText = ui.swarmHueVarSlider.value;
+
+            swarmGeo.setDrawRange(0, parseInt(ui.swarmCountSlider.value));
+
+            // Optional: If colors/sizes change, we might want to respawn/update them, 
+            // but for a dynamic swarm, new particles will automatically adopt the new settings as they respawn.
+
+            if (!ui.autoMoveToggle.checked) {
+                updateGravityWell(
+                    parseFloat(ui.massSlider.value), 
+                    parseFloat(ui.radiusSlider.value), 
+                    massPos,
+                    parseFloat(ui.renderRadiusSlider.value),
+                    gridOffset
+                );
+            }
+        }
+
+        Object.values(ui).forEach(el => {
+            if (el && el.tagName) el.addEventListener('input', syncUI);
+        });
+        syncUI();
+
+        // --- Handle Window Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+        let time = 0;
+        let particlesAbsorbed = 0;
+        let emitterTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            
+            const dt = clock.getDelta();
+            const speed = parseFloat(ui.speedSlider.value);
+            const m = parseFloat(ui.massSlider.value);
+            const rHorizon = parseFloat(ui.radiusSlider.value);
+
+            // Handle Old Probe Drift
+            if (ui.probeToggle.checked) {
+                // Move probe towards mass
+                probeWorldPos.addScaledVector(probeVelocity, dt * speed);
+                
+                // If swallowed (gets close to center), respawn from a new random vector
+                if (probeWorldPos.distanceTo(massPos) < parseFloat(ui.radiusSlider.value) * 0.5) {
+                    resetProbe(massPos);
+                }
+            }
+
+            // --- Update Particle Swarm Physics ---
+            if (ui.swarmToggle.checked) {
+                // Periodically move the emitter to form distinct new clouds
+                emitterTimer += dt * speed;
+                if (emitterTimer > 15.0) { // Move spawn point every 15 simulation seconds
+                    resetSwarmEmitter();
+                    emitterTimer = 0;
+                }
+
+                const activeCount = parseInt(ui.swarmCountSlider.value);
+                const posAttr = swarmGeo.attributes.position;
+                
+                for(let i=0; i < activeCount; i++) {
+                    let px = swarmPosArray[i*3];
+                    let py = swarmPosArray[i*3+1];
+                    let pz = swarmPosArray[i*3+2];
+
+                    let vx = swarmVelArray[i*3];
+                    let vy = swarmVelArray[i*3+1];
+                    let vz = swarmVelArray[i*3+2];
+
+                    // Distance to mass
+                    const dx = massPos.x - px;
+                    const dy = massPos.y - py;
+                    const dz = massPos.z - pz;
+                    const distSq = dx*dx + dy*dy + dz*dz;
+                    const dist = Math.sqrt(distSq);
+
+                    // If swallowed by event horizon, respawn it!
+                    if (dist < rHorizon * 0.8) {
+                        particlesAbsorbed++;
+                        document.getElementById('absorbedCount').innerText = particlesAbsorbed;
+                        spawnSwarmParticle(i, massPos);
+                        continue;
+                    }
+
+                    // Apply Gravity to Velocity (F = G*M / r^2)
+                    // We artificially tweak the pull for visual pacing (increased from 0.1 to 0.5)
+                    const pull = (m * 0.5) / (distSq + 1);
+                    vx += (dx / dist) * pull * dt * speed;
+                    vy += (dy / dist) * pull * dt * speed;
+                    vz += (dz / dist) * pull * dt * speed;
+
+                    // Update Position
+                    px += vx * dt * speed;
+                    py += vy * dt * speed;
+                    pz += vz * dt * speed;
+
+                    swarmPosArray[i*3] = px;
+                    swarmPosArray[i*3+1] = py;
+                    swarmPosArray[i*3+2] = pz;
+                    
+                    swarmVelArray[i*3] = vx;
+                    swarmVelArray[i*3+1] = vy;
+                    swarmVelArray[i*3+2] = vz;
+                }
+                
+                posAttr.needsUpdate = true;
+                swarmGeo.attributes.customColor.needsUpdate = true;
+                swarmGeo.attributes.size.needsUpdate = true;
+            }
+
+            // Spin Black Hole Disk
+            if (ui.blackHoleToggle.checked) {
+                accretionDisk.rotation.z -= 0.05;
+            }
+
+            if (ui.autoMoveToggle.checked) {
+                time += dt * speed;
+
+                const ox = Math.sin(time) * 6;
+                const oy = Math.sin(time * 1.5) * 3;
+                const oz = Math.cos(time * 0.8) * 6;
+
+                if (ui.moveUniverseToggle.checked) {
+                    massPos.set(0, 0, 0); 
+                    gridOffset.set(-ox, -oy, -oz); 
+                } else {
+                    massPos.set(ox, oy, oz); 
+                    gridOffset.set(0, 0, 0); 
+                }
+
+                updateGravityWell(
+                    parseFloat(ui.massSlider.value), 
+                    parseFloat(ui.radiusSlider.value), 
+                    massPos,
+                    parseFloat(ui.renderRadiusSlider.value),
+                    gridOffset
+                );
+            } else {
+                massPos.set(0,0,0); 
+                gridOffset.set(0,0,0);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = () => {
+            resetProbe(massPos); // Initialize probe position
+            animate();
+        };
+
+    </script>
+</body>
+</html>

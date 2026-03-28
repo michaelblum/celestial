@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Nebula & Gas Cloud Methods</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050508; color: white; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        .glass-panel {
+            background: rgba(15, 15, 25, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="antialiased font-sans">
+
+    <!-- UI Overlay -->
+    <div class="absolute top-0 left-0 w-full p-6 pointer-events-none z-10 flex flex-col items-center">
+        <div class="glass-panel p-6 rounded-2xl max-w-2xl w-full pointer-events-auto text-center shadow-2xl">
+            <h1 class="text-2xl font-bold mb-2 tracking-wide text-gray-100">Nebula & Gas Cloud Techniques</h1>
+            <p id="description" class="text-sm text-gray-400 mb-6 h-10 flex items-center justify-center">
+                Select a method below to explore its visual output and characteristics.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                <button onclick="switchMethod(1)" id="tab-1" class="tab-btn active flex-1 px-4 py-3 rounded-xl border border-transparent text-sm font-semibold hover:bg-white/5">
+                    1. Sprites / Billboards
+                    <span class="block text-xs font-normal text-gray-400 mt-1">Best Performance</span>
+                </button>
+                <button onclick="switchMethod(2)" id="tab-2" class="tab-btn flex-1 px-4 py-3 rounded-xl border border-transparent text-sm font-semibold hover:bg-white/5">
+                    2. Volumetric Shader
+                    <span class="block text-xs font-normal text-gray-400 mt-1">Best Atmosphere</span>
+                </button>
+                <button onclick="switchMethod(3)" id="tab-3" class="tab-btn flex-1 px-4 py-3 rounded-xl border border-transparent text-sm font-semibold hover:bg-white/5">
+                    3. Particle System
+                    <span class="block text-xs font-normal text-gray-400 mt-1">Best for Flowing</span>
+                </button>
+            </div>
+
+            <div class="mt-5 flex gap-2 justify-center border-t border-white/10 pt-4">
+                <span class="text-sm text-gray-400 flex items-center mr-2">Style:</span>
+                <button onclick="switchStyle('nebula')" id="style-nebula" class="style-btn active bg-white/20 border-white px-4 py-1.5 rounded-full text-xs font-semibold border hover:bg-white/10 transition-colors">Nebula</button>
+                <button onclick="switchStyle('smoke')" id="style-smoke" class="style-btn border-transparent px-4 py-1.5 rounded-full text-xs font-semibold border hover:bg-white/10 transition-colors">Smoke</button>
+                <button onclick="switchStyle('fire')" id="style-fire" class="style-btn border-transparent px-4 py-1.5 rounded-full text-xs font-semibold border hover:bg-white/10 transition-colors">Fire</button>
+                <button onclick="switchStyle('plasma')" id="style-plasma" class="style-btn border-transparent px-4 py-1.5 rounded-full text-xs font-semibold border hover:bg-white/10 transition-colors">Plasma</button>
+            </div>
+
+            <!-- NEW: Object Lighting Controls -->
+            <div class="mt-4 flex flex-wrap gap-6 justify-center items-center border-t border-white/10 pt-4">
+                <span class="text-sm text-gray-400 flex items-center">Object Light:</span>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs text-gray-400">Color:</label>
+                    <input type="color" id="lightColor" value="#ff3355" onchange="updateLight()" class="w-8 h-8 rounded cursor-pointer bg-transparent border-none p-0">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs text-gray-400">Intensity:</label>
+                    <input type="range" id="lightIntensity" min="0" max="5" step="0.1" value="2.0" oninput="updateLight()" class="w-24 accent-white">
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4 text-xs text-gray-500 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm pointer-events-none">
+            Left Click + Drag to Rotate • Scroll to Zoom
+        </div>
+    </div>
+
+    <!-- WebGL Container -->
+    <div id="canvas-container" class="absolute inset-0"></div>
+
+    <script>
+        // --- Shared Three.js Setup ---
+        let scene, camera, renderer, controls, clock;
+        let activeMethod = 1;
+        let activeStyle = 'nebula'; // New state
+        let activeGroup = new THREE.Group();
+        let currentObjects = {}; // Store references for animation
+        let sharedTexture;
+        
+        // NEW: Global Light Properties
+        let propLightColorHex = '#ff3355';
+        let propLightIntensity = 2.0;
+
+        const descriptions = {
+            1: "<strong>The Sprite/Billboard Method:</strong> Uses clusters of semi-transparent 2D planes that always face the camera. Excellent performance, great for large, static nebulae.",
+            2: "<strong>Volumetric Shaders:</strong> Uses layered geometry (shell texturing) and a 3D procedural noise shader. Calculates density to simulate dense, puffy gas with volume.",
+            3: "<strong>Particle Systems:</strong> Uses WebGL points and a custom vertex shader to manipulate tens of thousands of particles. Perfect for flowing gas or swirling galaxies."
+        };
+
+        // Procedurally generate a soft cloud texture to avoid external loading issues
+        function createSoftCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const context = canvas.getContext('2d');
+            
+            const gradient = context.createRadialGradient(128, 128, 0, 128, 128, 128);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 256, 256);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050508, 0.015);
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 10, 40);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // optimize for high DPI
+            container.appendChild(renderer.domElement);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.5;
+            controls.maxDistance = 100;
+
+            clock = new THREE.Clock();
+            sharedTexture = createSoftCircleTexture();
+
+            // Add background stars (stays across all methods)
+            createStarfield();
+
+            scene.add(activeGroup);
+
+            // Load initial method
+            switchMethod(1);
+
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function createStarfield() {
+            const starGeo = new THREE.BufferGeometry();
+            const starPos = new Float32Array(5000 * 3);
+            for(let i = 0; i < 5000 * 3; i++) {
+                starPos[i] = (Math.random() - 0.5) * 300;
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            const starMat = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.3,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+            const stars = new THREE.Points(starGeo, starMat);
+            scene.add(stars);
+        }
+
+        // --- Method 1: Sprites / Billboards ---
+        function loadMethod1() {
+            const group = new THREE.Group();
+            const spriteCount = 150;
+            
+            for (let i = 0; i < spriteCount; i++) {
+                let hue, saturation, lightness, blending, opacity;
+                
+                // Style configurations
+                if (activeStyle === 'smoke') {
+                    hue = 0; saturation = 0; lightness = 0.2 + Math.random() * 0.3;
+                    blending = THREE.NormalBlending; opacity = 0.3 + Math.random() * 0.3;
+                } else if (activeStyle === 'fire') {
+                    hue = Math.random() * 0.1; saturation = 1.0; lightness = 0.4 + Math.random() * 0.3;
+                    blending = THREE.AdditiveBlending; opacity = 0.2 + Math.random() * 0.4;
+                } else if (activeStyle === 'plasma') {
+                    hue = 0.5 + Math.random() * 0.3; saturation = 1.0; lightness = 0.5 + Math.random() * 0.4;
+                    blending = THREE.AdditiveBlending; opacity = 0.2 + Math.random() * 0.3;
+                } else { // nebula
+                    hue = Math.random() * 0.1 + 0.95; saturation = 0.8; lightness = 0.5 + Math.random() * 0.2;
+                    blending = THREE.AdditiveBlending; opacity = 0.1 + Math.random() * 0.2;
+                }
+
+                const material = new THREE.SpriteMaterial({
+                    map: sharedTexture,
+                    color: new THREE.Color().setHSL(hue % 1.0, saturation, lightness),
+                    transparent: true,
+                    opacity: opacity,
+                    blending: blending,
+                    depthWrite: false
+                });
+
+                const sprite = new THREE.Sprite(material);
+                
+                // Position randomly in a flattened sphere volume
+                const r = 20 * Math.cbrt(Math.random());
+                const theta = Math.random() * 2 * Math.PI;
+                const phi = Math.acos(2 * Math.random() - 1);
+                
+                sprite.position.x = r * Math.sin(phi) * Math.cos(theta);
+                sprite.position.y = (r * Math.sin(phi) * Math.sin(theta)) * 0.4; // Flatten y
+                sprite.position.z = r * Math.cos(phi);
+                
+                const scale = 15 + Math.random() * 20;
+                sprite.scale.set(scale, scale, 1);
+                
+                // Random initial rotation and rotation speed
+                sprite.material.rotation = Math.random() * Math.PI * 2;
+                sprite.userData.rotSpeed = (Math.random() - 0.5) * 0.005;
+                
+                group.add(sprite);
+            }
+            
+            // --- PROP: Add a central asteroid ---
+            const astGeo = new THREE.IcosahedronGeometry(8, 2);
+            const astMat = new THREE.MeshStandardMaterial({ 
+                color: 0x111111, 
+                roughness: 0.9, 
+                flatShading: true,
+                emissive: new THREE.Color(propLightColorHex),
+                emissiveIntensity: propLightIntensity * 0.3
+            });
+            const asteroid = new THREE.Mesh(astGeo, astMat);
+            group.add(asteroid);
+            currentObjects.prop1 = asteroid;
+            currentObjects.propMaterial = astMat;
+
+            // NEW: Independent Light Source
+            const light = new THREE.PointLight(propLightColorHex, propLightIntensity, 100);
+            light.position.set(0, 0, 0);
+            group.add(light);
+            currentObjects.pointLight = light;
+            
+            // Ambient so the dark side of the asteroid is visible
+            group.add(new THREE.AmbientLight(0x222233, 0.5));
+
+            currentObjects.sprites = group;
+            activeGroup.add(group);
+        }
+
+        // --- Method 2: Volumetric Shader (Shell Texturing + Noise) ---
+        function loadMethod2() {
+            const group = new THREE.Group();
+            
+            let c1, c2, blend, opac, spd;
+            if (activeStyle === 'smoke') {
+                c1 = 'vec3(0.6, 0.6, 0.6)'; c2 = 'vec3(0.1, 0.1, 0.1)'; blend = THREE.NormalBlending; opac = '0.8'; spd = '0.05';
+            } else if (activeStyle === 'fire') {
+                c1 = 'vec3(1.0, 0.8, 0.1)'; c2 = 'vec3(1.0, 0.1, 0.0)'; blend = THREE.AdditiveBlending; opac = '0.6'; spd = '0.3';
+            } else if (activeStyle === 'plasma') {
+                c1 = 'vec3(0.0, 1.0, 0.8)'; c2 = 'vec3(0.5, 0.0, 1.0)'; blend = THREE.AdditiveBlending; opac = '0.5'; spd = '0.5';
+            } else { // nebula
+                c1 = 'vec3(0.0, 0.8, 0.6)'; c2 = 'vec3(0.4, 0.1, 0.8)'; blend = THREE.AdditiveBlending; opac = '0.4'; spd = '0.15';
+            }
+
+            // 3D Simplex/Perlin noise implementation within the fragment shader
+            const vertexShader = `
+                varying vec3 vPosition;
+                varying vec3 vWorldPosition;
+                void main() {
+                    vPosition = position;
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+                }
+            `;
+
+            const fragmentShader = `
+                uniform float time;
+                uniform vec3 cameraPos;
+                uniform vec3 propLightColor;
+                uniform float propLightIntensity;
+                varying vec3 vPosition;
+                varying vec3 vWorldPosition;
+
+                // Hash function for noise
+                vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+                vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+                // 3D Simplex Noise
+                float snoise(vec3 v) {
+                    const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+                    const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+                    vec3 i  = floor(v + dot(v, C.yyy) );
+                    vec3 x0 = v - i + dot(i, C.xxx) ;
+                    vec3 g = step(x0.yzx, x0.xyz);
+                    vec3 l = 1.0 - g;
+                    vec3 i1 = min( g.xyz, l.zxy );
+                    vec3 i2 = max( g.xyz, l.zxy );
+                    vec3 x1 = x0 - i1 + C.xxx;
+                    vec3 x2 = x0 - i2 + C.yyy;
+                    vec3 x3 = x0 - D.yyy;
+                    i = mod289(i);
+                    vec4 p = permute( permute( permute(
+                                i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+                            + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
+                            + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+                    float n_ = 0.142857142857;
+                    vec3  ns = n_ * D.wyz - D.xzx;
+                    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+                    vec4 x_ = floor(j * ns.z);
+                    vec4 y_ = floor(j - 7.0 * x_ );
+                    vec4 x = x_ *ns.x + ns.yyyy;
+                    vec4 y = y_ *ns.x + ns.yyyy;
+                    vec4 h = 1.0 - abs(x) - abs(y);
+                    vec4 b0 = vec4( x.xy, y.xy );
+                    vec4 b1 = vec4( x.zw, y.zw );
+                    vec4 s0 = floor(b0)*2.0 + 1.0;
+                    vec4 s1 = floor(b1)*2.0 + 1.0;
+                    vec4 sh = -step(h, vec4(0.0));
+                    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+                    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+                    vec3 p0 = vec3(a0.xy,h.x);
+                    vec3 p1 = vec3(a0.zw,h.y);
+                    vec3 p2 = vec3(a1.xy,h.z);
+                    vec3 p3 = vec3(a1.zw,h.w);
+                    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+                    p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+                    vec4 m = max(0.5 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                    m = m * m;
+                    return 105.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3) ) );
+                }
+
+                void main() {
+                    // Fractional Brownian Motion (FBM)
+                    float noise = 0.0;
+                    
+                    // FIX: Scale up vPosition so we see variations *inside* the cloud.
+                    // This prevents the whole object from sliding into an empty noise valley.
+                    vec3 p = vPosition * 4.0 + vec3(time * ${spd}, time * (${spd} * 0.66), 0.0);
+                    noise += snoise(p) * 0.5;
+                    noise += snoise(p * 2.0) * 0.25;
+                    noise += snoise(p * 4.0) * 0.125;
+
+                    // Calculate density based on noise
+                    float density = smoothstep(-0.1, 0.4, noise);
+
+                    // Colors applied based on style toggle
+                    vec3 color1 = ${c1};
+                    vec3 color2 = ${c2};
+                    vec3 finalColor = mix(color2, color1, noise + 0.5);
+
+                    // NEW: Integrate the object's light emission into the gas volume
+                    float distToCenter = length(vPosition);
+                    vec3 coreGlow = propLightColor * propLightIntensity * smoothstep(2.0, 0.0, distToCenter);
+                    finalColor += coreGlow * density; // The light illuminates the dense gas
+
+                    // Fresnel edge fading to simulate volume boundaries
+                    vec3 viewDirection = normalize(cameraPos - vWorldPosition);
+                    vec3 fakeNormal = normalize(vPosition); // relative to center
+                    
+                    // FIX: Use abs() so zooming inside the cloud doesn't cause the inner faces to disappear
+                    float fresnel = abs(dot(fakeNormal, viewDirection));
+                    fresnel = clamp(fresnel, 0.0, 1.0);
+                    
+                    // Soften edges exponentially
+                    float edgeFade = pow(fresnel, 2.0);
+
+                    gl_FragColor = vec4(finalColor, density * edgeFade * ${opac});
+                }
+            `;
+
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 },
+                    cameraPos: { value: camera.position },
+                    propLightColor: { value: new THREE.Color(propLightColorHex) },
+                    propLightIntensity: { value: propLightIntensity }
+                },
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                transparent: true,
+                depthWrite: false,
+                blending: blend,
+                side: THREE.DoubleSide
+            });
+
+            currentObjects.volumetricMaterial = material;
+
+            // Create multiple layered shells (Shell Texturing) to simulate depth
+            const geometry = new THREE.SphereGeometry(1, 64, 64);
+            const numLayers = 15;
+            
+            for(let i = 0; i < numLayers; i++) {
+                const mesh = new THREE.Mesh(geometry, material);
+                const scale = 12 + i * 0.6; // Spheres growing outwards
+                mesh.scale.set(scale, scale * 0.8, scale); // Slightly flattened
+                group.add(mesh);
+            }
+
+            // --- PROP: Add a glowing geometric core ---
+            const coreGeo = new THREE.OctahedronGeometry(4, 0);
+            const coreMat = new THREE.MeshStandardMaterial({ 
+                color: 0x000000, 
+                wireframe: true, 
+                emissive: new THREE.Color(propLightColorHex),
+                emissiveIntensity: propLightIntensity
+            });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            group.add(core);
+            currentObjects.prop2 = core;
+            currentObjects.propMaterial = coreMat;
+
+            // Physical light to match
+            const light = new THREE.PointLight(propLightColorHex, propLightIntensity, 50);
+            group.add(light);
+            currentObjects.pointLight = light;
+
+            activeGroup.add(group);
+        }
+
+        // --- Method 3: Particle Systems (Swirling Galaxy) ---
+        function loadMethod3() {
+            const group = new THREE.Group();
+            const particleCount = 40000;
+            const geometry = new THREE.BufferGeometry();
+            
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            const sizes = new Float32Array(particleCount);
+            
+            let colorCore, colorArm1, colorArm2, particleBlend, timeMult, yBehavior;
+            const isUpdraft = (activeStyle === 'fire');
+            const isFluidCloud = (activeStyle === 'smoke');
+
+            if (activeStyle === 'smoke') {
+                colorCore = new THREE.Color(0xcccccc); colorArm1 = new THREE.Color(0x8899aa); colorArm2 = new THREE.Color(0x445566);
+                particleBlend = THREE.NormalBlending; timeMult = '0.3'; 
+            } else if (activeStyle === 'fire') {
+                colorCore = new THREE.Color(0xffffff); colorArm1 = new THREE.Color(0xff4400); colorArm2 = new THREE.Color(0xffaa00);
+                particleBlend = THREE.AdditiveBlending; timeMult = '2.5'; 
+            } else if (activeStyle === 'plasma') {
+                colorCore = new THREE.Color(0xffffff); colorArm1 = new THREE.Color(0x00ffcc); colorArm2 = new THREE.Color(0xaa00ff);
+                particleBlend = THREE.AdditiveBlending; timeMult = '4.0'; yBehavior = 'pos.y += sin(time * 15.0 + dist * 2.0) * 1.0;';
+            } else { // nebula
+                colorCore = new THREE.Color(0xffffff); colorArm1 = new THREE.Color(0xff00aa); colorArm2 = new THREE.Color(0x00ffff);
+                particleBlend = THREE.AdditiveBlending; timeMult = '1.0'; yBehavior = 'pos.y += sin(time * 2.0 + dist * 0.5) * 0.5;';
+            }
+            
+            for (let i = 0; i < particleCount; i++) {
+                if (isUpdraft) {
+                    // Emitter volume (Spawn clustered near the base)
+                    const radius = Math.random() * 2.5; 
+                    const theta = Math.random() * Math.PI * 2;
+                    const height = Math.random() * 30.0; // Random height for continuous flow
+                    
+                    positions[i*3] = radius * Math.cos(theta);
+                    positions[i*3+1] = height;
+                    positions[i*3+2] = radius * Math.sin(theta);
+                    
+                    let mixColor = Math.random() > 0.5 ? colorArm1 : colorArm2;
+                    let finalC = colorCore.clone().lerp(mixColor, height / 20.0);
+                    
+                    colors[i*3] = finalC.r; colors[i*3+1] = finalC.g; colors[i*3+2] = finalC.b;
+                    sizes[i] = Math.random() * 6.0 + 1.0;
+                    
+                } else if (isFluidCloud) {
+                    // Spawn a massive, dense box/sphere volume for the cloud
+                    const x = (Math.random() - 0.5) * 50;
+                    const y = (Math.random() - 0.5) * 15;
+                    const z = (Math.random() - 0.5) * 20;
+                    
+                    positions[i*3] = x;
+                    positions[i*3+1] = y;
+                    positions[i*3+2] = z;
+                    
+                    // Core is lighter, edges are darker
+                    const distFromCenter = Math.sqrt(x*x + y*y + z*z) / 30.0;
+                    let mixColor = Math.random() > 0.5 ? colorArm1 : colorArm2;
+                    let finalC = colorCore.clone().lerp(mixColor, distFromCenter);
+                    
+                    colors[i*3] = finalC.r; colors[i*3+1] = finalC.g; colors[i*3+2] = finalC.b;
+                    sizes[i] = Math.random() * 8.0 + 3.0; // Larger, softer particles
+
+                } else {
+                    // Galaxy spiral math
+                    const radius = 2 + Math.random() * 25;
+                    const baseAngle = Math.random() * Math.PI * 2;
+                    const arm = Math.floor(Math.random() * 2);
+                    const armOffset = arm * Math.PI;
+                    const finalAngle = baseAngle * 0.2 + armOffset + radius * 0.4; // The twist
+                    const yScatter = (Math.random() - 0.5) * (10 / (radius * 0.5 + 1));
+                    
+                    positions[i*3] = Math.cos(finalAngle) * radius + (Math.random()-0.5)*2;
+                    positions[i*3+1] = yScatter;
+                    positions[i*3+2] = Math.sin(finalAngle) * radius + (Math.random()-0.5)*2;
+                    
+                    let mixColor = arm === 0 ? colorArm1 : colorArm2;
+                    let finalC = colorCore.clone().lerp(mixColor, radius / 25);
+                    
+                    colors[i*3] = finalC.r; colors[i*3+1] = finalC.g; colors[i*3+2] = finalC.b;
+                    sizes[i] = Math.random() * 3.0 + 0.5;
+                }
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('customColor', new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            // Dynamic vertex shader logic based on style
+            let vertexLogic = "";
+            if (isUpdraft) {
+                const speed = '15.0';
+                vertexLogic = `
+                    float heightScale = 30.0;
+                    pos.y = mod(pos.y + time * ${speed}, heightScale);
+                    float progress = pos.y / heightScale;
+                    pos.x += sin(time * 3.0 + pos.y * 0.5) * 1.5 * progress;
+                    pos.z += cos(time * 2.0 + pos.y * 0.4) * 1.5 * progress;
+                    pos.x *= (1.0 + progress * 2.5);
+                    pos.z *= (1.0 + progress * 2.5);
+                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                    float lifeFade = 1.0 - progress;
+                    gl_PointSize = size * (200.0 / -mvPosition.z) * lifeFade;
+                `;
+            } else if (isFluidCloud) {
+                vertexLogic = `
+                    // Ambient fluid drift
+                    pos.x += sin(time * 0.5 + pos.y * 0.2) * 1.5;
+                    pos.y += cos(time * 0.3 + pos.z * 0.2) * 1.5;
+                    pos.z += sin(time * 0.4 + pos.x * 0.2) * 1.5;
+
+                    // Collision math: Push particles away from the moving collider
+                    vec3 dir = pos - colliderPos;
+                    float dist = length(dir);
+                    float radius = 7.0; // Influence zone of the object
+                    
+                    // Smoothstep creates a soft gradient of influence based on distance
+                    float influence = smoothstep(radius, 0.0, dist); 
+                    
+                    // Push particles outward
+                    pos += normalize(dir) * influence * 5.0;
+                    
+                    // Add a swirl around the object for a fluid-like wake
+                    vec3 swirlDir = cross(normalize(dir), vec3(0.0, 1.0, 0.0));
+                    pos += swirlDir * influence * 4.0;
+
+                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                    gl_PointSize = size * (200.0 / -mvPosition.z);
+                `;
+            } else {
+                vertexLogic = `
+                    float dist = length(pos.xz);
+                    float angleOffset = time * ${timeMult} * (1.5 / (dist + 2.0));
+                    float s = sin(angleOffset);
+                    float c = cos(angleOffset);
+                    float nx = pos.x * c - pos.z * s;
+                    float nz = pos.x * s + pos.z * c;
+                    pos.x = nx;
+                    pos.z = nz;
+                    ${yBehavior}
+                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                    gl_PointSize = size * (200.0 / -mvPosition.z);
+                `;
+            }
+
+            const vertexShader = `
+                uniform float time;
+                uniform vec3 colliderPos; // Passed from javascript for collision
+                uniform vec3 lightPos;
+                uniform vec3 propLightColor;
+                uniform float propLightIntensity;
+                
+                attribute float size;
+                attribute vec3 customColor;
+                varying vec3 vColor;
+                void main() {
+                    vec3 pos = position;
+                    ${vertexLogic}
+                    
+                    // NEW: Integrate object light emission affecting nearby particles
+                    float lightDist = length(pos - lightPos);
+                    
+                    // Calculate how strongly the light affects the particle based on distance
+                    float influence = smoothstep(15.0, 0.0, lightDist);
+                    
+                    // FIX: Mix the base color towards the light color, overriding the pure white core
+                    vec3 tintedColor = mix(customColor, propLightColor, influence * 0.85);
+                    
+                    // Add the glowing intensity on top of the tinted color
+                    vColor = tintedColor + (propLightColor * propLightIntensity * influence * 0.4);
+                    
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `;
+
+            const fragmentShader = `
+                uniform sampler2D pointTexture;
+                varying vec3 vColor;
+                void main() {
+                    gl_FragColor = vec4(vColor, 1.0);
+                    gl_FragColor = gl_FragColor * texture2D(pointTexture, gl_PointCoord);
+                }
+            `;
+
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 },
+                    pointTexture: { value: sharedTexture },
+                    colliderPos: { value: new THREE.Vector3(0, 0, 0) },
+                    lightPos: { value: new THREE.Vector3(0, 0, 0) },
+                    propLightColor: { value: new THREE.Color(propLightColorHex) },
+                    propLightIntensity: { value: propLightIntensity }
+                },
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                transparent: true,
+                depthWrite: false,
+                blending: particleBlend
+            });
+
+            currentObjects.particleMaterial = material;
+            
+            const particles = new THREE.Points(geometry, material);
+            group.add(particles);
+
+            // --- PROPS ---
+            if (isUpdraft) {
+                const baseGeo = new THREE.CylinderGeometry(3.5, 4.5, 1, 16);
+                const baseMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x110500,
+                    emissive: new THREE.Color(propLightColorHex),
+                    emissiveIntensity: propLightIntensity * 0.5
+                });
+                const base = new THREE.Mesh(baseGeo, baseMat);
+                base.position.y = -0.5;
+                group.add(base);
+                group.position.y = -10;
+                currentObjects.propMaterial = baseMat;
+            } else if (isFluidCloud) {
+                // Add a glowing sphere that will move through the fluid
+                const sphereGeo = new THREE.SphereGeometry(2, 32, 32);
+                const sphereMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x111111,
+                    emissive: new THREE.Color(propLightColorHex), 
+                    emissiveIntensity: propLightIntensity 
+                });
+                const collider = new THREE.Mesh(sphereGeo, sphereMat);
+                group.add(collider);
+                
+                const light = new THREE.PointLight(propLightColorHex, propLightIntensity, 50);
+                collider.add(light);
+                
+                currentObjects.collider = collider; // Save reference for animation loop
+                currentObjects.propMaterial = sphereMat;
+                currentObjects.pointLight = light;
+            } else {
+                const bhGeo = new THREE.SphereGeometry(1.8, 32, 32);
+                const bhMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                const blackHole = new THREE.Mesh(bhGeo, bhMat);
+                group.add(blackHole);
+
+                // FIX: Thickened the torus tube from 0.05 to 0.15 so the ring light is more visible
+                const ringGeo = new THREE.TorusGeometry(2.5, 0.15, 16, 100);
+                const ringMat = new THREE.MeshBasicMaterial({ 
+                    color: new THREE.Color(propLightColorHex), 
+                    transparent: true, 
+                    opacity: propLightIntensity * 0.3, 
+                    blending: THREE.AdditiveBlending 
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2;
+                group.add(ring);
+                
+                group.rotation.x = Math.PI * 0.1; 
+                currentObjects.propMaterial = ringMat;
+            }
+            
+            activeGroup.add(group);
+        }
+
+        // --- Interaction & Rendering ---
+        
+        // NEW: Function to dynamically update lights globally
+        window.updateLight = function() {
+            propLightColorHex = document.getElementById('lightColor').value;
+            propLightIntensity = parseFloat(document.getElementById('lightIntensity').value);
+            const color = new THREE.Color(propLightColorHex);
+
+            // Update traditional PointLights
+            if (currentObjects.pointLight) {
+                currentObjects.pointLight.color.copy(color);
+                currentObjects.pointLight.intensity = propLightIntensity;
+            }
+            
+            // Update Mesh Materials
+            if (currentObjects.propMaterial) {
+                if (currentObjects.propMaterial.emissive) {
+                    currentObjects.propMaterial.emissive.copy(color);
+                    currentObjects.propMaterial.emissiveIntensity = propLightIntensity * 0.5;
+                } else {
+                    currentObjects.propMaterial.color.copy(color);
+                    currentObjects.propMaterial.opacity = Math.min(1.0, propLightIntensity * 0.3); // for the black hole ring
+                }
+            }
+            
+            // Update Shader Uniforms
+            if (currentObjects.volumetricMaterial) {
+                currentObjects.volumetricMaterial.uniforms.propLightColor.value.copy(color);
+                currentObjects.volumetricMaterial.uniforms.propLightIntensity.value = propLightIntensity;
+            }
+            if (currentObjects.particleMaterial) {
+                currentObjects.particleMaterial.uniforms.propLightColor.value.copy(color);
+                currentObjects.particleMaterial.uniforms.propLightIntensity.value = propLightIntensity;
+            }
+        };
+
+        window.switchStyle = function(style) {
+            activeStyle = style;
+            
+            // Update Style UI
+            document.querySelectorAll('.style-btn').forEach(btn => {
+                if(btn.id === 'style-' + style) {
+                    btn.classList.add('active', 'bg-white/20', 'border-white');
+                    btn.classList.remove('border-transparent');
+                } else {
+                    btn.classList.remove('active', 'bg-white/20', 'border-white');
+                    btn.classList.add('border-transparent');
+                }
+            });
+
+            // Reload the current method to apply the new style
+            switchMethod(activeMethod);
+        };
+
+        window.switchMethod = function(methodNumber) {
+            activeMethod = methodNumber;
+            
+            // Update UI
+            document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
+                if(idx + 1 === methodNumber) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            document.getElementById('description').innerHTML = descriptions[methodNumber];
+
+            // Clear existing objects
+            while(activeGroup.children.length > 0){ 
+                const child = activeGroup.children[0];
+                activeGroup.remove(child); 
+            }
+            currentObjects = {};
+
+            // Load new method
+            if (methodNumber === 1) loadMethod1();
+            if (methodNumber === 2) loadMethod2();
+            if (methodNumber === 3) loadMethod3();
+            
+            // Apply current light settings to new elements
+            updateLight();
+            
+            // Reset camera gently
+            controls.target.set(0,0,0);
+        };
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+
+            // Method-specific animations
+            if (activeMethod === 1 && currentObjects.sprites) {
+                // Slowly rotate each sprite billboard
+                currentObjects.sprites.children.forEach(sprite => {
+                    if (sprite.isSprite) sprite.material.rotation += sprite.userData.rotSpeed;
+                });
+                // Animate Prop
+                if (currentObjects.prop1) {
+                    currentObjects.prop1.rotation.y += 0.005;
+                    currentObjects.prop1.rotation.z += 0.002;
+                }
+            }
+            
+            if (activeMethod === 2 && currentObjects.volumetricMaterial) {
+                // Update time uniform for noise shader and camera position for fresnel
+                currentObjects.volumetricMaterial.uniforms.time.value = elapsedTime;
+                currentObjects.volumetricMaterial.uniforms.cameraPos.value.copy(camera.position);
+                
+                // Animate Prop
+                if (currentObjects.prop2) {
+                    currentObjects.prop2.rotation.x += 0.005;
+                    currentObjects.prop2.rotation.y += 0.01;
+                }
+            }
+            
+            if (activeMethod === 3 && currentObjects.particleMaterial) {
+                // Update time uniform for particle swirl math
+                currentObjects.particleMaterial.uniforms.time.value = elapsedTime;
+                
+                // If the fluid cloud is active, animate the collider moving through it
+                if (activeStyle === 'smoke' && currentObjects.collider) {
+                    // Oscillate back and forth and slightly up and down
+                    currentObjects.collider.position.x = Math.sin(elapsedTime * 0.6) * 20;
+                    currentObjects.collider.position.z = Math.cos(elapsedTime * 0.4) * 10;
+                    currentObjects.collider.position.y = Math.sin(elapsedTime * 0.8) * 4;
+                    
+                    // Pass the object's new position into the particle shader for BOTH displacement and light
+                    currentObjects.particleMaterial.uniforms.colliderPos.value.copy(currentObjects.collider.position);
+                    currentObjects.particleMaterial.uniforms.lightPos.value.copy(currentObjects.collider.position);
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Initialize App once DOM is ready
+        window.onload = init;
+
+    </script>
+</body>
+</html>
