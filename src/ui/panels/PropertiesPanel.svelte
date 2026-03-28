@@ -1,8 +1,14 @@
 <script lang="ts">
   import { getSelectedId } from '@lib/stores/selectionStore.svelte'
   import { getGraph, updateComponent } from '@lib/stores/sceneStore.svelte'
-  import type { TransformComponent } from '@lib/ecs/types'
+  import type { Entity, TransformComponent } from '@lib/ecs/types'
   import SliderControl from '@ui/controls/SliderControl.svelte'
+  import StarPanel from '@ui/panels/StarPanel.svelte'
+  import PlanetPanel from '@ui/panels/PlanetPanel.svelte'
+  import NebulaPanel from '@ui/panels/NebulaPanel.svelte'
+  import GalaxyPanel from '@ui/panels/GalaxyPanel.svelte'
+  import AlienTechPanel from '@ui/panels/AlienTechPanel.svelte'
+  import OrbitalPanel from '@ui/panels/OrbitalPanel.svelte'
 
   let selectedEntity = $derived.by(() => {
     const id = getSelectedId()
@@ -25,6 +31,11 @@
     updated[axis] = [...updated[axis]] as [number, number, number]
     updated[axis][index] = value
     updateComponent(selectedEntity.id, updated)
+  }
+
+  function updateEntityField(field: 'mass' | 'size', value: number) {
+    if (!selectedEntity) return
+    selectedEntity[field] = value
   }
 </script>
 
@@ -49,6 +60,29 @@
         }}
         class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-gray-100
                focus:outline-none focus:border-violet-500/50 w-full"
+      />
+    </div>
+
+    <!-- Mass & Size -->
+    <div class="flex flex-col gap-3">
+      <h3 class="text-xs uppercase tracking-wider text-gray-500 font-semibold border-b border-white/5 pb-1">
+        Physics
+      </h3>
+      <SliderControl
+        label="Mass"
+        value={selectedEntity.mass}
+        min={0.01}
+        max={100}
+        step={0.1}
+        oninput={(v) => updateEntityField('mass', v)}
+      />
+      <SliderControl
+        label="Size"
+        value={selectedEntity.size}
+        min={0.01}
+        max={100}
+        step={0.1}
+        oninput={(v) => updateEntityField('size', v)}
       />
     </div>
 
@@ -93,11 +127,22 @@
       </div>
     {/if}
 
-    <!-- Component-specific panels will be added in Phase 2 -->
-    <div class="border-t border-white/5 pt-3">
-      <p class="text-[10px] text-gray-600 italic text-center">
-        Generator controls coming in Phase 2
-      </p>
-    </div>
+    <!-- Type-specific panel -->
+    {#if selectedEntity.type === 'star'}
+      <StarPanel entity={selectedEntity} />
+    {:else if selectedEntity.type === 'planet' || selectedEntity.type === 'moon'}
+      <PlanetPanel entity={selectedEntity} />
+    {:else if selectedEntity.type === 'nebula'}
+      <NebulaPanel entity={selectedEntity} />
+    {:else if selectedEntity.type === 'galaxy'}
+      <GalaxyPanel entity={selectedEntity} />
+    {:else if selectedEntity.type === 'alien-tech'}
+      <AlienTechPanel entity={selectedEntity} />
+    {/if}
+
+    <!-- Orbital panel (shown for any entity with orbital component) -->
+    {#if selectedEntity.components['orbital']}
+      <OrbitalPanel entity={selectedEntity} />
+    {/if}
   {/if}
 </div>
