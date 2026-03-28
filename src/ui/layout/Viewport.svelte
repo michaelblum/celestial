@@ -4,6 +4,7 @@
   import { Engine } from '@lib/engine/Engine'
   import { setEngine } from '@lib/stores/engineStore.svelte'
   import { handleViewportClick } from '@lib/stores/selectionStore.svelte'
+  import { registerAnimationTick } from '@lib/stores/sceneStore.svelte'
 
   let canvasEl: HTMLCanvasElement
   let containerEl: HTMLDivElement
@@ -40,6 +41,9 @@
 
     // Start render loop
     engine.start()
+
+    // Register entity animation tick (shader uniforms, billboards, etc.)
+    registerAnimationTick()
 
     return () => {
       observer.disconnect()

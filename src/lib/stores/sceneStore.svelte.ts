@@ -1,8 +1,11 @@
 import * as THREE from 'three'
 import { SceneGraph } from '@lib/ecs/SceneGraph'
-import type { Entity, EntityType, Component, StudioScale } from '@lib/ecs/types'
+import type { Entity, EntityType, Component, StudioScale, StarComponent, PlanetComponent, NebulaComponent } from '@lib/ecs/types'
 import { serializeScene, deserializeScene, downloadScene, loadSceneFile } from '@lib/ecs/Serializer'
 import { getEngine } from './engineStore.svelte'
+import { generateStar, defaultStarConfig } from '@lib/generators/StarGenerator'
+import { generatePlanet, defaultPlanetConfig } from '@lib/generators/PlanetGenerator'
+import { generateNebula, defaultNebulaConfig } from '@lib/generators/NebulaGenerator'
 
 // ─── Reactive State ─────────────────────────────────────────────────────────
 
@@ -57,8 +60,8 @@ export function addEntity(
 ): Entity {
   const entity = graph.createEntity(type, name, parentId, components)
 
-  // Create a placeholder Three.js object
-  const group = new THREE.Group()
+  // Build Three.js object via generator or placeholder
+  const group = buildThreeObject(entity)
   group.name = entity.id
 
   // Apply transform if present
@@ -68,19 +71,6 @@ export function addEntity(
     group.rotation.set(...t.rotation)
     group.scale.set(...t.scale)
   }
-
-  // Add a visible placeholder mesh (small icosahedron)
-  const geo = new THREE.IcosahedronGeometry(0.8, 1)
-  const mat = new THREE.MeshStandardMaterial({
-    color: getEntityColor(type),
-    roughness: 0.4,
-    metalness: 0.3,
-    emissive: getEntityColor(type),
-    emissiveIntensity: 0.15,
-  })
-  const mesh = new THREE.Mesh(geo, mat)
-  mesh.userData.entityId = entity.id
-  group.add(mesh)
 
   // Add to parent or scene root
   const engine = getEngine()
@@ -279,6 +269,75 @@ export function clearScene(): void {
   threeObjects.clear()
   graph.clear()
   sync()
+}
+
+// ─── Three.js Object Builder ────────────────────────────────────────────────
+
+function buildThreeObject(entity: Entity): THREE.Group {
+  const type = entity.type
+
+  // Star
+  if (type === 'star') {
+    const starComp = (entity.components['star'] as StarComponent) ?? defaultStarConfig()
+    if (!entity.components['star']) entity.components['star'] = starComp
+    const group = generateStar(starComp)
+    // Tag meshes with entityId for raycasting
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.userData.entityId = entity.id
+    })
+    return group
+  }
+
+  // Planet
+  if (type === 'planet' || type === 'moon') {
+    const planetComp = (entity.components['planet'] as PlanetComponent) ?? defaultPlanetConfig()
+    if (!entity.components['planet']) entity.components['planet'] = planetComp
+    const group = generatePlanet(planetComp)
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.userData.entityId = entity.id
+    })
+    return group
+  }
+
+  // Nebula
+  if (type === 'nebula') {
+    const nebulaComp = (entity.components['nebula'] as NebulaComponent) ?? defaultNebulaConfig()
+    if (!entity.components['nebula']) entity.components['nebula'] = nebulaComp
+    const group = generateNebula(nebulaComp)
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh || child instanceof THREE.Points) child.userData.entityId = entity.id
+    })
+    return group
+  }
+
+  // Fallback: placeholder icosahedron
+  const group = new THREE.Group()
+  const geo = new THREE.IcosahedronGeometry(0.8, 1)
+  const mat = new THREE.MeshStandardMaterial({
+    color: getEntityColor(type),
+    roughness: 0.4,
+    metalness: 0.3,
+    emissive: getEntityColor(type),
+    emissiveIntensity: 0.15,
+  })
+  const mesh = new THREE.Mesh(geo, mat)
+  mesh.userData.entityId = entity.id
+  group.add(mesh)
+  return group
+}
+
+/** Register animation tick — call once after engine is ready */
+export function registerAnimationTick(): void {
+  const engine = getEngine()
+  if (!engine) return
+
+  engine.onTick((_dt, elapsed) => {
+    for (const [_id, obj] of threeObjects) {
+      if (obj.userData.update) {
+        obj.userData.update(_dt, elapsed, engine.camera)
+      }
+    }
+  })
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
