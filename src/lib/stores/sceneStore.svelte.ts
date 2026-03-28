@@ -4,7 +4,7 @@ import type { Entity, EntityType, Component, StudioScale, StarComponent, PlanetC
 import { serializeScene, deserializeScene, downloadScene, loadSceneFile } from '@lib/ecs/Serializer'
 import { getEngine } from './engineStore.svelte'
 import { generateStar, defaultStarConfig } from '@lib/generators/StarGenerator'
-import { generatePlanet, defaultPlanetConfig } from '@lib/generators/PlanetGenerator'
+import { generatePlanet, defaultPlanetConfig, createColorRampTexture } from '@lib/generators/PlanetGenerator'
 import { generateNebula, defaultNebulaConfig } from '@lib/generators/NebulaGenerator'
 import { generateAlienTech, defaultAlienTechConfig } from '@lib/generators/AlienTechGenerator'
 import { generateGalaxy, defaultGalaxyConfig } from '@lib/generators/GalaxyGenerator'
@@ -180,6 +180,183 @@ export function updateComponent(entityId: string, component: Component): void {
   }
 
   sync()
+}
+
+/** Sync an ECS component change to the live Three.js object */
+export function syncComponentToThreeObject(entityId: string, componentType: string): void {
+  const entity = graph.get(entityId)
+  if (!entity) return
+  const obj = threeObjects.get(entityId)
+  if (!obj) return
+
+  const findShaderMaterials = (): THREE.ShaderMaterial[] => {
+    const mats: THREE.ShaderMaterial[] = []
+    obj.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.ShaderMaterial) {
+        mats.push(child.material)
+      }
+    })
+    return mats
+  }
+
+  const findStandardMaterials = (): THREE.MeshStandardMaterial[] => {
+    const mats: THREE.MeshStandardMaterial[] = []
+    obj.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+        mats.push(child.material)
+      }
+    })
+    return mats
+  }
+
+  // Star live updates
+  if (componentType === 'star') {
+    const comp = entity.components['star'] as StarComponent | undefined
+    if (!comp) return
+    const shaderMats = findShaderMaterials()
+    for (const mat of shaderMats) {
+      if (mat.uniforms['temperature']) mat.uniforms['temperature'].value = comp.temperature
+      if (mat.uniforms['surfaceDetail']) mat.uniforms['surfaceDetail'].value = comp.surfaceDetail
+      if (mat.uniforms['intensity']) mat.uniforms['intensity'].value = comp.coronaIntensity
+      if (mat.uniforms['reach']) mat.uniforms['reach'].value = comp.coronaReach
+    }
+    return
+  }
+
+  // Planet live updates
+  if (componentType === 'planet') {
+    const comp = entity.components['planet'] as PlanetComponent | undefined
+    if (!comp) return
+    const shaderMats = findShaderMaterials()
+    for (const mat of shaderMats) {
+      if (mat.uniforms['noiseScale']) mat.uniforms['noiseScale'].value = comp.noiseScale
+      if (mat.uniforms['noiseOctaves']) mat.uniforms['noiseOctaves'].value = comp.noiseOctaves
+      if (mat.uniforms['roughness']) mat.uniforms['roughness'].value = comp.roughness
+      if (mat.uniforms['colorRamp']) {
+        const oldTexture = mat.uniforms['colorRamp'].value as THREE.DataTexture
+        oldTexture?.dispose()
+        mat.uniforms['colorRamp'].value = createColorRampTexture(comp.colorRamp)
+      }
+      if (mat.uniforms['atmosphereColor']) {
+        mat.uniforms['atmosphereColor'].value = new THREE.Color(comp.atmosphereColor)
+      }
+      if (mat.uniforms['density']) mat.uniforms['density'].value = comp.atmosphereDensity
+    }
+    return
+  }
+
+  // Nebula live updates
+  if (componentType === 'nebula') {
+    const comp = entity.components['nebula'] as NebulaComponent | undefined
+    if (!comp) return
+    const shaderMats = findShaderMaterials()
+    for (const mat of shaderMats) {
+      if (mat.uniforms['color1']) mat.uniforms['color1'].value = new THREE.Color(comp.colorPrimary)
+      if (mat.uniforms['color2']) mat.uniforms['color2'].value = new THREE.Color(comp.colorSecondary)
+      if (mat.uniforms['opacity']) mat.uniforms['opacity'].value = comp.density
+      if (mat.uniforms['lightColor']) mat.uniforms['lightColor'].value = new THREE.Color(comp.lightColor)
+      if (mat.uniforms['lightIntensity']) mat.uniforms['lightIntensity'].value = comp.lightIntensity
+    }
+    return
+  }
+
+  // Alien Tech live updates
+  if (componentType === 'alien-tech') {
+    const comp = entity.components['alien-tech'] as AlienTechComponent | undefined
+    if (!comp) return
+    const stdMats = findStandardMaterials()
+    for (const mat of stdMats) {
+      mat.metalness = comp.metalness
+      mat.roughness = comp.roughness
+      mat.emissive = new THREE.Color(comp.emissiveColor)
+      mat.emissiveIntensity = comp.emissiveIntensity
+    }
+    return
+  }
+
+  // Orbital live updates
+  if (componentType === 'orbital') {
+    const comp = entity.components['orbital'] as OrbitalComponent | undefined
+    if (!comp) return
+    const engine = getEngine()
+    if (!engine) return
+    const parent = entity.parentId ? threeObjects.get(entity.parentId) : engine.scene
+    if (!parent) return
+    const toRemove: THREE.Object3D[] = []
+    parent.traverse((child) => {
+      if (child instanceof THREE.Line && child.userData.orbitFor === entityId) {
+        toRemove.push(child)
+      }
+    })
+    toRemove.forEach((child) => {
+      child.removeFromParent()
+      if (child instanceof THREE.Line) {
+        child.geometry.dispose()
+        ;(child.material as THREE.Material).dispose()
+      }
+    })
+    const path = createOrbitPath(comp)
+    path.userData.orbitFor = entityId
+    if (entity.parentId) {
+      const parentObj = threeObjects.get(entity.parentId)
+      if (parentObj) parentObj.add(path)
+      else engine.scene.add(path)
+    } else {
+      engine.scene.add(path)
+    }
+    return
+  }
+
+  // Galaxy — full regeneration
+  if (componentType === 'galaxy') {
+    regenerateEntity(entityId)
+    return
+  }
+}
+
+/** Regenerate the Three.js object for an entity (full rebuild) */
+export function regenerateEntity(entityId: string): void {
+  const entity = graph.get(entityId)
+  if (!entity) return
+  const obj = threeObjects.get(entityId)
+  if (!obj) return
+
+  if (lodManager) lodManager.unregister(entityId)
+
+  obj.removeFromParent()
+  obj.traverse((child) => {
+    if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
+      child.geometry.dispose()
+      if (Array.isArray(child.material)) {
+        child.material.forEach((m) => m.dispose())
+      } else {
+        child.material.dispose()
+      }
+    }
+  })
+
+  const newObj = buildThreeObject(entity)
+  newObj.name = entityId
+
+  const t = entity.components['transform']
+  if (t && t.type === 'transform') {
+    newObj.position.set(...t.position)
+    newObj.rotation.set(...t.rotation)
+    newObj.scale.set(...t.scale)
+  }
+
+  const engine = getEngine()
+  if (entity.parentId) {
+    const parentObj = threeObjects.get(entity.parentId)
+    if (parentObj) parentObj.add(newObj)
+    else engine?.scene.add(newObj)
+  } else {
+    engine?.scene.add(newObj)
+  }
+
+  threeObjects.set(entityId, newObj)
+
+  if (lodManager) lodManager.register(entityId, newObj, true)
 }
 
 /** Get the Three.js object for an entity */
