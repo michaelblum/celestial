@@ -1,7 +1,8 @@
 <script lang="ts">
   import { getSelectedId } from '@lib/stores/selectionStore.svelte'
-  import { getGraph, updateComponent } from '@lib/stores/sceneStore.svelte'
+  import { getGraph, updateComponent, updateEntityField as storeUpdateEntityField } from '@lib/stores/sceneStore.svelte'
   import type { Entity, TransformComponent } from '@lib/ecs/types'
+  import { density, gravity, escapeVelocity, formatDerived } from '@lib/physics/PhysicsProperties'
   import SliderControl from '@ui/controls/SliderControl.svelte'
   import StarPanel from '@ui/panels/StarPanel.svelte'
   import PlanetPanel from '@ui/panels/PlanetPanel.svelte'
@@ -21,6 +22,17 @@
     return (selectedEntity.components['transform'] as TransformComponent) ?? null
   })
 
+  let derivedProps = $derived.by(() => {
+    if (!selectedEntity) return null
+    const m = selectedEntity.mass
+    const s = selectedEntity.size
+    return {
+      density: density(m, s),
+      gravity: gravity(m, s),
+      escapeVelocity: escapeVelocity(m, s),
+    }
+  })
+
   function updateTransformField(
     axis: 'position' | 'rotation' | 'scale',
     index: number,
@@ -33,9 +45,9 @@
     updateComponent(selectedEntity.id, updated)
   }
 
-  function updateEntityField(field: 'mass' | 'size', value: number) {
+  function updateEntityField(field: 'mass' | 'size' | 'velocity', value: number) {
     if (!selectedEntity) return
-    selectedEntity[field] = value
+    storeUpdateEntityField(selectedEntity.id, field, value)
   }
 </script>
 
@@ -63,7 +75,7 @@
       />
     </div>
 
-    <!-- Mass & Size -->
+    <!-- Physics -->
     <div class="flex flex-col gap-3">
       <h3 class="section-heading">
         Physics
@@ -71,20 +83,45 @@
       <SliderControl
         label="Mass"
         value={selectedEntity.mass}
-        min={0.01}
-        max={100}
-        step={0.1}
+        min={0.001}
+        max={selectedEntity.type === 'star' ? 1000000 : selectedEntity.type === 'galaxy' ? 1e10 : 1000}
+        step={selectedEntity.type === 'star' ? 100 : 0.1}
         oninput={(v) => updateEntityField('mass', v)}
       />
       <SliderControl
         label="Size"
         value={selectedEntity.size}
         min={0.01}
-        max={100}
+        max={selectedEntity.type === 'star' ? 500 : selectedEntity.type === 'galaxy' ? 100 : 20}
         step={0.1}
         oninput={(v) => updateEntityField('size', v)}
       />
+      <SliderControl
+        label="Velocity"
+        value={selectedEntity.velocity}
+        min={0}
+        max={10}
+        step={0.1}
+        oninput={(v) => updateEntityField('velocity', v)}
+      />
     </div>
+
+    <!-- Derived Properties -->
+    {#if derivedProps}
+      <div class="flex flex-col gap-2">
+        <h3 class="section-heading" style="opacity: 0.6">
+          Derived
+        </h3>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs" style="color: var(--text-muted)">
+          <span>Density</span>
+          <span class="font-mono tabular-nums text-right">{formatDerived(derivedProps.density)}</span>
+          <span>Gravity</span>
+          <span class="font-mono tabular-nums text-right">{formatDerived(derivedProps.gravity)}</span>
+          <span>Escape Vel.</span>
+          <span class="font-mono tabular-nums text-right">{formatDerived(derivedProps.escapeVelocity)}</span>
+        </div>
+      </div>
+    {/if}
 
     <!-- Transform -->
     {#if transform}
