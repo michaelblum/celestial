@@ -6,6 +6,7 @@ import { getEngine } from './engineStore.svelte'
 import { generateStar, defaultStarConfig } from '@lib/generators/StarGenerator'
 import { generatePlanet, defaultPlanetConfig } from '@lib/generators/PlanetGenerator'
 import { generateNebula, defaultNebulaConfig } from '@lib/generators/NebulaGenerator'
+import { LODManager } from '@lib/impostor/LODManager'
 
 // ─── Reactive State ─────────────────────────────────────────────────────────
 
@@ -14,6 +15,7 @@ const graph = new SceneGraph()
 let entities = $state<Entity[]>([])
 let sceneName = $state('Untitled Scene')
 let activeStudio = $state<StudioScale>('body')
+let lodManager: LODManager | null = null
 
 /** Map of entityId → THREE.Object3D for the live scene */
 const threeObjects = new Map<string, THREE.Object3D>()
@@ -86,12 +88,23 @@ export function addEntity(
   }
 
   threeObjects.set(entity.id, group)
+
+  // Register with LOD manager for impostor transitions
+  if (lodManager) {
+    lodManager.register(entity.id, group, true)
+  }
+
   sync()
   return entity
 }
 
 /** Remove an entity from the scene */
 export function removeEntity(id: string): void {
+  // Unregister from LOD manager
+  if (lodManager) {
+    lodManager.unregister(id)
+  }
+
   // Remove Three.js objects for this entity and descendants
   const removeThreeObj = (entityId: string) => {
     const entity = graph.get(entityId)
@@ -331,13 +344,27 @@ export function registerAnimationTick(): void {
   const engine = getEngine()
   if (!engine) return
 
+  // Initialize LOD Manager
+  lodManager = new LODManager(engine.renderer, engine.scene, engine.camera)
+
   engine.onTick((_dt, elapsed) => {
+    // Update entity shader uniforms + animations
     for (const [_id, obj] of threeObjects) {
       if (obj.userData.update) {
         obj.userData.update(_dt, elapsed, engine.camera)
       }
     }
+
+    // Update LOD transitions
+    if (lodManager) {
+      lodManager.update(_dt)
+    }
   })
+}
+
+/** Get the LOD manager instance */
+export function getLODManager(): LODManager | null {
+  return lodManager
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
