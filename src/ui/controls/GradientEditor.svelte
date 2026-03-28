@@ -85,7 +85,7 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <span class="text-xs text-gray-400">Color Gradient</span>
+  <span class="text-xs" style="color: var(--label)">Color Gradient</span>
 
   <!-- Gradient Bar -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -93,8 +93,8 @@
   <div
     bind:this={barEl}
     onclick={handleBarClick}
-    class="relative h-6 rounded-lg cursor-crosshair border border-white/10 select-none"
-    style="background: {gradientCSS(stops)}"
+    class="relative h-6 rounded-lg cursor-crosshair select-none"
+    style="border: 1px solid var(--border-control); background: {gradientCSS(stops)}"
   >
     <!-- Stop Handles -->
     {#each stops as stop, i}
@@ -121,10 +121,10 @@
           oninput={(e) => updateColor(originalIndex, (e.target as HTMLInputElement).value)}
           class="w-5 h-5 rounded cursor-pointer bg-transparent border-none p-0"
         />
-        <span class="text-[10px] text-gray-500 font-mono">{Math.round(stop.position * 100)}%</span>
+        <span class="text-[10px] font-mono" style="color: var(--text-muted)">{Math.round(stop.position * 100)}%</span>
       </div>
     {/each}
   </div>
 
-  <p class="text-[10px] text-gray-600">Click bar to add stops. Right-click to remove.</p>
+  <p class="text-[10px]" style="color: var(--icon-default); opacity: 0.5">Click bar to add stops. Right-click to remove.</p>
 </div>
