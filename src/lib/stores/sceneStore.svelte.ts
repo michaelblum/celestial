@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { SceneGraph } from '@lib/ecs/SceneGraph'
-import type { Entity, EntityType, Component, StudioScale, StarComponent, PlanetComponent, NebulaComponent } from '@lib/ecs/types'
+import type { Entity, EntityType, Component, StudioScale, StarComponent, PlanetComponent, NebulaComponent, GalaxyComponent } from '@lib/ecs/types'
 import { serializeScene, deserializeScene, downloadScene, loadSceneFile } from '@lib/ecs/Serializer'
 import { getEngine } from './engineStore.svelte'
 import { generateStar, defaultStarConfig } from '@lib/generators/StarGenerator'
@@ -329,8 +329,12 @@ function buildThreeObject(entity: Entity): THREE.Group {
 
   // Galaxy
   if (type === 'galaxy') {
-    const galaxyConfig = defaultGalaxyConfig()
-    const group = generateGalaxy(galaxyConfig)
+    const galaxyComp = (entity.components['galaxy'] as GalaxyComponent) ?? {
+      type: 'galaxy' as const,
+      ...defaultGalaxyConfig(),
+    }
+    if (!entity.components['galaxy']) entity.components['galaxy'] = galaxyComp
+    const group = generateGalaxy(galaxyComp)
     group.traverse((child) => {
       if (child instanceof THREE.Mesh || child instanceof THREE.Points) child.userData.entityId = entity.id
     })

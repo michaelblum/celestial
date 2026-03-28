@@ -23,6 +23,7 @@ const defaultNames: Record<EntityType, string> = {
   planet: 'Planet',
   moon: 'Moon',
   nebula: 'Nebula',
+  galaxy: 'Galaxy',
   'oort-cloud': 'Oort Cloud',
   'alien-tech': 'Structure',
   placeholder: 'Object',
@@ -45,6 +46,8 @@ export class SceneGraph {
       type,
       parentId: parentId ?? null,
       childIds: [],
+      mass: 1.0,
+      size: 1.0,
       components: {
         transform: defaultTransform(),
         ...components,

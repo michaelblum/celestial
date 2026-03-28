@@ -7,7 +7,7 @@ import atmosphereFrag from '@shaders/atmosphere.frag'
 
 // ─── Color Ramp → 1D DataTexture ────────────────────────────────────────────
 
-function createColorRampTexture(stops: GradientStop[]): THREE.DataTexture {
+export function createColorRampTexture(stops: GradientStop[]): THREE.DataTexture {
   const width = 256
   const data = new Uint8Array(width * 4)
   const sorted = [...stops].sort((a, b) => a.position - b.position)
