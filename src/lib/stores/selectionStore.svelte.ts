@@ -1,0 +1,101 @@
+import * as THREE from 'three'
+import { getThreeObject } from './sceneStore.svelte'
+import { getEngine } from './engineStore.svelte'
+
+// ─── Reactive State ─────────────────────────────────────────────────────────
+
+let selectedId = $state<string | null>(null)
+let hoveredId = $state<string | null>(null)
+
+// Track highlight state to restore materials
+let highlightedMesh: THREE.Mesh | null = null
+let originalEmissiveIntensity: number = 0
+
+// ─── Public API ─────────────────────────────────────────────────────────────
+
+export function getSelectedId(): string | null {
+  return selectedId
+}
+
+export function getHoveredId(): string | null {
+  return hoveredId
+}
+
+export function select(entityId: string | null): void {
+  // Remove highlight from previous selection
+  clearHighlight()
+
+  selectedId = entityId
+
+  // Apply highlight to new selection
+  if (entityId) {
+    applyHighlight(entityId)
+  }
+}
+
+export function hover(entityId: string | null): void {
+  hoveredId = entityId
+}
+
+export function clearSelection(): void {
+  select(null)
+}
+
+// ─── Raycasting ─────────────────────────────────────────────────────────────
+
+const raycaster = new THREE.Raycaster()
+const pointer = new THREE.Vector2()
+
+/** Handle click on the viewport canvas to select entities */
+export function handleViewportClick(event: MouseEvent): void {
+  const engine = getEngine()
+  if (!engine) return
+
+  const canvas = engine.renderer.domElement
+  const rect = canvas.getBoundingClientRect()
+
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+  raycaster.setFromCamera(pointer, engine.camera)
+
+  // Get all meshes with entityId in userData
+  const meshes: THREE.Object3D[] = []
+  engine.scene.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.userData.entityId) {
+      meshes.push(obj)
+    }
+  })
+
+  const intersects = raycaster.intersectObjects(meshes, false)
+
+  if (intersects.length > 0) {
+    const hit = intersects[0].object
+    const entityId = hit.userData.entityId as string
+    select(entityId)
+  } else {
+    clearSelection()
+  }
+}
+
+// ─── Highlight Helpers ──────────────────────────────────────────────────────
+
+function applyHighlight(entityId: string): void {
+  const obj = getThreeObject(entityId)
+  if (!obj) return
+
+  obj.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+      highlightedMesh = child
+      originalEmissiveIntensity = child.material.emissiveIntensity
+      child.material.emissiveIntensity = 0.6
+    }
+  })
+}
+
+function clearHighlight(): void {
+  if (highlightedMesh && highlightedMesh.material instanceof THREE.MeshStandardMaterial) {
+    highlightedMesh.material.emissiveIntensity = originalEmissiveIntensity
+  }
+  highlightedMesh = null
+}
