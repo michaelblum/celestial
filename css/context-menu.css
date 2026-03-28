@@ -1,0 +1,20 @@
+/* Context Menus */
+.context-menu {
+    position: absolute;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(20, 10, 30, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(209, 135, 255, 0.6);
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    z-index: 100;
+    min-width: 180px;
+    color: white;
+}
+.context-menu.visible { display: flex; }
+.context-menu h3 { margin: 0 0 5px 0; font-size: 0.9rem; color: #fff; border-bottom: 1px solid #bc13fe; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;}
+.context-menu label { font-size: 0.65rem; color: #d187ff; margin-bottom: -4px; }
+.context-menu select, .context-menu input[type="color"] { padding: 4px; height: 28px; }

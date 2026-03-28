@@ -1,0 +1,2743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glowing Translucent Polyhedron</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050208;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        /* Collapsing Sidebar Styles */
+        #sidebar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            display: flex;
+            z-index: 20;
+            transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            background: rgba(20, 10, 30, 0.85);
+            backdrop-filter: blur(8px);
+            border-right: 1px solid rgba(209, 135, 255, 0.3);
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+        }
+        #sidebar.expanded { width: 340px; }
+        #sidebar.collapsed { width: 60px; }
+
+        /* Icon Navigation Rail */
+        #nav-rail {
+            width: 60px;
+            min-width: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-right: 1px solid rgba(74, 43, 110, 0.4);
+            background: rgba(15, 5, 25, 0.6);
+            overflow-y: auto;
+            z-index: 15;
+        }
+        #nav-rail::-webkit-scrollbar { display: none; }
+        .nav-icon {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            color: #a060d0;
+            transition: all 0.2s;
+        }
+        .nav-icon:hover { background: rgba(188, 19, 254, 0.2); color: #fff; }
+        .nav-icon.active { background: #bc13fe; color: #fff; box-shadow: 0 0 10px rgba(188, 19, 254, 0.5); }
+        .nav-icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+        /* Content Area */
+        #content-area {
+            flex-grow: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Stylized Neon Title & Scroll Animation */
+        #sidebar-title-wrapper {
+            position: absolute;
+            top: 24px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: opacity 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #sidebar.expanded #sidebar-title-wrapper {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .title-text {
+            font-family: 'Segoe UI', 'Montserrat', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 26px;
+            font-weight: 300;
+            letter-spacing: 7px;
+            margin: 0;
+            text-transform: uppercase;
+            color: #ffffff;
+            /* Glowing gradient effect */
+            background: linear-gradient(135deg, #d187ff 0%, #00e5ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            /* Outer Neon Glow */
+            filter: drop-shadow(0px 0px 6px rgba(0, 229, 255, 0.7)) drop-shadow(0px 0px 14px rgba(188, 19, 254, 0.5));
+            transform-origin: center;
+        }
+
+        .crosshair-x {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: #fff;
+            box-shadow: 0 0 8px #fff;
+            opacity: 0;
+            transform-origin: center;
+        }
+
+        .crosshair-y {
+            position: absolute;
+            width: 2px;
+            height: 20px;
+            background: #fff;
+            box-shadow: 0 0 8px #fff;
+            opacity: 0;
+            transform-origin: center;
+        }
+
+        .anim-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 10px #fff;
+            opacity: 0;
+            transform-origin: center;
+        }
+
+        /* 1s Scroll Animations */
+        .scrolled .title-text { animation: textCollapse 1s forwards; }
+        .scrolled .crosshair-x { animation: hLine 1s forwards; }
+        .scrolled .crosshair-y { animation: vLine 1s forwards; }
+        .scrolled .anim-dot { animation: dotFade 1s forwards; }
+
+        .scrolled-up .title-text { animation: textCollapseRev 1s forwards; }
+        .scrolled-up .crosshair-x { animation: hLineRev 1s forwards; }
+        .scrolled-up .crosshair-y { animation: vLineRev 1s forwards; }
+        .scrolled-up .anim-dot { animation: dotFadeRev 1s forwards; }
+
+        @keyframes textCollapse {
+            0%   { transform: scaleY(1); opacity: 1; filter: drop-shadow(0px 0px 6px rgba(0, 229, 255, 0.7)) drop-shadow(0px 0px 14px rgba(188, 19, 254, 0.5)); }
+            15%  { transform: scaleY(0.05); opacity: 1; filter: drop-shadow(0 0 10px #fff); }
+            20%  { transform: scaleY(0); opacity: 0; filter: drop-shadow(0 0 10px #fff); }
+            100% { transform: scaleY(0); opacity: 0; }
+        }
+        @keyframes hLine {
+            0%   { transform: scaleX(1) scaleY(0); opacity: 0; }
+            15%  { transform: scaleX(1) scaleY(1); opacity: 1; }
+            20%  { transform: scaleX(1) scaleY(1); opacity: 1; }
+            50%  { transform: scaleX(0.1) scaleY(1); opacity: 1; }
+            60%  { transform: scaleX(0.0) scaleY(1); opacity: 0; }
+            100% { transform: scaleX(0.0) scaleY(1); opacity: 0; }
+        }
+        @keyframes vLine {
+            0%   { transform: scaleY(0); opacity: 0; }
+            20%  { transform: scaleY(0); opacity: 0; }
+            50%  { transform: scaleY(1); opacity: 1; }
+            60%  { transform: scaleY(0); opacity: 0; }
+            100% { transform: scaleY(0); opacity: 0; }
+        }
+        @keyframes dotFade {
+            0%   { transform: scale(0); opacity: 0; }
+            50%  { transform: scale(0); opacity: 0; }
+            60%  { transform: scale(1.5); opacity: 1; }
+            80%  { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        /* Reversed Keyframes */
+        @keyframes textCollapseRev {
+            0%   { transform: scaleY(0); opacity: 0; filter: drop-shadow(0 0 10px #fff); }
+            80%  { transform: scaleY(0); opacity: 0; filter: drop-shadow(0 0 10px #fff); }
+            85%  { transform: scaleY(0.05); opacity: 1; filter: drop-shadow(0 0 10px #fff); }
+            100% { transform: scaleY(1); opacity: 1; filter: drop-shadow(0px 0px 6px rgba(0, 229, 255, 0.7)) drop-shadow(0px 0px 14px rgba(188, 19, 254, 0.5)); }
+        }
+        @keyframes hLineRev {
+            0%   { transform: scaleX(0.0) scaleY(1); opacity: 0; }
+            40%  { transform: scaleX(0.0) scaleY(1); opacity: 0; }
+            50%  { transform: scaleX(0.1) scaleY(1); opacity: 1; }
+            80%  { transform: scaleX(1) scaleY(1); opacity: 1; }
+            85%  { transform: scaleX(1) scaleY(1); opacity: 1; }
+            100% { transform: scaleX(1) scaleY(0); opacity: 0; }
+        }
+        @keyframes vLineRev {
+            0%   { transform: scaleY(0); opacity: 0; }
+            40%  { transform: scaleY(0); opacity: 0; }
+            50%  { transform: scaleY(1); opacity: 1; }
+            80%  { transform: scaleY(0); opacity: 0; }
+            100% { transform: scaleY(0); opacity: 0; }
+        }
+        @keyframes dotFadeRev {
+            0%   { transform: scale(0); opacity: 0; }
+            20%  { transform: scale(1); opacity: 1; }
+            40%  { transform: scale(1.5); opacity: 1; }
+            50%  { transform: scale(0); opacity: 0; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        .panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            padding: 80px 20px 80px 20px;
+            box-sizing: border-box;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            color: white;
+        }
+        .panel.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #content-area::-webkit-scrollbar, .panel::-webkit-scrollbar { width: 6px; }
+        .panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .panel::-webkit-scrollbar-thumb { background: #4a2b6e; border-radius: 4px; }
+
+        /* Controls */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: rgba(42, 27, 61, 0.4);
+            border: 1px solid rgba(74, 43, 110, 0.5);
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .control-row { display: flex; justify-content: space-between; align-items: center; }
+        h2 { margin: 0 0 10px 0; font-size: 1.1rem; color: #fff; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #bc13fe; padding-bottom: 5px;}
+        label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #d187ff; font-weight: bold; }
+        .checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; text-transform: none; color: #fff; margin: 4px 0;}
+        select { background: #1a0b2e; border: 1px solid #4a2b6e; color: white; padding: 8px; border-radius: 4px; cursor: pointer; outline: none; width: 100%; box-sizing: border-box; }
+        
+        input[type="color"] { background: #1a0b2e; border: 1px solid #4a2b6e; padding: 0; border-radius: 4px; cursor: pointer; outline: none; box-sizing: border-box; height: 28px; width: 100%;}
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px;}
+        
+        .color-picker-group { display: flex; gap: 4px; flex-grow: 1; justify-content: flex-end;}
+        .color-picker-group input[type="color"] { width: 50%; max-width: 60px; }
+
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 6px; background: #2a1b3d; border-radius: 3px; outline: none; padding: 0; margin: 6px 0; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #bc13fe; border-radius: 50%; cursor: pointer; box-shadow: 0 0 5px rgba(188, 19, 254, 0.5); transition: transform 0.1s; }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        .dual-slider-container { position: relative; width: 100%; height: 20px; margin: 4px 0; }
+        .dual-slider-track { position: absolute; top: 7px; left: 0; width: 100%; height: 6px; background: #2a1b3d; border-radius: 3px; }
+        .dual-slider-fill { position: absolute; top: 7px; height: 6px; background: #bc13fe; border-radius: 3px; }
+        .dual-slider-container input[type="range"] { position: absolute; top: 0; left: 0; width: 100%; margin: 0; background: transparent; pointer-events: none; }
+        .dual-slider-container input[type="range"]::-webkit-slider-thumb { pointer-events: auto; position: relative; z-index: 2; }
+        .dual-slider-container input[type="range"]::-webkit-slider-runnable-track { background: transparent; border: none; }
+
+        .val-display { font-size: 0.7rem; color: #aaa; font-family: monospace; display: flex; align-items: center; gap: 2px; }
+        .editable-val { cursor: text; border-bottom: 1px dashed #bc13fe; padding: 0 2px; transition: all 0.2s; }
+        .editable-val:hover { color: #fff; background: rgba(188, 19, 254, 0.2); border-radius: 2px; }
+        .edit-input { background: #2a1b3d; border: 1px solid #bc13fe; color: white; font-family: monospace; font-size: 0.7rem; outline: none; border-radius: 2px; text-align: center; padding: 0 2px; margin: 0; }
+        .edit-input::-webkit-outer-spin-button, .edit-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .edit-input[type=number] { -moz-appearance: textfield; }
+
+        .btn-action { background: #2a1b3d; border: 1px solid #bc13fe; color: white; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.75rem; transition: all 0.2s; text-transform: uppercase; text-align: center;}
+        .btn-action:hover { background: #bc13fe; box-shadow: 0 0 8px rgba(188, 19, 254, 0.6); }
+
+        .stepper-ui { display: flex; align-items: center; justify-content: center; gap: 4px; background: #1a0b2e; padding: 4px; border-radius: 6px; border: 1px solid #4a2b6e; }
+        .stepper-ui button { background: transparent; border: 1px solid transparent; color: #d187ff; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .stepper-ui button:hover { background: rgba(188, 19, 254, 0.2); }
+        .stepper-ui .bookend { background: #2a1b3d; font-size: 1.1rem; padding: 4px 12px; }
+        .stepper-ui .bookend:hover { background: #4a2b6e; }
+        #step-buttons-container { display: flex; gap: 4px; flex-grow: 1; }
+        .step-stop { flex-grow: 1; font-size: 0.75rem; background: #2a1b3d !important; border: 1px solid #4a2b6e !important; }
+        .step-stop.active { background: #bc13fe !important; color: white !important; box-shadow: 0 0 8px rgba(188, 19, 254, 0.6); border-color: #d187ff !important; }
+
+        /* Context Menus */
+        .context-menu {
+            position: absolute;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(20, 10, 30, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(209, 135, 255, 0.6);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            min-width: 180px;
+            color: white;
+        }
+        .context-menu.visible { display: flex; }
+        .context-menu h3 { margin: 0 0 5px 0; font-size: 0.9rem; color: #fff; border-bottom: 1px solid #bc13fe; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;}
+        .context-menu label { font-size: 0.65rem; color: #d187ff; margin-bottom: -4px; }
+        .context-menu select, .context-menu input[type="color"] { padding: 4px; height: 28px; }
+
+        /* Animation Keyframes */
+        @keyframes vibrate {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-2px, 0px) rotate(1deg); }
+            30% { transform: translate(2px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-2px, 1px) rotate(0deg); }
+            70% { transform: translate(2px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        .vibrate { animation: vibrate 0.2s linear infinite; }
+    </style>
+</head>
+<body>
+    <!-- Hidden file input for load function -->
+    <input type="file" id="file-loader" style="display:none;" accept=".json">
+
+    <!-- Context Menus -->
+    <div id="ctx-object" class="context-menu">
+        <h3>Object Properties</h3>
+        <label>Geometry</label>
+        <select id="ctx-shape">
+            <option value="4">Tetrahedron</option>
+            <option value="6">Hexahedron (Cube)</option>
+            <option value="8">Octahedron</option>
+            <option value="12">Dodecahedron</option>
+            <option value="20">Icosahedron</option>
+            <option value="90">Tetartoid (Pseudo)</option>
+            <option value="91">Torus Knot</option>
+            <option value="100">Sphere</option>
+        </select>
+        <label>Primary Color</label>
+        <input type="color" id="ctx-color">
+        <label>Face Opacity</label>
+        <input type="range" id="ctx-opacity" min="0" max="1" step="0.01">
+        <label>Edge Opacity</label>
+        <input type="range" id="ctx-edge-opacity" min="0" max="1" step="0.01">
+        <label>Aura Reach</label>
+        <input type="range" id="ctx-reach" min="0" max="3" step="0.01">
+        <label>Aura Intensity</label>
+        <input type="range" id="ctx-intensity" min="0" max="3" step="0.01">
+        <label>Base Spin Speed</label>
+        <input type="range" id="ctx-spin" min="0" max="0.1" step="0.001">
+    </div>
+
+    <div id="ctx-env" class="context-menu">
+        <h3>Environment</h3>
+        <label class="checkbox-label" style="margin-top: 0;"><input type="checkbox" id="ctx-grid"> Show Grid</label>
+        <label>Primary Grid Color</label>
+        <input type="color" id="ctx-grid-color">
+        <label class="checkbox-label"><input type="checkbox" id="ctx-grid-bend"> Space-Time Grid</label>
+        <label>Grid Mass</label>
+        <input type="range" id="ctx-grid-mass" min="0" max="3" step="0.1">
+        <label class="checkbox-label"><input type="checkbox" id="ctx-ortho"> Orthographic</label>
+        <label>Perspective FOV</label>
+        <input type="range" id="ctx-fov" min="10" max="120" step="1">
+    </div>
+
+    <div id="sidebar" class="expanded">
+        <div id="nav-rail">
+            <!-- Toggle Sidebar Icon at Top -->
+            <div class="nav-icon" id="toggle-sidebar" title="Toggle Sidebar" style="stroke:currentColor; margin-top: 20px; margin-bottom: 40px;">
+                <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </div>
+
+            <div class="nav-icon active" data-target="panel-geom" title="Geometry">
+                <svg viewBox="0 0 24 24">
+                   <rect x="3" y="3" width="12" height="12"></rect>
+                   <rect x="9" y="9" width="12" height="12"></rect>
+                   <line x1="3" y1="3" x2="9" y2="9"></line>
+                   <line x1="15" y1="3" x2="21" y2="9"></line>
+                   <line x1="3" y1="15" x2="9" y2="21"></line>
+                   <line x1="15" y1="15" x2="21" y2="21"></line>
+                </svg>
+            </div>
+            <div class="nav-icon" data-target="panel-colors" title="Colors & Appearance">
+                <svg viewBox="0 0 24 24">
+                   <circle cx="12" cy="12" r="10"></circle>
+                   <path d="M12 2v10l8.5-5.5"></path>
+                   <path d="M12 12l-8.5 5.5"></path>
+                   <path d="M12 12l-8.5-5.5"></path>
+                   <path d="M12 12v10"></path>
+                   <path d="M12 12l8.5 5.5"></path>
+                </svg>
+            </div>
+            <div class="nav-icon" data-target="panel-anim" title="Animation and Effects">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+            <div class="nav-icon" data-target="panel-env" title="Environment & Camera">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+            </div>
+
+            <!-- Save & Load Buttons -->
+            <div class="nav-icon" id="btn-save" title="Save Configuration" style="stroke:currentColor; margin-top: auto; margin-bottom: 5px;">
+                <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            </div>
+            <div class="nav-icon" id="btn-load" title="Load Configuration" style="stroke:currentColor; margin-bottom: 15px;">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </div>
+
+            <!-- Randomize Button (Die) -->
+            <div class="nav-icon" id="btn-randomize" title="Randomize Parameters" style="stroke:currentColor; margin-bottom: 20px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"></circle>
+                    <circle cx="16" cy="8" r="1.5" fill="currentColor" stroke="none"></circle>
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle>
+                    <circle cx="8" cy="16" r="1.5" fill="currentColor" stroke="none"></circle>
+                    <circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none"></circle>
+                </svg>
+            </div>
+        </div>
+
+        <div id="content-area">
+            <!-- Neon Title animation wrapper -->
+            <div id="sidebar-title-wrapper">
+                <div class="title-text">CELESTIAL</div>
+                <div class="crosshair-x"></div>
+                <div class="crosshair-y"></div>
+                <div class="anim-dot"></div>
+            </div>
+
+            <!-- Geometry Panel -->
+            <div id="panel-geom" class="panel active">
+                <h2>Geometry</h2>
+                <div class="control-group">
+                    <label>Base Shape</label>
+                    <select id="shapeSelect">
+                        <option value="4">Tetrahedron</option>
+                        <option value="6" selected>Hexahedron (Cube)</option>
+                        <option value="8">Octahedron</option>
+                        <option value="12">Dodecahedron</option>
+                        <option value="20">Icosahedron</option>
+                        <option value="90">Tetartoid (Pseudo)</option>
+                        <option value="91">Torus Knot</option>
+                        <option value="100">Sphere</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Stellation (Pull/Push)</label>
+                        <div class="val-display"><span id="stellationVal">0.00</span></div>
+                    </div>
+                    <input type="range" id="stellationSlider" min="-1" max="2" step="0.05" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Face Opacity</label>
+                        <div class="val-display"><span id="opacityVal">0.25</span></div>
+                    </div>
+                    <input type="range" id="opacitySlider" min="0" max="1" step="0.01" value="0.25">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Edge Opacity</label>
+                        <div class="val-display"><span id="edgeOpacityVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="edgeOpacitySlider" min="0" max="1" step="0.01" value="1.00">
+                </div>
+
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="maskToggle" checked> Hollow Core View</label>
+                    <label class="checkbox-label"><input type="checkbox" id="interiorEdgesToggle" checked> Show Interior Edges</label>
+                    <label class="checkbox-label"><input type="checkbox" id="specularToggle" checked> Specular Highlights</label>
+                </div>
+            </div>
+
+            <!-- Colors Panel -->
+            <div id="panel-colors" class="panel">
+                <h2>Appearance</h2>
+                <div class="control-group">
+                    <select id="presetSelect">
+                        <option value="default">Presets: Default Theme</option>
+                        <option value="blackhole">Presets: Black Hole</option>
+                        <option value="crystal">Presets: Pure Crystal</option>
+                        <option value="neon">Presets: Neon Ghost</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Master Gradient</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="masterColor1" value="#bc13fe" title="Color 1">
+                            <input type="color" id="masterColor2" value="#4a2b6e" title="Color 2">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Component Gradients</label>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Faces</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="faceColor1" value="#bc13fe"><input type="color" id="faceColor2" value="#4a2b6e">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Edges</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="edgeColor1" value="#bc13fe"><input type="color" id="edgeColor2" value="#4a2b6e">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Aura</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="auraColor1" value="#bc13fe"><input type="color" id="auraColor2" value="#2a1b3d">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Phenomena Gradients</label>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Pulsar</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="pulsarColor1" value="#ffffff"><input type="color" id="pulsarColor2" value="#bc13fe">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Gamma Rays</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="gammaColor1" value="#ffffff"><input type="color" id="gammaColor2" value="#00ffff">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Accretion</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="accretionColor1" value="#bc13fe"><input type="color" id="accretionColor2" value="#4a2b6e">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Neutrinos</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="neutrinoColor1" value="#bc13fe"><input type="color" id="neutrinoColor2" value="#4a2b6e">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Animation Panel -->
+            <div id="panel-anim" class="panel">
+                <h2>Cosmic Phenomena</h2>
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="pulsarToggle"> Pulsar Beams</label>
+                    <label class="checkbox-label"><input type="checkbox" id="accretionToggle"> Accretion Disk</label>
+                    <label class="checkbox-label"><input type="checkbox" id="gammaToggle"> Gamma Rays</label>
+                    <label class="checkbox-label"><input type="checkbox" id="neutrinoToggle"> Neutrino Jets</label>
+                </div>
+
+                <h2>Animation & Path</h2>
+                
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Base Spin Speed</label>
+                        <div class="val-display"><span id="idleSpinVal">0.010</span></div>
+                    </div>
+                    <input type="range" id="idleSpinSlider" min="0.00" max="0.1" step="0.001" value="0.01">
+                    <button class="btn-action" id="btn-quick-spin" style="margin-top: 5px;">Quick Spin Burst</button>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label class="checkbox-label"><input type="checkbox" id="pathToggle"> Auto-Path</label>
+                        <button class="btn-action" id="btn-pause" style="padding: 4px 8px;">Pause</button>
+                    </div>
+
+                    <div id="pathSettings" style="display: none; flex-direction: column; gap: 8px; margin-top: 10px;">
+                        <div class="control-row">
+                            <label class="checkbox-label"><input type="checkbox" id="centeredViewToggle"> Keep Centered</label>
+                        </div>
+                        <div class="control-row">
+                            <label>Path Type</label>
+                            <select id="pathTypeSelect" style="width: auto; padding: 4px;">
+                                <option value="direct">Direct (Eased)</option>
+                                <option value="curve">Smooth Arcs</option>
+                            </select>
+                        </div>
+                        <div class="control-row">
+                            <label class="checkbox-label"><input type="checkbox" id="showPathToggle"> Show Path Line</label>
+                        </div>
+                        <div class="control-row">
+                            <label class="checkbox-label"><input type="checkbox" id="trailToggle"> Leave Trail</label>
+                        </div>
+                        <div id="trailSettings" style="display: none; flex-direction: column; gap: 4px; padding-left: 20px;">
+                            <div class="control-row">
+                                <label style="font-size:0.6rem;">Tail Length</label>
+                                <div class="val-display"><span id="trailLengthVal">50</span></div>
+                            </div>
+                            <input type="range" id="trailLengthSlider" min="10" max="200" step="1" value="50">
+                        </div>
+                        <div class="control-row" style="margin-top: 6px;">
+                            <label>Speed</label>
+                            <div class="val-display"><span id="speedVal">1.0</span>&nbsp;pc/s</div>
+                        </div>
+                        <input type="range" id="speedSlider" min="0.1" max="10.0" step="0.1" value="1.0">
+                    </div>
+                </div>
+
+                <h2>Aura Effects</h2>
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="auraToggle" checked> Enable Aura Glow</label>
+                    <div id="auraIntensityWrapper">
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Reach</label>
+                            <div class="val-display"><span id="auraReachVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="auraReachSlider" min="0" max="3" step="0.01" value="1.0">
+
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Intensity</label>
+                            <div class="val-display"><span id="auraIntensityVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="auraIntensitySlider" min="0" max="3" step="0.01" value="1.0">
+                        
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Pulse Rate</label>
+                            <div class="val-display"><span id="pulseRateVal">0.005</span></div>
+                        </div>
+                        <input type="range" id="pulseRateSlider" min="0.001" max="0.02" step="0.001" value="0.005">
+                        
+                        <div class="control-row" style="margin-top: 10px;">
+                            <button class="btn-action" id="btn-spike" style="flex-grow: 1;">Spike Amplitude</button>
+                            <input type="number" id="spikeMultiplier" value="1.5" min="1.1" max="50" step="0.1" class="edit-input" style="width: 50px; margin-left: 8px;" title="Spike Size Multiplier">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h2 style="font-size:0.8rem; margin:0; border:none;">Particle Effects</h2>
+                    <div id="btn-supercharge" class="btn-action" style="position: relative; overflow: hidden; user-select: none; margin-top: 5px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                        <div id="charge-fill" style="position: absolute; top:0; left:0; height:100%; width:0%; background: rgba(255,255,255,0.3); pointer-events:none; transition: width 0.1s linear;"></div>
+                        <span style="position:relative; z-index:2; pointer-events:none;">HOLD TO SUPER NOVA</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Environment Panel -->
+            <div id="panel-env" class="panel">
+                <h2>Environment</h2>
+                
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="gridToggle" checked> Show Background Grid</label>
+                    <div id="gridSettings">
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label style="font-size:0.6rem;">Grid Colors</label>
+                            <div class="color-picker-group">
+                                <input type="color" id="gridColor1" value="#442266"><input type="color" id="gridColor2" value="#110022">
+                            </div>
+                        </div>
+                        <div class="control-row" style="margin-top: 10px;">
+                            <label>Granularity</label>
+                            <div class="val-display"><span id="gridDivsVal">30</span></div>
+                        </div>
+                        <input type="range" id="gridDivsSlider" min="5" max="100" step="1" value="30">
+                        
+                        <label class="checkbox-label" style="margin-top: 10px;"><input type="checkbox" id="gridBendToggle"> Space-Time Grid</label>
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Mass</label>
+                            <div class="val-display"><span id="gridMassVal">0.0</span></div>
+                        </div>
+                        <input type="range" id="gridMassSlider" min="0" max="3" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="orthoToggle"> Orthographic</label>
+                    <div id="fovGroup" style="margin-top: 5px;">
+                        <div class="control-row">
+                            <label>Perspective FOV</label>
+                            <div class="val-display"><span id="fovVal">45</span>&deg;</div>
+                        </div>
+                        <input type="range" id="fovSlider" min="10" max="120" step="1" value="45">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Scale Bounds</label>
+                        <div class="val-display">[<span id="rangeMinVal">0.25</span> - <span id="rangeMaxVal">3.00</span>]</div>
+                    </div>
+                    <div class="dual-slider-container">
+                        <div class="dual-slider-track"></div>
+                        <div class="dual-slider-fill" id="dualSliderFill"></div>
+                        <input type="range" id="rangeMin" min="0.25" max="3" value="0.25" step="0.01">
+                        <input type="range" id="rangeMax" min="0.25" max="3" value="3.0" step="0.01">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Z-Depth Scale</label>
+                        <div class="val-display"><span id="zDepthVal">1.10</span></div>
+                    </div>
+                    <input type="range" id="zDepthSlider" min="0.25" max="3" step="0.01" value="1.1">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Depth Stops</label>
+                        <div class="val-display"><span id="stepsVal">3</span> Steps</div>
+                    </div>
+                    <div class="stepper-ui">
+                        <button class="bookend" id="btn-step-minus">-</button>
+                        <div id="step-buttons-container"></div>
+                        <button class="bookend" id="btn-step-plus">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, perspCamera, orthoCamera, renderer, polyGroup, glowSprite, coreSprite, coreMesh, wireframeMesh, depthMesh, pointLight, gridHelper;
+        const frustumSize = 8;
+        
+        // Unified Color Gradient State
+        let colors = {
+            face: ['#bc13fe', '#4a2b6e'],
+            edge: ['#bc13fe', '#4a2b6e'],
+            aura: ['#bc13fe', '#2a1b3d'],
+            pulsar: ['#ffffff', '#bc13fe'],
+            accretion: ['#bc13fe', '#4a2b6e'],
+            gamma: ['#ffffff', '#00ffff'],
+            neutrino: ['#bc13fe', '#4a2b6e'],
+            grid: ['#442266', '#110022']
+        };
+        
+        let currentOpacity = 0.25;
+        let currentEdgeOpacity = 1.0;
+        let idleSpinSpeed = 0.01;
+        let currentGeometryType = 6;
+        let stellationFactor = 0.0;
+
+        let isAuraEnabled = true;
+        let auraReach = 1.0;
+        let auraIntensity = 1.0;
+        let auraPulseRate = 0.005;
+        let auraSpike = 0.0;
+        let spikeMultiplier = 1.5;
+
+        // Add-on Effects State
+        let isPulsarEnabled = false;
+        let isAccretionEnabled = false;
+        let isGammaEnabled = false;
+        let isNeutrinosEnabled = false;
+
+        let pulsarGroup, accretionGroup, gammaRaysGroup, neutrinoGroup;
+        let beamMat, diskMat, gammaBeamMat, neutrinoMat;
+        let accretionRings = [];
+        let neutrinoParticles = [];
+        let flashVoxel;
+        let voxelFlashTimer = 0;
+        
+        // Super Charge/Nova State
+        let isCharging = false;
+        let chargeLevel = 0;
+        let chargeTime = 0;
+        let chargeReleaseTimer = 0;
+        let wasFullCharge = false;
+        
+        // Super Nova specific state
+        let isDestroyed = false;
+        let superNovaTimer = 0;
+        let isRespawning = false;
+        let respawnTimer = 0;
+        let whiteDwarfSprite;
+        let novaScale = 1.0;
+        
+        let particles = []; 
+        let coloredParticles = []; 
+        let inwardParticles = []; 
+        let chargeFlares = [];
+        let chargeSpheroid;
+        let collapseTime = 0;
+
+        // Shockwave Ext
+        let isShockwaveActive = false;
+        let shockwaveTime = 0;
+        let shockwaveSphere;
+        let shockwaveDisk;
+
+        // Quick Spin variables
+        let quickSpinActive = false;
+        let quickSpinAxis = new THREE.Vector3();
+        let quickSpinSpeed = 0;
+        let quickSpinEndTime = 0;
+
+        let isMaskEnabled = true;
+        let isInteriorEdgesEnabled = true;
+        let isSpecularEnabled = true;
+
+        let isGridEnabled = true;
+        let isGridBending = false;
+        let gridMass = 0.0;
+        let gridDivs = 30;
+
+        let depth_range = { min: 0.25, max: 3.0 };
+        let z_depth = 1.1; 
+        
+        let scale_anim_active = false;
+        let target_z_depth = 1.1;
+        let scale_anim_start_val = 1.1;
+        let scale_anim_start_time = 0;
+        let steps = 3; let active_step = -1; 
+
+        // Drag & Momentum State
+        let isDraggingObject = false;
+        let isPanningCamera = false;
+        let isPanningObject = false;
+        let previousMouse = {x: 0, y: 0};
+        let dragVelocity = {x: 0, y: 0};
+        let lastMoveTime = 0;
+        let dragMomentumAxis = new THREE.Vector3();
+        let dragMomentumSpeed = 0;
+        let isMenuOpen = false;
+
+        // Movement / Pathing State
+        let targetPosition = new THREE.Vector3(0, 0, 0);
+        let moveRotationAxis = new THREE.Vector3(0, 1, 0);
+        let moveRotationSpeed = 0;
+
+        let isPathEnabled = false;
+        let isCenteredView = false;
+        let pathType = 'direct';
+        let isPaused = false;
+        let pathSpeed = 1.0; 
+        
+        // Path Visuals
+        let isShowPathEnabled = false;
+        let pathLine = null;
+        let isTrailEnabled = false;
+        let trailLength = 50;
+        let trailPositions = [];
+        let trailSprites = [];
+
+        // 3D Path Coordinates
+        const pathPoints = [
+            new THREE.Vector3(-4, 2, -3.0),
+            new THREE.Vector3(4, 3, 2.0),
+            new THREE.Vector3(3, -3, 3.5),
+            new THREE.Vector3(-3, -2, -1.5)
+        ];
+        const smoothCurve = new THREE.CatmullRomCurve3(pathPoints, true);
+        let pathProgress = 0; 
+        let currentPathIndex = 0; 
+        let segmentProgress = 0; 
+
+        // --- Helpers ---
+        function hexToRgba(hex, alpha) {
+            let c;
+            if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+                c= hex.substring(1).split('');
+                if(c.length== 3){
+                    c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+                }
+                c= '0x'+c.join('');
+                return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+            }
+            return `rgba(255,255,255,${alpha})`;
+        }
+
+        function makeEditable(id, getMin, getMax, isFloat, onChange) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.add('editable-val');
+            el.title = "Click to type value";
+
+            el.addEventListener('click', () => {
+                const currentVal = el.innerText;
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = isFloat ? '0.01' : '1';
+                input.value = currentVal;
+                input.className = 'edit-input';
+                
+                input.style.width = Math.max(4, currentVal.length + 1) + 'ch';
+                el.style.display = 'none';
+                el.parentNode.insertBefore(input, el);
+                input.focus();
+                input.select();
+
+                let isCommitted = false;
+
+                function commit() {
+                    if (isCommitted) return;
+                    isCommitted = true;
+                    let val = parseFloat(input.value);
+                    if (isNaN(val)) val = parseFloat(currentVal);
+                    const min = typeof getMin === 'function' ? getMin() : getMin;
+                    const max = typeof getMax === 'function' ? getMax() : getMax;
+                    val = Math.max(min, Math.min(max, val)); 
+                    
+                    el.innerText = isFloat ? val.toFixed(input.step.includes('.') ? input.step.split('.')[1].length : 0) : Math.round(val).toString();
+                    el.style.display = '';
+                    if(input.parentNode) input.parentNode.removeChild(input);
+                    onChange(val);
+                }
+
+                input.addEventListener('blur', commit);
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') {
+                        if (isCommitted) return;
+                        isCommitted = true;
+                        el.style.display = '';
+                        if(input.parentNode) input.parentNode.removeChild(input);
+                    }
+                });
+            });
+        }
+
+        // --- Texture Generators ---
+        function updateMaterialTexture(material, canvasDrawer) {
+            const canvas = document.createElement('canvas');
+            canvasDrawer(canvas, canvas.getContext('2d'));
+            const newTexture = new THREE.CanvasTexture(canvas);
+            if (material.map) material.map.dispose();
+            material.map = newTexture;
+            material.color.setHex(0xffffff);
+            material.needsUpdate = true;
+            return newTexture;
+        }
+
+        function drawAuraTexture(canvas, ctx, c1, c2, isCore) {
+            canvas.width = 128; canvas.height = 128;
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            if (isCore) {
+                grad.addColorStop(0, hexToRgba(c1, 1.0));
+                grad.addColorStop(0.5, hexToRgba(c2, 0.4));
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+            } else {
+                grad.addColorStop(0, hexToRgba(c1, 0.8));
+                grad.addColorStop(0.5, hexToRgba(c2, 0.2));
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+            }
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
+        }
+
+        function drawPulsarTexture(canvas, ctx, c1, c2) {
+            canvas.width = 16; canvas.height = 256;
+            const grad = ctx.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0, hexToRgba(c2, 0));
+            grad.addColorStop(0.5, hexToRgba(c1, 1));
+            grad.addColorStop(1, hexToRgba(c2, 0));
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 16, 256);
+        }
+
+        function drawGammaTexture(canvas, ctx, c1, c2) {
+            canvas.width = 16; canvas.height = 256;
+            const grad = ctx.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0, hexToRgba(c2, 0));
+            grad.addColorStop(0.3, hexToRgba(c2, 0.05));
+            grad.addColorStop(0.5, hexToRgba(c1, 1));
+            grad.addColorStop(0.7, hexToRgba(c2, 0.05));
+            grad.addColorStop(1, hexToRgba(c2, 0));
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 16, 256);
+        }
+
+        function drawAccretionTexture(canvas, ctx, c1, c2) {
+            canvas.width = 512; canvas.height = 512;
+            const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+            grad.addColorStop(0, hexToRgba(c1, 1));
+            grad.addColorStop(0.75, hexToRgba(c2, 1));
+            grad.addColorStop(1, hexToRgba(c2, 0));
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 512, 512);
+        }
+
+        function drawWhiteDwarf(canvas, ctx) {
+            canvas.width = 128; canvas.height = 128;
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+            grad.addColorStop(0.2, 'rgba(255, 255, 255, 1.0)');
+            grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
+        }
+
+        function createFlareGroup() {
+            const group = new THREE.Group();
+            const geo = new THREE.OctahedronGeometry(1, 0);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false });
+            
+            const m1 = new THREE.Mesh(geo, mat);
+            m1.scale.set(1, 0.1, 0.1);
+            const m2 = new THREE.Mesh(geo, mat);
+            m2.scale.set(0.1, 1, 0.1);
+            
+            group.add(m1);
+            group.add(m2);
+            return group;
+        }
+
+        // --- SAVE/LOAD CONFIGURATION ---
+        function getConfig() {
+            return {
+                shape: currentGeometryType,
+                colors: colors,
+                stellation: stellationFactor,
+                opacity: currentOpacity,
+                edgeOpacity: currentEdgeOpacity,
+                mask: isMaskEnabled,
+                interiorEdges: isInteriorEdgesEnabled,
+                specular: isSpecularEnabled,
+                idleSpin: idleSpinSpeed,
+                path: isPathEnabled,
+                centeredView: isCenteredView,
+                pathType: pathType,
+                showPath: isShowPathEnabled,
+                trail: isTrailEnabled,
+                trailLength: trailLength,
+                speed: pathSpeed,
+                aura: isAuraEnabled,
+                auraReach: auraReach,
+                auraIntensity: auraIntensity,
+                pulseRate: auraPulseRate,
+                pulsar: isPulsarEnabled,
+                accretion: isAccretionEnabled,
+                gamma: isGammaEnabled,
+                neutrinos: isNeutrinosEnabled,
+                grid: isGridEnabled,
+                gridDivs: gridDivs,
+                gridBend: isGridBending,
+                gridMass: gridMass,
+                ortho: document.getElementById('orthoToggle').checked,
+                fov: perspCamera.fov,
+                rangeMin: depth_range.min,
+                rangeMax: depth_range.max,
+                zDepth: z_depth,
+                steps: steps
+            };
+        }
+
+        function applyConfig(c) {
+            if (!c) return;
+            const setUI = (id, val, strVal) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (el.type === 'checkbox') { 
+                    if (el.checked !== val) { el.checked = val; el.dispatchEvent(new Event('change')); }
+                } else { 
+                    el.value = val; 
+                    if(strVal !== undefined) {
+                        const vDisp = document.getElementById(id.replace('Slider','Val'));
+                        if (vDisp) vDisp.innerText = strVal;
+                    }
+                    el.dispatchEvent(new Event('input')); 
+                    el.dispatchEvent(new Event('change'));
+                }
+            };
+
+            if (c.shape !== undefined) setUI('shapeSelect', c.shape);
+            if (c.stellation !== undefined) setUI('stellationSlider', c.stellation, c.stellation.toFixed(2));
+            if (c.opacity !== undefined) setUI('opacitySlider', c.opacity, c.opacity.toFixed(2));
+            if (c.edgeOpacity !== undefined) setUI('edgeOpacitySlider', c.edgeOpacity, c.edgeOpacity.toFixed(2));
+            if (c.mask !== undefined) setUI('maskToggle', c.mask);
+            if (c.interiorEdges !== undefined) setUI('interiorEdgesToggle', c.interiorEdges);
+            if (c.specular !== undefined) setUI('specularToggle', c.specular);
+            if (c.idleSpin !== undefined) setUI('idleSpinSlider', c.idleSpin, c.idleSpin.toFixed(3));
+            
+            if (c.colors) {
+                Object.keys(c.colors).forEach(k => {
+                    colors[k] = c.colors[k];
+                    setUI(k+'Color1', colors[k][0]); setUI(k+'Color2', colors[k][1]);
+                });
+            }
+
+            // Remainder UI state
+            ['path', 'centeredView', 'pathType', 'showPath', 'trail', 'trailLength', 'speed', 'aura', 'auraReach', 'auraIntensity', 'pulseRate', 'pulsar', 'accretion', 'gamma', 'neutrinos', 'grid', 'gridDivs', 'gridBend', 'gridMass', 'ortho', 'fov', 'rangeMin', 'rangeMax', 'zDepth'].forEach(k => {
+                if(c[k] !== undefined) setUI(k.replace('s','S')+'Slider', c[k], typeof c[k] === 'number' ? c[k].toFixed(2) : undefined);
+                if(c[k] !== undefined) setUI(k.replace('t','T')+'Toggle', c[k]);
+            });
+
+            if (c.steps !== undefined) { steps = c.steps; updateStepsUI(); }
+            updateAllColors();
+        }
+
+        function randomizeAll() {
+            const setUI = (id, val, strVal) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (el.type === 'checkbox') { 
+                    if (el.checked !== val) {
+                        el.checked = val; 
+                        el.dispatchEvent(new Event('change')); 
+                    }
+                } else { 
+                    el.value = val; 
+                    if(strVal !== undefined) {
+                        const vDisp = document.getElementById(id.replace('Slider','Val'));
+                        if (vDisp) vDisp.innerText = strVal;
+                    }
+                    el.dispatchEvent(new Event('input')); 
+                    el.dispatchEvent(new Event('change'));
+                }
+            };
+
+            const shapes = [4, 6, 8, 12, 20, 90, 91, 100];
+            setUI('shapeSelect', shapes[Math.floor(Math.random() * shapes.length)]);
+            
+            let stellation = (Math.random() * 3 - 1).toFixed(2);
+            setUI('stellationSlider', stellation, stellation);
+            let opacity = Math.random().toFixed(2);
+            setUI('opacitySlider', opacity, opacity);
+            let edgeOpacity = (Math.random() * 0.8 + 0.2).toFixed(2);
+            setUI('edgeOpacitySlider', edgeOpacity, edgeOpacity);
+            let aReach = (Math.random() * 3).toFixed(2);
+            setUI('auraReachSlider', aReach, aReach);
+            let aInt = (Math.random() * 3).toFixed(2);
+            setUI('auraIntensitySlider', aInt, aInt);
+            let spin = (Math.random() * 0.025).toFixed(3); // Adjusted limit
+            setUI('idleSpinSlider', spin, spin);
+            let pulse = (Math.random() * 0.019 + 0.001).toFixed(3);
+            setUI('pulseRateSlider', pulse, pulse);
+            let mass = (Math.random() * 3).toFixed(1);
+            setUI('gridMassSlider', mass, mass);
+
+            setUI('pathToggle', Math.random() > 0.5);
+            setUI('centeredViewToggle', Math.random() > 0.5);
+            setUI('pathTypeSelect', Math.random() > 0.5 ? 'curve' : 'direct');
+            setUI('trailToggle', Math.random() > 0.5);
+
+            setUI('pulsarToggle', Math.random() > 0.7);
+            setUI('accretionToggle', Math.random() > 0.7);
+            setUI('gammaToggle', Math.random() > 0.7);
+            setUI('neutrinoToggle', Math.random() > 0.7);
+            
+            let tailLen = Math.floor(Math.random() * 190 + 10);
+            setUI('trailLengthSlider', tailLen, tailLen);
+            let spd = (Math.random() * 9.9 + 0.1).toFixed(1);
+            setUI('speedSlider', spd, spd);
+
+            setUI('maskToggle', Math.random() > 0.5);
+            setUI('interiorEdgesToggle', Math.random() > 0.5);
+            setUI('specularToggle', Math.random() > 0.5);
+            setUI('gridToggle', Math.random() > 0.5);
+            setUI('gridBendToggle', Math.random() > 0.2);
+            
+            if (camera.isPerspectiveCamera) { perspCamera.position.z = Math.random() * 20 + 5; } 
+            else { orthoCamera.zoom = Math.random() * 4 + 0.5; orthoCamera.updateProjectionMatrix(); }
+
+            if (Math.random() > 0.5) {
+                let c1 = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+                let c2 = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+                setUI('masterColor1', c1);
+                setUI('masterColor2', c2);
+            }
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            const aspect = window.innerWidth / window.innerHeight;
+            
+            perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+            perspCamera.position.z = 7.5;
+
+            orthoCamera = new THREE.OrthographicCamera(frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, 0.1, 1000);
+            orthoCamera.position.z = 5;
+
+            camera = perspCamera;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+
+            buildGrid();
+
+            // Enlarged starfield for panning views
+            const starGeo = new THREE.BufferGeometry();
+            const posArray = new Float32Array(2000 * 3);
+            for(let i=0; i<6000; i++) posArray[i] = (Math.random() - 0.5) * 200;
+            starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.04, color: 0xffffff })));
+
+            polyGroup = new THREE.Group();
+            scene.add(polyGroup);
+
+            // 1. Glow Sprite (Reach)
+            glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+            scene.add(glowSprite); 
+
+            // 2. Core Sprite (Intensity)
+            coreSprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+            scene.add(coreSprite);
+
+            // 3. Super Charge Spheroid
+            chargeSpheroid = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+            chargeSpheroid.visible = false;
+            scene.add(chargeSpheroid);
+
+            // 4. Super Nova Aftermath White Dwarf
+            whiteDwarfSprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+            updateMaterialTexture(whiteDwarfSprite.material, drawWhiteDwarf);
+            whiteDwarfSprite.visible = false;
+            scene.add(whiteDwarfSprite);
+
+            // 5. Release Shockwave Objects
+            shockwaveSphere = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending}));
+            shockwaveSphere.visible = false;
+            scene.add(shockwaveSphere);
+
+            shockwaveDisk = new THREE.Mesh(new THREE.RingGeometry(0.01, 1, 64), new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending}));
+            shockwaveDisk.visible = false;
+            scene.add(shockwaveDisk);
+
+            // Trail Initialization Pool
+            for(let i=0; i<200; i++) {
+                let s = new THREE.Sprite(new THREE.SpriteMaterial({ blending: THREE.AdditiveBlending, depthWrite: false }));
+                s.visible = false;
+                scene.add(s);
+                trailSprites.push(s);
+            }
+
+            // Charge Solid Flare Initialization (6 Total)
+            for(let i=0; i<6; i++) {
+                let flare = createFlareGroup();
+                flare.visible = false;
+                
+                let rx = 0, ry = 0, rz = 0;
+                if (i === 0) {} // XY
+                else if (i === 1) { ry = Math.PI / 2; } // ZY
+                else if (i === 2) { rx = Math.PI / 2; } // XZ
+                else if (i === 3) { rz = Math.PI / 4; } // XY offset
+                else if (i === 4) { ry = Math.PI / 2; rx = Math.PI / 4; } // ZY offset
+                else if (i === 5) { rx = Math.PI / 2; ry = Math.PI / 4; } // XZ offset
+                
+                flare.userData = { baseX: rx, baseY: ry, baseZ: rz, targetS: 2.0, lastScale: 0, lastSpeed: 0 };
+                flare.rotation.set(rx, ry, rz);
+                polyGroup.add(flare);
+                chargeFlares.push(flare);
+            }
+
+            // --- COSMIC PHENOMENA CREATION ---
+
+            // Pulsar Beams (Tapering to half diameter at tips)
+            pulsarGroup = new THREE.Group();
+            pulsarGroup.visible = false;
+            
+            const beamGeo = new THREE.CylinderGeometry(0.15, 0.15, 4.0, 16, 16, true); 
+            const beamPos = beamGeo.attributes.position;
+            for(let i=0; i<beamPos.count; i++) {
+                let scale = 1.0 - 0.5 * (Math.abs(beamPos.getY(i)) / 2.0); 
+                beamPos.setX(i, beamPos.getX(i) * scale);
+                beamPos.setZ(i, beamPos.getZ(i) * scale);
+            }
+            beamGeo.computeVertexNormals();
+
+            beamMat = new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+            pulsarGroup.add(new THREE.Mesh(beamGeo, beamMat));
+            polyGroup.add(pulsarGroup);
+
+            // Gamma Rays
+            gammaRaysGroup = new THREE.Group();
+            gammaRaysGroup.visible = false;
+            
+            gammaBeamMat = new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+            gammaRaysGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 15.0, 16, 1, true), gammaBeamMat));
+            polyGroup.add(gammaRaysGroup);
+
+
+            // Accretion Disk
+            accretionGroup = new THREE.Group();
+            accretionGroup.visible = false;
+            
+            diskMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.15, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+            let diskMesh = new THREE.Mesh(new THREE.RingGeometry(0.8, 4.0, 128), diskMat);
+            diskMesh.rotation.x = Math.PI / 2;
+            accretionGroup.add(diskMesh);
+            
+            for(let i=0; i<10; i++) {
+                let rMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+                rMesh.rotation.x = Math.PI / 2;
+                rMesh.position.y = 0.01 + (i * 0.002);
+                accretionGroup.add(rMesh);
+                
+                accretionRings.push({ 
+                    mesh: rMesh, 
+                    radius: 4.0 * (i / 10),
+                    targetW: 4.0 * (0.1 + Math.random() * 0.2),
+                    targetOp: 0.5 + Math.random() * 0.25
+                });
+            }
+            
+            polyGroup.add(accretionGroup);
+
+            // True Point Flash
+            let ptGeo = new THREE.BufferGeometry();
+            ptGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+            flashVoxel = new THREE.Points(ptGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 3, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false }));
+            polyGroup.add(flashVoxel);
+
+            // Neutrinos Particles
+            neutrinoGroup = new THREE.Group();
+            neutrinoGroup.visible = false;
+            neutrinoMat = new THREE.SpriteMaterial({ blending: THREE.AdditiveBlending, depthWrite: false });
+            for (let i = 0; i < 150; i++) {
+                let p = new THREE.Sprite(neutrinoMat);
+                p.scale.set(0.12, 0.12, 1);
+                neutrinoGroup.add(p);
+                neutrinoParticles.push({
+                    mesh: p,
+                    yPos: (Math.random() - 0.5) * 8.0,
+                    speed: Math.random() * 2.5 + 1.5,
+                    dir: Math.random() > 0.5 ? 1 : -1,
+                    xOffset: (Math.random() - 0.5) * 0.075,
+                    zOffset: (Math.random() - 0.5) * 0.075
+                });
+            }
+            polyGroup.add(neutrinoGroup);
+
+
+            pointLight = new THREE.PointLight(0xffffff, 1.5, 10);
+            polyGroup.add(pointLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(5, 5, 5);
+            scene.add(dirLight);
+            scene.add(new THREE.AmbientLight(0x444444));
+
+            updateGeometry(currentGeometryType);
+            updateAllColors();
+
+            polyGroup.scale.set(z_depth, z_depth, z_depth);
+            updateDualSliderUI();
+            updateStepsUI();
+
+            setupEventListeners();
+            setupEditableLabels();
+
+            animate();
+        }
+
+        function updateFaceVertexColors() {
+            if (!coreMesh) return;
+            const geo = coreMesh.geometry;
+            const count = geo.attributes.position.count;
+            if (!geo.attributes.color || geo.attributes.color.count !== count) {
+                geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+            }
+            const col = geo.attributes.color;
+            geo.computeBoundingBox();
+            const min = geo.boundingBox.min.y; const range = (geo.boundingBox.max.y - min) || 1;
+            const c1 = new THREE.Color(colors.face[0]); const c2 = new THREE.Color(colors.face[1]);
+            const tC = new THREE.Color();
+            for(let i=0; i<count; i++) {
+                tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+                col.setXYZ(i, tC.r, tC.g, tC.b);
+            }
+            col.needsUpdate = true;
+            coreMesh.material.vertexColors = true;
+            coreMesh.material.color.setHex(0xffffff);
+            if(coreMesh.material.map) { coreMesh.material.map.dispose(); coreMesh.material.map = null; }
+            coreMesh.material.needsUpdate = true;
+        }
+
+        function updateEdgeVertexColors() {
+            if (!wireframeMesh) return;
+            const geo = wireframeMesh.geometry;
+            const count = geo.attributes.position.count;
+            if (!geo.attributes.color || geo.attributes.color.count !== count) {
+                geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+            }
+            const col = geo.attributes.color;
+            geo.computeBoundingBox();
+            const min = geo.boundingBox.min.y; const range = (geo.boundingBox.max.y - min) || 1;
+            const c1 = new THREE.Color(colors.edge[0]); const c2 = new THREE.Color(colors.edge[1]);
+            const tC = new THREE.Color();
+            for(let i=0; i<count; i++) {
+                tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+                col.setXYZ(i, tC.r, tC.g, tC.b);
+            }
+            col.needsUpdate = true;
+            wireframeMesh.material.vertexColors = true;
+            wireframeMesh.material.color.setHex(0xffffff);
+            wireframeMesh.material.needsUpdate = true;
+        }
+
+        function buildGrid() {
+            if (!isGridEnabled) {
+                if (gridHelper) gridHelper.visible = false;
+                return;
+            }
+            if (gridHelper) { scene.remove(gridHelper); gridHelper.geometry.dispose(); gridHelper.material.dispose(); }
+            
+            const size = 100; const step = size / gridDivs; const halfSize = size / 2;
+            const segmentsPerLine = Math.max(gridDivs, 60);
+            const vertices = [];
+            for (let i=0, k=-halfSize; i<=gridDivs; i++, k+=step) {
+                for (let s=0; s<segmentsPerLine; s++) {
+                    vertices.push(k, -halfSize+(s*size/segmentsPerLine), 0, k, -halfSize+((s+1)*size/segmentsPerLine), 0);
+                    vertices.push(-halfSize+(s*size/segmentsPerLine), k, 0, -halfSize+((s+1)*size/segmentsPerLine), k, 0);
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geo.setAttribute('basePosition', new THREE.Float32BufferAttribute([...vertices], 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vertices.length), 3));
+
+            const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3 });
+            gridHelper = new THREE.LineSegments(geo, mat);
+            gridHelper.position.z = -8;
+            scene.add(gridHelper);
+            updateGridColors();
+        }
+
+        function updateGridColors() {
+            if(!gridHelper || !gridHelper.visible) return;
+            const pos = gridHelper.geometry.attributes.basePosition;
+            const col = gridHelper.geometry.attributes.color;
+            const c1 = new THREE.Color(colors.grid[0]); const c2 = new THREE.Color(colors.grid[1]);
+            const tC = new THREE.Color();
+            for(let i=0; i<pos.count; i++) {
+                let dist = Math.sqrt(Math.pow(pos.getX(i), 2) + Math.pow(pos.getY(i), 2));
+                tC.copy(c1).lerp(c2, Math.min(dist/50.0, 1.0));
+                col.setXYZ(i, tC.r, tC.g, tC.b);
+            }
+            col.needsUpdate = true;
+        }
+
+        function updateAllColors() {
+            updateFaceVertexColors(); updateEdgeVertexColors(); updateGridColors();
+            pointLight.color.copy(new THREE.Color(colors.face[0]).lerp(new THREE.Color(colors.face[1]), 0.5));
+            if(pathLine) pathLine.material.color.copy(new THREE.Color(colors.edge[0]));
+            
+            updateMaterialTexture(glowSprite.material, (canv, ctx) => drawAuraTexture(canv, ctx, colors.aura[0], colors.aura[1], false));
+            let coreTex = updateMaterialTexture(coreSprite.material, (canv, ctx) => drawAuraTexture(canv, ctx, colors.aura[0], colors.aura[1], true));
+            updateMaterialTexture(chargeSpheroid.material, (canv, ctx) => drawAuraTexture(canv, ctx, '#ffffff', colors.aura[0], true));
+            
+            trailSprites.forEach(s => s.material.map = coreTex);
+            
+            updateMaterialTexture(beamMat, (canv, ctx) => drawPulsarTexture(canv, ctx, colors.pulsar[0], colors.pulsar[1]));
+            updateMaterialTexture(gammaBeamMat, (canv, ctx) => drawGammaTexture(canv, ctx, colors.gamma[0], colors.gamma[1]));
+            updateMaterialTexture(diskMat, (canv, ctx) => drawAccretionTexture(canv, ctx, colors.accretion[0], colors.accretion[1]));
+            
+            updateMaterialTexture(neutrinoMat, (canv, ctx) => drawAuraTexture(canv, ctx, colors.neutrino[0], colors.neutrino[1], true));
+        }
+
+        function updatePathVisual() {
+            if (pathLine) { scene.remove(pathLine); pathLine.geometry.dispose(); pathLine.material.dispose(); pathLine = null; }
+            if (!isShowPathEnabled || !isPathEnabled) return;
+
+            const pts = pathType === 'curve' ? smoothCurve.getPoints(100) : [...pathPoints, pathPoints[0]];
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(colors.edge[0]), linewidth: 2, transparent: true, opacity: 0.5, depthWrite: false });
+            pathLine = new THREE.Line(geo, mat);
+            scene.add(pathLine);
+        }
+
+        function fireExplosion() {
+            // White explosion particles
+            for(let i=0; i<150; i++) {
+                let p = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite.material.map, color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false }));
+                p.position.copy(polyGroup.position);
+                let phi = Math.acos(-1 + (2 * Math.random()));
+                let theta = Math.sqrt(100 * Math.PI) * phi;
+                let v = new THREE.Vector3(
+                    Math.cos(theta) * Math.sin(phi),
+                    Math.sin(theta) * Math.sin(phi),
+                    Math.cos(phi)
+                ).normalize().multiplyScalar(Math.random() * 0.4 + 0.1); 
+                
+                p.scale.set(0.5, 0.5, 1);
+                scene.add(p);
+                particles.push({ mesh: p, vel: v, life: 1.0 });
+            }
+        }
+        
+        function fireSuperNova() {
+            isDestroyed = true;
+            superNovaTimer = 5.0; 
+            
+            // --- Colored Particles Burst ---
+            for(let i=0; i<150; i++) {
+                let p = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite.material.map, color: new THREE.Color(colors.edge[0]), blending: THREE.AdditiveBlending, depthWrite: false }));
+                p.position.copy(polyGroup.position);
+                let phi = Math.acos(-1 + (2 * Math.random()));
+                let theta = Math.sqrt(100 * Math.PI) * phi;
+                
+                let speed = 0.5 + Math.random() * 2.0; 
+                let v = new THREE.Vector3(
+                    Math.cos(theta) * Math.sin(phi),
+                    Math.sin(theta) * Math.sin(phi),
+                    Math.cos(phi)
+                ).normalize().multiplyScalar(speed);
+                
+                p.scale.set(0.6, 0.6, 1);
+                scene.add(p);
+                coloredParticles.push({ mesh: p, vel: v, friction: 0.90 + Math.random() * 0.08 });
+            }
+
+            fireExplosion(); 
+
+            whiteDwarfSprite.position.copy(polyGroup.position);
+            whiteDwarfSprite.material.opacity = 1.0;
+            whiteDwarfSprite.scale.set(4.0, 4.0, 1.0);
+            whiteDwarfSprite.visible = true;
+        }
+
+        function setupEditableLabels() {
+            makeEditable('stellationVal', -1, 2, true, (val) => { document.getElementById('stellationSlider').value = val; stellationFactor = val; updateGeometry(currentGeometryType); });
+            makeEditable('opacityVal', 0, 1, true, (val) => { document.getElementById('opacitySlider').value = val; updateOpacity(val); });
+            makeEditable('edgeOpacityVal', 0, 1, true, (val) => { document.getElementById('edgeOpacitySlider').value = val; updateEdgeOpacity(val); });
+            makeEditable('idleSpinVal', 0, 0.1, true, (val) => { document.getElementById('idleSpinSlider').value = val; idleSpinSpeed = val; });
+            makeEditable('auraReachVal', 0, 3, true, (val) => { document.getElementById('auraReachSlider').value = val; auraReach = val; });
+            makeEditable('auraIntensityVal', 0, 3, true, (val) => { document.getElementById('auraIntensitySlider').value = val; auraIntensity = val; });
+            makeEditable('pulseRateVal', 0.001, 0.02, true, (val) => { document.getElementById('pulseRateSlider').value = val; auraPulseRate = val; });
+            makeEditable('gridDivsVal', 5, 100, false, (val) => { document.getElementById('gridDivsSlider').value = val; gridDivs = val; buildGrid(); });
+            makeEditable('gridMassVal', 0, 3, true, (val) => { document.getElementById('gridMassSlider').value = val; gridMass = val; });
+            makeEditable('fovVal', 10, 120, false, (val) => { document.getElementById('fovSlider').value = val; perspCamera.fov = val; perspCamera.updateProjectionMatrix(); });
+            makeEditable('rangeMinVal', 0.25, () => depth_range.max, true, (val) => { document.getElementById('rangeMin').value = val; depth_range.min = val; handleRangeChange(); });
+            makeEditable('rangeMaxVal', () => depth_range.min, 3.00, true, (val) => { document.getElementById('rangeMax').value = val; depth_range.max = val; handleRangeChange(); });
+            makeEditable('zDepthVal', () => depth_range.min, () => depth_range.max, true, (val) => { document.getElementById('zDepthSlider').value = val; z_depth = val; scale_anim_active = false; active_step = -1; updateStepsUI(); });
+            makeEditable('speedVal', 0.1, 10.0, true, (val) => { document.getElementById('speedSlider').value = val; pathSpeed = val; });
+            makeEditable('trailLengthVal', 10, 200, false, (val) => { document.getElementById('trailLengthSlider').value = val; trailLength = val; });
+        }
+
+        function setupEventListeners() {
+            // Sidebar Navigation
+            const navIcons = document.querySelectorAll('.nav-icon[data-target]');
+            const panels = document.querySelectorAll('.panel');
+            
+            let isTitleScrolled = false;
+            let hasScrolledOnce = false;
+            const titleWrapper = document.getElementById('sidebar-title-wrapper');
+            
+            const checkScroll = (panel) => {
+                if (panel.scrollTop > 10 && !isTitleScrolled) {
+                    isTitleScrolled = true;
+                    hasScrolledOnce = true;
+                    titleWrapper.classList.remove('scrolled-up');
+                    titleWrapper.classList.add('scrolled');
+                } else if (panel.scrollTop <= 10 && isTitleScrolled) {
+                    isTitleScrolled = false;
+                    if (hasScrolledOnce) {
+                        titleWrapper.classList.remove('scrolled');
+                        titleWrapper.classList.add('scrolled-up');
+                    }
+                }
+            };
+
+            // Attach scroll listener to all panels
+            panels.forEach(p => {
+                p.addEventListener('scroll', (e) => {
+                    if (p.classList.contains('active')) {
+                        checkScroll(p);
+                    }
+                });
+            });
+
+            navIcons.forEach(icon => {
+                icon.addEventListener('click', () => {
+                    navIcons.forEach(n => n.classList.remove('active'));
+                    panels.forEach(p => p.classList.remove('active'));
+                    icon.classList.add('active');
+                    
+                    const targetPanel = document.getElementById(icon.getAttribute('data-target'));
+                    targetPanel.classList.add('active');
+                    
+                    document.getElementById('sidebar').classList.add('expanded');
+                    document.getElementById('sidebar').classList.remove('collapsed');
+                    
+                    checkScroll(targetPanel);
+                });
+            });
+
+            document.getElementById('toggle-sidebar').addEventListener('click', () => {
+                const sb = document.getElementById('sidebar');
+                if (sb.classList.contains('expanded')) {
+                    sb.classList.remove('expanded'); sb.classList.add('collapsed');
+                } else {
+                    sb.classList.remove('collapsed'); sb.classList.add('expanded');
+                }
+            });
+
+            // Action Buttons
+            document.getElementById('btn-randomize').addEventListener('click', randomizeAll);
+
+            document.getElementById('btn-save').addEventListener('click', () => {
+                const config = getConfig();
+                const jsonStr = JSON.stringify(config, null, 2);
+                
+                // Use fallback textarea for iframe clipboard copying
+                const textArea = document.createElement("textarea");
+                textArea.value = jsonStr;
+                textArea.style.position = "fixed"; 
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                } catch (err) {
+                    console.error("Clipboard fallback failed", err);
+                }
+                document.body.removeChild(textArea);
+
+                // Offer file download
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'celestial_config.json';
+                a.click(); URL.revokeObjectURL(url);
+            });
+
+            document.getElementById('btn-load').addEventListener('click', () => {
+                document.getElementById('file-loader').click();
+            });
+
+            document.getElementById('file-loader').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const config = JSON.parse(ev.target.result);
+                        applyConfig(config);
+                    } catch(err) { console.error('Invalid JSON file', err); }
+                };
+                reader.readAsText(file);
+                e.target.value = ''; // Reset input
+            });
+
+            // Prevent default context menu
+            window.addEventListener('contextmenu', e => e.preventDefault());
+
+            // Mouse Wheel Zoom / Scroll handler
+            window.addEventListener('wheel', (e) => {
+                // Ensure UI scroll areas are fully functional and block zooming
+                if (e.target.closest('#sidebar') || e.target.closest('.context-menu')) return;
+                
+                e.preventDefault();
+                if (camera.isPerspectiveCamera) {
+                    perspCamera.position.z = Math.max(2, Math.min(50, perspCamera.position.z + e.deltaY * 0.01));
+                } else {
+                    orthoCamera.zoom = Math.max(0.1, Math.min(10, orthoCamera.zoom - e.deltaY * 0.005));
+                    orthoCamera.updateProjectionMatrix();
+                }
+            }, { passive: false });
+
+            // Master Gradient updates component gradients
+            document.getElementById('masterColor1').addEventListener('input', (e) => {
+                const v = e.target.value;
+                ['face','edge','aura','grid','pulsar','accretion','gamma','neutrino'].forEach(k => { document.getElementById(k+'Color1').value = v; colors[k][0] = v; });
+                updateAllColors();
+            });
+            document.getElementById('masterColor2').addEventListener('input', (e) => {
+                const v = e.target.value;
+                ['face','edge','aura','grid','pulsar','accretion','gamma','neutrino'].forEach(k => { document.getElementById(k+'Color2').value = v; colors[k][1] = v; });
+                updateAllColors();
+            });
+
+            // Connect specific color pickers
+            ['face','edge','aura','grid','pulsar','accretion','gamma','neutrino'].forEach(k => {
+                document.getElementById(k+'Color1').addEventListener('input', e => { colors[k][0] = e.target.value; updateAllColors(); });
+                document.getElementById(k+'Color2').addEventListener('input', e => { colors[k][1] = e.target.value; updateAllColors(); });
+            });
+
+            // Bi-directional Context Menu Syncing
+            const proxyInput = (ctxId, sidebarId) => {
+                document.getElementById(ctxId).addEventListener('input', (e) => {
+                    const sideEl = document.getElementById(sidebarId);
+                    if (sideEl.type === 'checkbox') sideEl.checked = e.target.checked;
+                    else sideEl.value = e.target.value;
+                    sideEl.dispatchEvent(new Event('change'));
+                    sideEl.dispatchEvent(new Event('input'));
+                });
+            };
+            proxyInput('ctx-shape', 'shapeSelect');
+            proxyInput('ctx-opacity', 'opacitySlider'); proxyInput('ctx-edge-opacity', 'edgeOpacitySlider'); proxyInput('ctx-reach', 'auraReachSlider');
+            proxyInput('ctx-intensity', 'auraIntensitySlider'); proxyInput('ctx-spin', 'idleSpinSlider'); 
+            proxyInput('ctx-grid', 'gridToggle');
+            proxyInput('ctx-ortho', 'orthoToggle'); proxyInput('ctx-fov', 'fovSlider');
+            proxyInput('ctx-grid-bend', 'gridBendToggle'); proxyInput('ctx-grid-mass', 'gridMassSlider');
+
+            // Hook Context menu colors uniquely since they proxy primary gradients
+            document.getElementById('ctx-color').addEventListener('input', (e) => {
+                const v = e.target.value;
+                ['face','edge','aura','grid','pulsar','accretion','gamma','neutrino'].forEach(k => { document.getElementById(k+'Color1').value = v; colors[k][0] = v; });
+                updateAllColors();
+            });
+            document.getElementById('ctx-grid-color').addEventListener('input', (e) => {
+                document.getElementById('gridColor1').value = e.target.value; colors.grid[0] = e.target.value; updateAllColors();
+            });
+
+            // Master Interaction Listener (Drag / Rotate / Menu / Pan)
+            window.addEventListener('mousedown', (e) => {
+                const isUI = e.target.closest('#sidebar') || e.target.closest('.context-menu');
+                if (isUI) return;
+
+                document.querySelectorAll('.context-menu').forEach(m => m.classList.remove('visible'));
+                isMenuOpen = false;
+
+                const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, camera);
+
+                let intersects = false;
+                if (!isDestroyed) { // Prevent interaction while destroyed
+                    if (coreMesh && coreMesh.visible && raycaster.intersectObject(coreMesh).length > 0) intersects = true;
+                    else if (depthMesh && depthMesh.visible && raycaster.intersectObject(depthMesh).length > 0) intersects = true;
+                    else {
+                        raycaster.params.Line.threshold = 0.2;
+                        if (wireframeMesh && raycaster.intersectObject(wireframeMesh).length > 0) intersects = true;
+                    }
+                }
+
+                if (e.button === 2) { 
+                    isMenuOpen = true;
+                    const menu = intersects ? document.getElementById('ctx-object') : document.getElementById('ctx-env');
+                    
+                    if (intersects) {
+                        document.getElementById('ctx-shape').value = document.getElementById('shapeSelect').value;
+                        document.getElementById('ctx-color').value = document.getElementById('masterColor1').value;
+                        document.getElementById('ctx-opacity').value = document.getElementById('opacitySlider').value;
+                        document.getElementById('ctx-edge-opacity').value = document.getElementById('edgeOpacitySlider').value;
+                        document.getElementById('ctx-reach').value = document.getElementById('auraReachSlider').value;
+                        document.getElementById('ctx-intensity').value = document.getElementById('auraIntensitySlider').value;
+                        document.getElementById('ctx-spin').value = document.getElementById('idleSpinSlider').value;
+                    } else {
+                        document.getElementById('ctx-grid').checked = document.getElementById('gridToggle').checked;
+                        document.getElementById('ctx-grid-color').value = document.getElementById('gridColor1').value;
+                        document.getElementById('ctx-grid-bend').checked = document.getElementById('gridBendToggle').checked;
+                        document.getElementById('ctx-grid-mass').value = document.getElementById('gridMassSlider').value;
+                        document.getElementById('ctx-ortho').checked = document.getElementById('orthoToggle').checked;
+                        document.getElementById('ctx-fov').value = document.getElementById('fovSlider').value;
+                    }
+
+                    menu.style.left = e.clientX + 'px';
+                    menu.style.top = e.clientY + 'px';
+                    menu.classList.add('visible');
+                    
+                    setTimeout(() => {
+                        const rect = menu.getBoundingClientRect();
+                        if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 10) + 'px';
+                        if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 10) + 'px';
+                    }, 0);
+
+                } else if (e.button === 0) { 
+                    if (e.shiftKey) {
+                        if (intersects) {
+                            isPanningObject = true;
+                        } else {
+                            isPanningCamera = true;
+                        }
+                        previousMouse.x = e.clientX; previousMouse.y = e.clientY;
+                    } else {
+                        if (intersects) {
+                            isDraggingObject = true;
+                            previousMouse.x = e.clientX; previousMouse.y = e.clientY;
+                            lastMoveTime = performance.now();
+                            dragVelocity = {x: 0, y: 0}; dragMomentumSpeed = 0;
+                        } else if (!isPathEnabled && !isDestroyed) {
+                            handleMove(e.clientX, e.clientY); 
+                        }
+                    }
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                let dx = e.clientX - previousMouse.x;
+                let dy = e.clientY - previousMouse.y;
+                
+                if (isPanningCamera) {
+                    let panSpeed = camera.isPerspectiveCamera ? (camera.position.z * 0.0015) : (1.0 / (orthoCamera.zoom * 20.0));
+                    camera.position.x -= dx * panSpeed;
+                    camera.position.y += dy * panSpeed;
+                    if (!isCenteredView) {
+                        targetPosition.x -= dx * panSpeed;
+                        targetPosition.y += dy * panSpeed;
+                    }
+                    previousMouse.x = e.clientX; previousMouse.y = e.clientY;
+                } else if (isPanningObject && !isDestroyed) {
+                    let panSpeed = camera.isPerspectiveCamera ? (camera.position.z * 0.0015) : (1.0 / (orthoCamera.zoom * 20.0));
+                    polyGroup.position.x += dx * panSpeed;
+                    polyGroup.position.y -= dy * panSpeed;
+                    targetPosition.copy(polyGroup.position);
+                    previousMouse.x = e.clientX; previousMouse.y = e.clientY;
+                } else if (isDraggingObject && !isDestroyed) {
+                    let currentTime = performance.now();
+                    let dt = currentTime - lastMoveTime;
+                    
+                    if (dt > 0) {
+                        dragVelocity.x = (dragVelocity.x * 0.5) + ((dx / dt) * 0.5);
+                        dragVelocity.y = (dragVelocity.y * 0.5) + ((dy / dt) * 0.5);
+                    }
+
+                    let deltaRotationQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(dy * 0.005, dx * 0.005, 0, 'XYZ'));
+                    polyGroup.quaternion.multiplyQuaternions(deltaRotationQuaternion, polyGroup.quaternion);
+
+                    previousMouse.x = e.clientX; previousMouse.y = e.clientY;
+                    lastMoveTime = currentTime;
+                }
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (e.button === 0) {
+                    isPanningCamera = false;
+                    isPanningObject = false;
+                    if (isDraggingObject) {
+                        isDraggingObject = false;
+                        let speed = Math.sqrt(dragVelocity.x**2 + dragVelocity.y**2);
+                        if (speed > 0.05) {
+                            dragMomentumAxis.set(dragVelocity.y, dragVelocity.x, 0).normalize();
+                            dragMomentumSpeed = Math.min(speed * 0.05, 0.5); 
+                        }
+                    }
+                }
+            });
+
+            window.addEventListener('resize', onWindowResize);
+            
+            document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));
+            
+            document.getElementById('shapeSelect').addEventListener('change', (e) => {
+                currentGeometryType = parseInt(e.target.value); updateGeometry(currentGeometryType);
+            });
+            document.getElementById('stellationSlider').addEventListener('input', (e) => {
+                stellationFactor = parseFloat(e.target.value); document.getElementById('stellationVal').innerText = stellationFactor.toFixed(2); updateGeometry(currentGeometryType);
+            });
+
+            document.getElementById('opacitySlider').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value); document.getElementById('opacityVal').innerText = val.toFixed(2); updateOpacity(val);
+            });
+            document.getElementById('edgeOpacitySlider').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value); document.getElementById('edgeOpacityVal').innerText = val.toFixed(2); updateEdgeOpacity(val);
+            });
+            document.getElementById('maskToggle').addEventListener('change', (e) => { isMaskEnabled = e.target.checked; updateOpacity(currentOpacity); });
+            document.getElementById('interiorEdgesToggle').addEventListener('change', (e) => {
+                isInteriorEdgesEnabled = e.target.checked;
+                if(depthMesh) depthMesh.visible = !isInteriorEdgesEnabled;
+                updateOpacity(currentOpacity); 
+            });
+            document.getElementById('specularToggle').addEventListener('change', (e) => { isSpecularEnabled = e.target.checked; updateOpacity(currentOpacity); });
+
+            // Cosmic Add-on Toggles
+            document.getElementById('pulsarToggle').addEventListener('change', (e) => {
+                isPulsarEnabled = e.target.checked;
+                if(pulsarGroup) pulsarGroup.visible = isPulsarEnabled;
+            });
+            document.getElementById('accretionToggle').addEventListener('change', (e) => {
+                isAccretionEnabled = e.target.checked;
+                if(accretionGroup) accretionGroup.visible = isAccretionEnabled;
+            });
+            document.getElementById('gammaToggle').addEventListener('change', (e) => {
+                isGammaEnabled = e.target.checked;
+                if(gammaRaysGroup) gammaRaysGroup.visible = isGammaEnabled;
+            });
+            document.getElementById('neutrinoToggle').addEventListener('change', (e) => {
+                isNeutrinosEnabled = e.target.checked;
+                if(neutrinoGroup) neutrinoGroup.visible = isNeutrinosEnabled;
+            });
+
+            document.getElementById('idleSpinSlider').addEventListener('input', (e) => {
+                idleSpinSpeed = parseFloat(e.target.value); document.getElementById('idleSpinVal').innerText = idleSpinSpeed.toFixed(3);
+            });
+            document.getElementById('btn-quick-spin').addEventListener('click', () => {
+                quickSpinAxis.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+                quickSpinSpeed = 0.4; quickSpinActive = true; quickSpinEndTime = performance.now() + 2000;
+            });
+
+            document.getElementById('auraToggle').addEventListener('change', (e) => {
+                isAuraEnabled = e.target.checked; 
+                document.getElementById('auraIntensityWrapper').style.display = isAuraEnabled ? 'block' : 'none';
+            });
+            document.getElementById('auraReachSlider').addEventListener('input', (e) => {
+                auraReach = parseFloat(e.target.value); document.getElementById('auraReachVal').innerText = auraReach.toFixed(2);
+            });
+            document.getElementById('auraIntensitySlider').addEventListener('input', (e) => {
+                auraIntensity = parseFloat(e.target.value); document.getElementById('auraIntensityVal').innerText = auraIntensity.toFixed(2);
+            });
+            document.getElementById('pulseRateSlider').addEventListener('input', (e) => {
+                auraPulseRate = parseFloat(e.target.value); document.getElementById('pulseRateVal').innerText = auraPulseRate.toFixed(3);
+            });
+            document.getElementById('btn-spike').addEventListener('click', () => { auraSpike = 1.0; });
+            document.getElementById('spikeMultiplier').addEventListener('input', (e) => { spikeMultiplier = parseFloat(e.target.value); });
+
+            const btnCharge = document.getElementById('btn-supercharge');
+            const startCharge = (e) => { 
+                if(e.button !== undefined && e.button !== 0) return; 
+                isCharging = true; 
+                chargeTime = 0; 
+                chargeLevel = 0; 
+                collapseTime = 0; 
+                chargeReleaseTimer = 0; 
+                isShockwaveActive = false; 
+                wasFullCharge = false; 
+            };
+            const endCharge = () => {
+                if (isCharging) {
+                    isCharging = false; 
+                    btnCharge.classList.remove('vibrate'); 
+                    document.getElementById('charge-fill').style.width = '0%';
+                    if (chargeTime > 0) { 
+                        collapseTime = 0.75; 
+                        wasFullCharge = (chargeLevel >= 0.99); // Flag full charge for true supernova
+                    }
+                    chargeTime = 0; chargeLevel = 0;
+                }
+            };
+            btnCharge.addEventListener('mousedown', startCharge); btnCharge.addEventListener('touchstart', startCharge, {passive: true});
+            window.addEventListener('mouseup', endCharge); window.addEventListener('touchend', endCharge);
+
+            document.getElementById('pathToggle').addEventListener('change', (e) => {
+                isPathEnabled = e.target.checked;
+                document.getElementById('pathSettings').style.display = isPathEnabled ? 'flex' : 'none';
+                if(isPathEnabled) {
+                    polyGroup.position.set(0,0,0); targetPosition.copy(pathPoints[0]);
+                    pathProgress = 0; currentPathIndex = 0; segmentProgress = 0;
+                    updatePathVisual();
+                } else {
+                    if (pathLine) { scene.remove(pathLine); pathLine = null; }
+                }
+            });
+            document.getElementById('centeredViewToggle').addEventListener('change', (e) => {
+                isCenteredView = e.target.checked;
+            });
+            document.getElementById('btn-pause').addEventListener('click', (e) => {
+                isPaused = !isPaused; e.target.innerText = isPaused ? "Resume" : "Pause"; e.target.style.background = isPaused ? "#bc13fe" : "";
+            });
+            document.getElementById('pathTypeSelect').addEventListener('change', (e) => { pathType = e.target.value; updatePathVisual(); });
+            document.getElementById('speedSlider').addEventListener('input', (e) => {
+                pathSpeed = parseFloat(e.target.value); document.getElementById('speedVal').innerText = pathSpeed.toFixed(1);
+            });
+            document.getElementById('showPathToggle').addEventListener('change', (e) => { isShowPathEnabled = e.target.checked; updatePathVisual(); });
+            document.getElementById('trailToggle').addEventListener('change', (e) => { 
+                isTrailEnabled = e.target.checked; 
+                document.getElementById('trailSettings').style.display = isTrailEnabled ? 'flex' : 'none';
+            });
+            document.getElementById('trailLengthSlider').addEventListener('input', (e) => {
+                trailLength = parseInt(e.target.value); document.getElementById('trailLengthVal').innerText = trailLength;
+            });
+
+            document.getElementById('gridToggle').addEventListener('change', (e) => {
+                isGridEnabled = e.target.checked; document.getElementById('gridSettings').style.display = isGridEnabled ? 'block' : 'none'; buildGrid();
+            });
+            document.getElementById('gridDivsSlider').addEventListener('input', (e) => {
+                gridDivs = parseInt(e.target.value); document.getElementById('gridDivsVal').innerText = gridDivs; buildGrid();
+            });
+            document.getElementById('gridBendToggle').addEventListener('change', (e) => { isGridBending = e.target.checked; });
+            document.getElementById('gridMassSlider').addEventListener('input', (e) => {
+                gridMass = parseFloat(e.target.value); document.getElementById('gridMassVal').innerText = gridMass.toFixed(1);
+            });
+            document.getElementById('orthoToggle').addEventListener('change', (e) => {
+                camera = e.target.checked ? orthoCamera : perspCamera;
+                document.getElementById('fovGroup').style.opacity = e.target.checked ? '0.3' : '1';
+                document.getElementById('fovSlider').disabled = e.target.checked;
+            });
+            document.getElementById('fovSlider').addEventListener('input', (e) => {
+                const val = parseInt(e.target.value); document.getElementById('fovVal').innerText = val; updateFOV(val);
+            });
+
+            const rangeMinInput = document.getElementById('rangeMin'); const rangeMaxInput = document.getElementById('rangeMax');
+            rangeMinInput.addEventListener('input', (e) => {
+                let minVal = parseFloat(e.target.value); let maxVal = parseFloat(rangeMaxInput.value);
+                if (minVal > maxVal) { minVal = maxVal; e.target.value = minVal; }
+                depth_range.min = minVal; handleRangeChange();
+            });
+            rangeMaxInput.addEventListener('input', (e) => {
+                let maxVal = parseFloat(e.target.value); let minVal = parseFloat(rangeMinInput.value);
+                if (maxVal < minVal) { maxVal = minVal; e.target.value = maxVal; }
+                depth_range.max = maxVal; handleRangeChange();
+            });
+            document.getElementById('zDepthSlider').addEventListener('input', (e) => {
+                scale_anim_active = false; z_depth = parseFloat(e.target.value); document.getElementById('zDepthVal').innerText = z_depth.toFixed(2);
+                active_step = -1; updateStepsUI();
+            });
+            document.getElementById('btn-step-minus').addEventListener('click', () => { if (steps > 2) { steps--; updateStepsUI(); }});
+            document.getElementById('btn-step-plus').addEventListener('click', () => { if (steps < 5) { steps++; updateStepsUI(); }});
+        }
+
+        function applyPreset(preset) {
+            const setUI = (id, val) => {
+                const el = document.getElementById(id); if(!el) return;
+                if(el.type === 'checkbox') { el.checked = val; el.dispatchEvent(new Event('change')); }
+                else { el.value = val; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
+            };
+            
+            if(preset === 'blackhole') {
+                setUI('shapeSelect', 100); setUI('maskToggle', false); setUI('interiorEdgesToggle', false); setUI('specularToggle', false);
+                setUI('opacitySlider', 1.0); setUI('edgeOpacitySlider', 0.0); 
+                setUI('gridToggle', true); setUI('gridBendToggle', true); setUI('gridMassSlider', 3.0); setUI('gridDivsSlider', 100);
+                setUI('gammaToggle', true); setUI('pulsarToggle', true); setUI('accretionToggle', true); setUI('neutrinoToggle', true); setUI('auraToggle', false);
+                setUI('pulsarColor1', '#ffffff'); setUI('pulsarColor2', '#ffffff');
+                setUI('gammaColor1', '#ffffff'); setUI('gammaColor2', '#ffffff');
+                setUI('accretionColor1', '#ffff00'); setUI('accretionColor2', '#ff8800');
+                setUI('neutrinoColor1', '#ffff00'); setUI('neutrinoColor2', '#ffff00');
+                setUI('faceColor1', '#000000'); setUI('faceColor2', '#000000');
+                setUI('edgeColor1', '#000000'); setUI('edgeColor2', '#000000');
+            } else if(preset === 'crystal') {
+                setUI('shapeSelect', 20); setUI('maskToggle', false); setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
+                setUI('opacitySlider', 0.15); setUI('edgeOpacitySlider', 0.8);
+                setUI('auraToggle', true); setUI('auraReachSlider', 0.8); setUI('auraIntensitySlider', 1.5); setUI('pulseRateSlider', 0.002);
+                setUI('accretionToggle', false); setUI('pulsarToggle', false); setUI('gammaToggle', false); setUI('neutrinoToggle', false);
+                setUI('faceColor1', '#00e5ff'); setUI('faceColor2', '#ffffff');
+                setUI('edgeColor1', '#ffffff'); setUI('edgeColor2', '#ffffff');
+                setUI('auraColor1', '#00e5ff'); setUI('auraColor2', '#004488');
+            } else if(preset === 'neon') {
+                setUI('maskToggle', true); setUI('interiorEdgesToggle', true); setUI('specularToggle', false);
+                setUI('opacitySlider', 0.0); setUI('edgeOpacitySlider', 1.0);
+                setUI('auraToggle', true); setUI('auraReachSlider', 1.5); setUI('auraIntensitySlider', 2.0); setUI('pulseRateSlider', 0.008);
+                setUI('pulsarToggle', true); setUI('neutrinoToggle', true); setUI('accretionToggle', false); setUI('gammaToggle', false);
+                setUI('faceColor1', '#ff00ff'); setUI('faceColor2', '#ff00ff');
+                setUI('edgeColor1', '#00ffcc'); setUI('edgeColor2', '#0044aa');
+                setUI('auraColor1', '#ff00ff'); setUI('auraColor2', '#440044');
+                setUI('pulsarColor1', '#00ffcc'); setUI('pulsarColor2', '#ff00ff');
+            } else {
+                setUI('shapeSelect', 6); setUI('maskToggle', true); setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
+                setUI('opacitySlider', 0.25); setUI('edgeOpacitySlider', 1.0);
+                setUI('auraToggle', true); setUI('auraReachSlider', 1.0); setUI('auraIntensitySlider', 1.0);
+                setUI('accretionToggle', false); setUI('pulsarToggle', false); setUI('gammaToggle', false); setUI('neutrinoToggle', false);
+                setUI('masterColor1', '#bc13fe'); setUI('masterColor2', '#4a2b6e');
+            }
+        }
+
+        function updateFOV(val) { perspCamera.fov = val; perspCamera.updateProjectionMatrix(); }
+
+        function updateOpacity(val) {
+            currentOpacity = val;
+            if (coreMesh) {
+                const isSolid = currentOpacity >= 0.99;
+                if (isMaskEnabled) {
+                    coreMesh.visible = false;
+                } else {
+                    coreMesh.visible = true;
+                    coreMesh.material.opacity = currentOpacity;
+                    coreMesh.material.transparent = !isSolid;
+                    coreMesh.material.depthWrite = isSolid;
+                    coreMesh.material.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
+                    if (isSpecularEnabled) {
+                        coreMesh.material.specular = new THREE.Color(0x333333); coreMesh.material.shininess = 80;
+                    } else {
+                        coreMesh.material.specular = new THREE.Color(0x000000); coreMesh.material.shininess = 0;
+                    }
+                }
+                coreMesh.material.needsUpdate = true;
+            }
+        }
+
+        function updateEdgeOpacity(val) {
+            currentEdgeOpacity = val;
+            if (wireframeMesh) {
+                wireframeMesh.material.opacity = currentEdgeOpacity;
+                wireframeMesh.material.transparent = true;
+                wireframeMesh.material.needsUpdate = true;
+            }
+        }
+
+        function handleRangeChange() {
+            updateDualSliderUI();
+            document.getElementById('rangeMinVal').innerText = depth_range.min.toFixed(2);
+            document.getElementById('rangeMaxVal').innerText = depth_range.max.toFixed(2);
+            const zSlider = document.getElementById('zDepthSlider');
+            zSlider.min = depth_range.min; zSlider.max = depth_range.max;
+            if (z_depth < depth_range.min) triggerScaleAnimation(depth_range.min, -1);
+            if (z_depth > depth_range.max) triggerScaleAnimation(depth_range.max, -1);
+            updateStepsUI();
+        }
+
+        function updateDualSliderUI() {
+            const minInput = document.getElementById('rangeMin'); const maxInput = document.getElementById('rangeMax');
+            const fill = document.getElementById('dualSliderFill');
+            const totalRange = parseFloat(minInput.max) - parseFloat(minInput.min);
+            const percentMin = ((depth_range.min - parseFloat(minInput.min)) / totalRange) * 100;
+            const percentMax = ((depth_range.max - parseFloat(minInput.min)) / totalRange) * 100;
+            fill.style.left = percentMin + '%'; fill.style.width = (percentMax - percentMin) + '%';
+        }
+
+        function getDepthStops() {
+            let stops = [];
+            for (let i = 0; i < steps; i++) {
+                let t = i / (steps - 1);
+                stops.push(depth_range.min + t * (depth_range.max - depth_range.min));
+            }
+            return stops;
+        }
+
+        function updateStepsUI() {
+            document.getElementById('stepsVal').innerText = steps;
+            const container = document.getElementById('step-buttons-container');
+            container.innerHTML = '';
+            const stops = getDepthStops();
+            for (let i = 0; i < steps; i++) {
+                const btn = document.createElement('button');
+                btn.className = `step-stop ${i === active_step ? 'active' : ''}`;
+                btn.innerText = `S${i+1}`; btn.title = `Scale: ${stops[i].toFixed(2)}`;
+                btn.onclick = () => { active_step = i; updateStepsUI(); triggerScaleAnimation(stops[i], i); };
+                container.appendChild(btn);
+            }
+        }
+
+        function triggerScaleAnimation(target_scale, step_index) {
+            if (Math.abs(z_depth - target_scale) < 0.001) return;
+            active_step = step_index; target_z_depth = target_scale;
+            scale_anim_start_val = z_depth; scale_anim_start_time = performance.now(); scale_anim_active = true;
+        }
+
+        function createStellatedGeometry(baseGeometry, factor) {
+            if (Math.abs(factor) < 0.01) {
+                const ni = baseGeometry.toNonIndexed(); ni.computeVertexNormals(); return ni;
+            }
+            const nonIndexed = baseGeometry.toNonIndexed();
+            const positionAttribute = nonIndexed.getAttribute('position');
+            const count = positionAttribute.count;
+            const newVertices = [];
+            const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
+            const centroid = new THREE.Vector3(), normal = new THREE.Vector3();
+            const cb = new THREE.Vector3(), ab = new THREE.Vector3();
+
+            for (let i = 0; i < count; i += 3) {
+                vA.fromBufferAttribute(positionAttribute, i); vB.fromBufferAttribute(positionAttribute, i + 1); vC.fromBufferAttribute(positionAttribute, i + 2);
+                centroid.copy(vA).add(vB).add(vC).divideScalar(3);
+                cb.subVectors(vC, vB); ab.subVectors(vA, vB); normal.crossVectors(cb, ab).normalize();
+                const peak = new THREE.Vector3().copy(centroid).add(normal.multiplyScalar(factor));
+
+                newVertices.push(vA.x, vA.y, vA.z, vB.x, vB.y, vB.z, peak.x, peak.y, peak.z);
+                newVertices.push(vB.x, vB.y, vB.z, vC.x, vC.y, vC.z, peak.x, peak.y, peak.z);
+                newVertices.push(vC.x, vC.y, vC.z, vA.x, vA.y, vA.z, peak.x, peak.y, peak.z);
+            }
+            const stellatedGeometry = new THREE.BufferGeometry();
+            stellatedGeometry.setAttribute('position', new THREE.Float32BufferAttribute(newVertices, 3));
+            stellatedGeometry.computeVertexNormals();
+            return stellatedGeometry;
+        }
+
+        function createPseudoTetartoid(size) {
+            const geo = new THREE.DodecahedronGeometry(size, 0);
+            const pos = geo.attributes.position;
+            const v = new THREE.Vector3();
+            for (let i = 0; i < pos.count; i++) {
+                v.fromBufferAttribute(pos, i);
+                const angle = v.y * 0.4;
+                v.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+                pos.setXYZ(i, v.x, v.y, v.z);
+            }
+            geo.computeVertexNormals(); return geo;
+        }
+
+        function updateGeometry(type) {
+            if (coreMesh) polyGroup.remove(coreMesh);
+            if (wireframeMesh) polyGroup.remove(wireframeMesh);
+            if (depthMesh) polyGroup.remove(depthMesh);
+
+            let baseGeometry; const size = 1.0; 
+            switch(type) {
+                case 4: baseGeometry = new THREE.TetrahedronGeometry(size); break;
+                case 8: baseGeometry = new THREE.OctahedronGeometry(size); break;
+                case 12: baseGeometry = new THREE.DodecahedronGeometry(size); break;
+                case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
+                case 90: baseGeometry = createPseudoTetartoid(size); break;
+                case 91: baseGeometry = new THREE.TorusKnotGeometry(size*0.6, size*0.25, 64, 8); break;
+                case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
+                default: baseGeometry = new THREE.BoxGeometry(size, size, size); break;
+            }
+
+            const finalGeometry = createStellatedGeometry(baseGeometry, stellationFactor);
+
+            const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.FrontSide, depthWrite: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+            depthMesh = new THREE.Mesh(finalGeometry, depthMat);
+            depthMesh.renderOrder = 2; 
+            depthMesh.visible = !isInteriorEdgesEnabled;
+            polyGroup.add(depthMesh);
+
+            const isSolid = currentOpacity >= 0.99;
+            const coreMat = new THREE.MeshPhongMaterial({
+                transparent: !isSolid, opacity: currentOpacity,
+                shininess: isSpecularEnabled ? 80 : 0, specular: isSpecularEnabled ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
+                side: isSolid ? THREE.FrontSide : THREE.DoubleSide, depthWrite: isSolid, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+            });
+            coreMesh = new THREE.Mesh(finalGeometry, coreMat);
+            coreMesh.renderOrder = 3; 
+            coreMesh.visible = !isMaskEnabled; 
+            polyGroup.add(coreMesh);
+
+            const edgeGeo = new THREE.EdgesGeometry(finalGeometry);
+            const edgeMat = new THREE.LineBasicMaterial({ linewidth: 2, depthTest: true, transparent: true, opacity: currentEdgeOpacity });
+            wireframeMesh = new THREE.LineSegments(edgeGeo, edgeMat);
+            wireframeMesh.renderOrder = 4; 
+            polyGroup.add(wireframeMesh);
+            
+            updateFaceVertexColors(); updateEdgeVertexColors(); 
+        }
+
+        function handleMove(clientX, clientY) {
+            const mouse = new THREE.Vector2((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+            const pos = new THREE.Vector3();
+            if (raycaster.ray.intersectPlane(plane, pos)) {
+                const travelVector = new THREE.Vector3().subVectors(pos, polyGroup.position);
+                if (travelVector.length() > 0.1) {
+                    moveRotationAxis.crossVectors(travelVector, new THREE.Vector3(0, 0, 1)).normalize();
+                    moveRotationSpeed = Math.min(travelVector.length() * 0.15, 0.4);
+                }
+                targetPosition.copy(pos);
+            }
+        }
+
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            perspCamera.aspect = aspect; perspCamera.updateProjectionMatrix();
+            orthoCamera.left = -frustumSize * aspect / 2; orthoCamera.right = frustumSize * aspect / 2;
+            orthoCamera.top = frustumSize / 2; orthoCamera.bottom = -frustumSize / 2; orthoCamera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let dt = 0.016; 
+            let activeRotationSpeed = idleSpinSpeed;
+
+            // Calculate Universal Scale Control for Implosion/Explosion/Respawn 
+            if (collapseTime > 0 && wasFullCharge) {
+                let t = Math.max(0, collapseTime) / 0.75;
+                novaScale = t * t * t; // Implosion down to 0
+            } else if (isDestroyed) {
+                novaScale = 0.0;
+            } else if (isRespawning) {
+                respawnTimer += dt;
+                let progress = Math.min(respawnTimer / 2.0, 1.0); // 2 second respawn
+                
+                // easeOutElastic effect for respawn
+                let c4 = (2.0 * Math.PI) / 3;
+                novaScale = progress === 0 ? 0 : progress === 1 ? 1 : Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1;
+                
+                if (progress >= 1.0) isRespawning = false;
+            } else {
+                novaScale = 1.0;
+            }
+
+            // --- CAMERA TRACKING (STAY CENTERED) ---
+            if (isCenteredView) {
+                let lerpFactor = 0.1;
+                perspCamera.position.x += (polyGroup.position.x - perspCamera.position.x) * lerpFactor;
+                perspCamera.position.y += (polyGroup.position.y - perspCamera.position.y) * lerpFactor;
+                orthoCamera.position.x += (polyGroup.position.x - orthoCamera.position.x) * lerpFactor;
+                orthoCamera.position.y += (polyGroup.position.y - orthoCamera.position.y) * lerpFactor;
+            } else {
+                let lerpFactor = 0.1;
+                perspCamera.position.x += (0 - perspCamera.position.x) * lerpFactor;
+                perspCamera.position.y += (0 - perspCamera.position.y) * lerpFactor;
+                orthoCamera.position.x += (0 - orthoCamera.position.x) * lerpFactor;
+                orthoCamera.position.y += (0 - orthoCamera.position.y) * lerpFactor;
+            }
+
+            // --- PATH VISUALS ---
+            if (pathLine) {
+                let pathZOffset = ((z_depth - depth_range.min) / (depth_range.max - depth_range.min)) * 2.0 - 1.0;
+                pathLine.position.z = pathZOffset; 
+            }
+
+            // --- GRID SPACE-TIME DEFORMATION ---
+            if (gridHelper && gridHelper.visible && gridHelper.geometry.attributes.basePosition) {
+                const positions = gridHelper.geometry.attributes.position;
+                const basePositions = gridHelper.geometry.attributes.basePosition;
+                
+                if (isGridBending && gridMass > 0) {
+                    let projectedPos = new THREE.Vector3();
+                    if (camera.isPerspectiveCamera) {
+                        let dir = new THREE.Vector3().subVectors(polyGroup.position, camera.position).normalize();
+                        let t = (-8 - camera.position.z) / dir.z;
+                        projectedPos.copy(camera.position).add(dir.multiplyScalar(t));
+                    } else {
+                        let dir = new THREE.Vector3();
+                        camera.getWorldDirection(dir);
+                        let t = (-8 - polyGroup.position.z) / dir.z;
+                        projectedPos.copy(polyGroup.position).add(dir.multiplyScalar(t));
+                    }
+                    gridHelper.worldToLocal(projectedPos);
+                    
+                    const influenceRadius = Math.max(gridMass * 2.5, 1.0);
+
+                    for (let i = 0; i < positions.count; i++) {
+                        const x = basePositions.getX(i);
+                        const y = basePositions.getY(i);
+                        const dx = x - projectedPos.x;
+                        const dy = y - projectedPos.y;
+                        const distSq = dx*dx + dy*dy;
+                        
+                        let zOffset = - (gridMass * 10.0) * Math.exp(-distSq / (influenceRadius * influenceRadius));
+                        positions.setZ(i, basePositions.getZ(i) + zOffset);
+                    }
+                    positions.needsUpdate = true;
+                } else if (positions.getZ(0) !== basePositions.getZ(0)) {
+                    for (let i = 0; i < positions.count; i++) {
+                        positions.setZ(i, basePositions.getZ(i));
+                    }
+                    positions.needsUpdate = true;
+                }
+            }
+
+            // --- SUPER NOVA DESTROYED STATE ---
+            if (isDestroyed) {
+                superNovaTimer -= dt;
+                
+                // Handle colored particle cloud
+                for (let i = coloredParticles.length - 1; i >= 0; i--) {
+                    let cp = coloredParticles[i];
+                    cp.mesh.position.add(cp.vel);
+                    cp.vel.multiplyScalar(cp.friction); // slow to a stop
+                    
+                    // Fade out slowly in the final 3 seconds
+                    if (superNovaTimer < 3.0) {
+                        let op = Math.max(0, superNovaTimer / 3.0);
+                        cp.mesh.material.opacity = op;
+                    }
+                    
+                    if (superNovaTimer <= 0) {
+                        scene.remove(cp.mesh);
+                        cp.mesh.material.dispose();
+                        coloredParticles.splice(i, 1);
+                    }
+                }
+
+                // White Dwarf lingering logic
+                if (superNovaTimer < 2.5) {
+                    whiteDwarfSprite.material.opacity = Math.max(0, superNovaTimer / 2.5);
+                    let ws = (superNovaTimer / 2.5) * 4.0 + 0.1;
+                    whiteDwarfSprite.scale.set(ws, ws, 1.0);
+                }
+
+                if (superNovaTimer <= 0) {
+                    isDestroyed = false;
+                    whiteDwarfSprite.visible = false;
+                    isRespawning = true;
+                    respawnTimer = 0;
+                }
+            }
+
+            // --- MOVEMENT & PATHING ---
+            let isMotionPaused = isPaused || isMenuOpen || isDraggingObject || isPanningObject || isPanningCamera;
+
+            if (!isMotionPaused && !isDestroyed) {
+                if (isPathEnabled) {
+                    let pathZOffset = ((z_depth - depth_range.min) / (depth_range.max - depth_range.min)) * 2.0 - 1.0; 
+                    
+                    if (pathType === 'curve') {
+                        pathProgress += (pathSpeed * 0.02) * dt; 
+                        if (pathProgress > 1) pathProgress -= 1;
+                        let rawPt = smoothCurve.getPointAt(pathProgress);
+                        targetPosition.set(rawPt.x, rawPt.y, rawPt.z + pathZOffset);
+                    } else {
+                        let p0 = pathPoints[currentPathIndex];
+                        let p1 = pathPoints[(currentPathIndex + 1) % pathPoints.length];
+                        let segmentLength = p0.distanceTo(p1);
+                        
+                        segmentProgress += (pathSpeed * 1.5 / segmentLength) * dt; 
+                        if (segmentProgress >= 1.0) {
+                            segmentProgress = 0; currentPathIndex = (currentPathIndex + 1) % pathPoints.length;
+                        } else {
+                            let easedT = Math.sin((segmentProgress - 0.5) * Math.PI) * 0.5 + 0.5; 
+                            let rawPt = new THREE.Vector3().copy(p0).lerp(p1, easedT);
+                            targetPosition.set(rawPt.x, rawPt.y, rawPt.z + pathZOffset);
+                        }
+                    }
+                    polyGroup.position.lerp(targetPosition, 0.2); 
+                } else {
+                    polyGroup.position.lerp(targetPosition, 0.08); 
+                }
+
+                // Rotations
+                if (quickSpinActive) {
+                    let timeRemaining = quickSpinEndTime - performance.now();
+                    if (timeRemaining > 0) {
+                        let t = timeRemaining / 2000;
+                        activeRotationSpeed += quickSpinSpeed * t * t; 
+                        polyGroup.rotateOnWorldAxis(quickSpinAxis, quickSpinSpeed * t * t);
+                    } else {
+                        quickSpinActive = false;
+                    }
+                }
+
+                if (moveRotationSpeed > 0.001) {
+                    polyGroup.rotateOnWorldAxis(moveRotationAxis, moveRotationSpeed);
+                    if(!isPathEnabled) moveRotationSpeed *= 0.96; 
+                }
+                
+                polyGroup.rotation.x += activeRotationSpeed;
+                polyGroup.rotation.y += activeRotationSpeed;
+            }
+
+            // Residual Momentum Physics 
+            if (!isMotionPaused && !isPathEnabled && !isDestroyed && dragMomentumSpeed > 0.0001) {
+                polyGroup.rotateOnWorldAxis(dragMomentumAxis, dragMomentumSpeed);
+                dragMomentumSpeed *= 0.95; 
+            }
+
+            // --- TRAIL ---
+            if (isTrailEnabled && !isPaused && !isMenuOpen && !isDraggingObject && !isDestroyed) {
+                trailPositions.unshift(polyGroup.position.clone());
+                if (trailPositions.length > trailLength) trailPositions.length = trailLength;
+            } else if (!isTrailEnabled || isDestroyed) {
+                trailPositions = [];
+            }
+            
+            for(let i=0; i<trailSprites.length; i++) {
+                if (i < trailPositions.length) {
+                    trailSprites[i].visible = true;
+                    trailSprites[i].position.copy(trailPositions[i]);
+                    // Trail color uses face primary component
+                    let progress = i / trailPositions.length; 
+                    trailSprites[i].material.opacity = currentOpacity * (1.0 - progress);
+                    let tScale = z_depth * 0.5 * (1.0 - progress * 0.5); 
+                    trailSprites[i].scale.set(tScale, tScale, 1);
+                } else {
+                    trailSprites[i].visible = false;
+                }
+            }
+
+            // --- COSMIC PHENOMENA ANIMATIONS ---
+            if (isAccretionEnabled && accretionRings && !isDestroyed) {
+                let triggeredFlash = false;
+                const c1 = new THREE.Color(colors.accretion[0]); const c2 = new THREE.Color(colors.accretion[1]);
+                
+                accretionRings.forEach(ring => {
+                    // Accelerate strictly as it gets closer to center
+                    let speed = 0.2 + (1.5 / Math.max(ring.radius, 0.4));
+                    ring.radius -= speed * dt;
+
+                    // Immediately respawn mathematically out of bounds for perfect streaming
+                    if (ring.radius <= 0) {
+                        ring.radius = 4.0; 
+                        ring.targetW = 4.0 * (0.1 + Math.random() * 0.2);
+                        ring.targetOp = 0.5 + Math.random() * 0.25;
+                        triggeredFlash = true;
+                    }
+                    
+                    let currentR = ring.radius;
+                    let currentW = 0.01;
+                    let currentOp = 0;
+                    
+                    if (currentR > 3.0) {
+                        // Fade in and grow width identically mirrored with the static disk's outer gradient 
+                        let t = (4.0 - currentR) / 1.0; 
+                        currentW = 0.01 + (ring.targetW - 0.01) * t;
+                        currentOp = ring.targetOp * t;
+                    } else if (currentR > 1.0) {
+                        // Maintain established presence
+                        currentW = ring.targetW;
+                        currentOp = ring.targetOp;
+                    } else {
+                        // Collapse towards zero crossing the core boundary
+                        let t = currentR / 1.0;
+                        currentW = ring.targetW * Math.max(t, 0.001); 
+                        currentOp = ring.targetOp;
+                    }
+                    
+                    if (currentR > 0.001) {
+                        ring.mesh.visible = true;
+                        if (ring.mesh.geometry) ring.mesh.geometry.dispose();
+                        let innerR = Math.max(0.0001, currentR - currentW/2);
+                        let outerR = Math.max(innerR + 0.0001, currentR + currentW/2);
+                        ring.mesh.geometry = new THREE.RingGeometry(innerR, outerR, 128); 
+                        ring.mesh.material.opacity = currentOp;
+                        ring.mesh.material.color.copy(c1).lerp(c2, currentR / 4.0);
+                    } else {
+                        ring.mesh.visible = false; 
+                    }
+                });
+                
+                if (triggeredFlash) voxelFlashTimer = 1.0;
+            } else {
+                voxelFlashTimer = 0;
+                if (isDestroyed && accretionRings) {
+                    accretionRings.forEach(ring => ring.mesh.visible = false);
+                }
+            }
+
+            // Voxel Flash Animation
+            if (voxelFlashTimer > 0 && !isDestroyed) {
+                voxelFlashTimer -= dt * 6.0; 
+                if (flashVoxel) {
+                    flashVoxel.material.opacity = Math.max(0, voxelFlashTimer);
+                }
+            } else if (flashVoxel) {
+                flashVoxel.material.opacity = 0;
+            }
+
+            if (isNeutrinosEnabled && neutrinoParticles && !isDestroyed) {
+                neutrinoParticles.forEach(p => {
+                    p.yPos += p.speed * p.dir * dt * 3.0; // travel rapidly up/down poles
+                    if (Math.abs(p.yPos) > 3.5) {
+                        p.yPos = 0; // reset to center once extended far
+                        
+                        let r = Math.random() * 0.075; // strict bounds mapping tapered core tip diam
+                        let theta = Math.random() * Math.PI * 2;
+                        p.xOffset = r * Math.cos(theta);
+                        p.zOffset = r * Math.sin(theta);
+                    }
+                    p.mesh.position.set(p.xOffset, p.yPos, p.zOffset);
+                    p.mesh.material.opacity = 1.0 - (Math.abs(p.yPos) / 3.5); // Fade towards tips
+                });
+            }
+
+            // --- Z-DEPTH SCALE INTERPOLATION ---
+            if (scale_anim_active && !isDestroyed && !isRespawning) {
+                const elapsed = performance.now() - scale_anim_start_time;
+                const progress = Math.min(elapsed / 2000, 1.0);
+                const ease = progress * progress * (3 - 2 * progress); 
+                z_depth = scale_anim_start_val + (target_z_depth - scale_anim_start_val) * ease;
+                document.getElementById('zDepthSlider').value = z_depth;
+                document.getElementById('zDepthVal').innerText = z_depth.toFixed(2);
+                if (progress >= 1.0) { z_depth = target_z_depth; scale_anim_active = false; }
+            }
+            
+            // Globally apply unified Nova Scale for the implosion/respawn sizing
+            polyGroup.scale.setScalar(z_depth * novaScale);
+
+            // --- SUPER CHARGE & PARTICLES ---
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.mesh.position.add(p.vel);
+                p.life -= dt;
+                p.mesh.material.opacity = p.life;
+                if(p.life <= 0) {
+                    scene.remove(p.mesh); p.mesh.material.dispose(); particles.splice(i, 1);
+                }
+            }
+
+            for(let i=inwardParticles.length-1; i>=0; i--) {
+                let p = inwardParticles[i];
+                p.life -= dt * 2.0; 
+                if(p.life <= 0) {
+                    scene.remove(p.mesh); p.mesh.material.dispose(); inwardParticles.splice(i, 1);
+                } else {
+                    p.mesh.position.lerpVectors(polyGroup.position, p.start, p.life);
+                    p.mesh.material.opacity = p.life;
+                }
+            }
+
+            // Shockwave Extension
+            if (isShockwaveActive) {
+                shockwaveTime += dt;
+                
+                // Sphere expands in 0.4s to 200 size
+                let tSph = Math.min(shockwaveTime / 0.4, 1.0);
+                let sphScale = tSph * 400; 
+                shockwaveSphere.scale.set(sphScale, sphScale, sphScale);
+                shockwaveSphere.material.opacity = 0.5 * (1.0 - Math.pow(tSph, 2));
+
+                // Disk expands in 0.4s to 100 size
+                let tDsk = Math.min(shockwaveTime / 0.4, 1.0);
+                let dskScale = tDsk * 200;
+                shockwaveDisk.scale.set(dskScale, dskScale, 1);
+                shockwaveDisk.material.opacity = 0.8 * (1.0 - Math.pow(tDsk, 2));
+
+                if (tSph >= 1.0 && tDsk >= 1.0) {
+                    isShockwaveActive = false;
+                }
+            }
+
+            // Central Aura Position processing (DRY)
+            let auraPos = polyGroup.position.clone();
+            let auraScaleMult = 1.0;
+            
+            if (isMaskEnabled) {
+                const pushBackDist = 5.0; 
+                if (camera.isPerspectiveCamera) {
+                    const sightLine = new THREE.Vector3().subVectors(polyGroup.position, camera.position).normalize();
+                    auraPos.addScaledVector(sightLine, pushBackDist);
+                    const distToObject = camera.position.distanceTo(polyGroup.position);
+                    const distToAura = camera.position.distanceTo(auraPos);
+                    auraScaleMult = (distToAura / distToObject);
+                } else {
+                    let camDir = new THREE.Vector3();
+                    camera.getWorldDirection(camDir);
+                    auraPos.addScaledVector(camDir, pushBackDist);
+                }
+            }
+
+            // Collapse Animation Handlers
+            if (collapseTime > 0) {
+                collapseTime -= dt;
+                let t = Math.max(0, collapseTime) / 0.75;
+                let ease = t * t * t; // Cubic ease in
+
+                if (chargeSpheroid.visible) {
+                    let s = chargeSpheroid.userData.currentScale * ease * auraScaleMult;
+                    chargeSpheroid.scale.set(s, s, 1);
+                }
+
+                for(let i = 0; i < 6; i++) {
+                    if (chargeFlares[i].visible) {
+                        let fs = chargeFlares[i].userData.lastScale * ease;
+                        chargeFlares[i].scale.setScalar(fs);
+                        // Keep spinning
+                        if (i % 2 === 0) chargeFlares[i].rotateZ(chargeFlares[i].userData.lastSpeed * dt * 50);
+                        else chargeFlares[i].rotateZ(-chargeFlares[i].userData.lastSpeed * dt * 50);
+                    }
+                }
+
+                if (collapseTime <= 0) {
+                    chargeSpheroid.visible = false;
+                    chargeFlares.forEach(f => {
+                        f.visible = false;
+                        f.rotation.set(f.userData.baseX, f.userData.baseY, f.userData.baseZ);
+                    });
+                    
+                    if (wasFullCharge) {
+                        isShockwaveActive = true;
+                        shockwaveTime = 0;
+                        shockwaveSphere.visible = true;
+                        shockwaveSphere.position.copy(polyGroup.position);
+                        shockwaveDisk.visible = true;
+                        shockwaveDisk.position.copy(polyGroup.position);
+                        shockwaveDisk.rotation.x = Math.PI / 2; // Flat on XZ plane
+                        
+                        fireSuperNova(); // Shatter Object
+                        wasFullCharge = false;
+                    } else {
+                        fireExplosion(); // Regular particle fire for partial charges
+                    }
+                    chargeReleaseTimer = 0.5;
+                }
+            }
+
+            // --- AURA EFFECTS ---
+            auraSpike *= 0.92;
+            const baseScale = 4.0 * auraReach * z_depth;
+            const pulseOffset = Math.sin(Date.now() * auraPulseRate) * (0.4 * auraReach) * z_depth;
+            const spikeBonus = baseScale * (spikeMultiplier - 1.0) * auraSpike; 
+            
+            let reachScale = baseScale + pulseOffset + spikeBonus;
+            let forceAuraVisible = false;
+
+            if (isCharging) {
+                chargeTime += dt;
+                chargeLevel = Math.min(chargeTime / 3.0, 1.0); 
+                
+                if (chargeLevel >= 1.0) { 
+                    document.getElementById('btn-supercharge').classList.add('vibrate'); 
+                    if (Math.random() < 0.6) {
+                        let p = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite.material.map, color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false }));
+                        let dir = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+                        let spawnPos = polyGroup.position.clone().add(dir.multiplyScalar(4 + Math.random() * 3));
+                        p.position.copy(spawnPos);
+                        p.scale.set(0.15, 0.15, 1);
+                        scene.add(p);
+                        inwardParticles.push({ mesh: p, start: spawnPos, life: 1.0 }); 
+                    }
+                }
+                document.getElementById('charge-fill').style.width = (chargeLevel * 100) + '%';
+                
+                forceAuraVisible = true;
+                let shrinkFactor = 1.0 - (0.5 * chargeLevel); 
+                reachScale = baseScale * shrinkFactor;
+                
+                if (chargeLevel >= 1.0) reachScale += Math.random() * 0.3; 
+
+                // Core Spheroid Growth
+                chargeSpheroid.visible = true;
+                chargeSpheroid.position.copy(auraPos);
+                let maxSpheroidScale = z_depth * 1.5;
+                let sScale = maxSpheroidScale * chargeLevel;
+                chargeSpheroid.userData.currentScale = sScale;
+                chargeSpheroid.scale.set(sScale * auraScaleMult, sScale * auraScaleMult, 1);
+
+                // Tandem Flare Setup (6 Total Solid Spikes)
+                for (let i = 0; i < 6; i++) {
+                    let startTime = i * 0.4;
+                    if (chargeTime > startTime) {
+                         chargeFlares[i].visible = true;
+                         let activeTime = chargeTime - startTime;
+                         let s = 0;
+                         
+                         if (activeTime < 1.5) {
+                             // Sawtooth/Stepped growth
+                             let progress = activeTime / 1.5;
+                             s = Math.floor(progress * 10) / 10 * 2.0;
+                         } else {
+                             // Jitter Oscillation 
+                             if (Math.random() < 0.2) chargeFlares[i].userData.targetS = 1.0 + Math.random() * 1.0;
+                             let currentS = chargeFlares[i].scale.x;
+                             s = currentS + (chargeFlares[i].userData.targetS - currentS) * 0.3; 
+                         }
+                         
+                         chargeFlares[i].userData.lastScale = s;
+                         chargeFlares[i].scale.setScalar(s);
+                         
+                         // Accelerated spinning (double speed mapping)
+                         let rTime = Math.min(activeTime, 3.0);
+                         let speed = 0.08 * Math.pow(2, rTime); 
+                         chargeFlares[i].userData.lastSpeed = speed;
+                         
+                         if (i % 2 === 0) chargeFlares[i].rotateZ(speed * dt * 50);
+                         else chargeFlares[i].rotateZ(-speed * dt * 50);
+                    } else {
+                         chargeFlares[i].visible = false;
+                    }
+                }
+
+            } else if (chargeReleaseTimer > 0) {
+                forceAuraVisible = true;
+                chargeReleaseTimer -= dt;
+                let expandProgress = 1.0 - (Math.max(0, chargeReleaseTimer) / 0.5);
+                reachScale = baseScale * (1.0 + expandProgress * 40.0); 
+            }
+
+            // Glow Sprite (Outer Reach scaled collectively)
+            if ((isAuraEnabled || forceAuraVisible) && glowSprite && !isDestroyed) {
+                glowSprite.visible = true;
+                glowSprite.position.copy(auraPos);
+                let sr = reachScale * auraScaleMult * novaScale;
+                glowSprite.scale.set(sr, sr, 1);
+            } else if (glowSprite) {
+                glowSprite.visible = false;
+            }
+
+            // Core Sprite (Inner Intensity scaled collectively)
+            if (isAuraEnabled && coreSprite && !isDestroyed) {
+                coreSprite.visible = true;
+                coreSprite.position.copy(auraPos);
+                
+                let iFactor = auraIntensity / 3.0; 
+                let ciScale = (0.2 + 1.8 * iFactor) * z_depth * auraScaleMult * novaScale;
+                coreSprite.scale.set(ciScale, ciScale, 1);
+                coreSprite.material.opacity = 1.0 - 0.6 * iFactor; 
+            } else if (coreSprite) {
+                coreSprite.visible = false;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
