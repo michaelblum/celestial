@@ -3,10 +3,21 @@
   import { updateComponent, syncComponentToThreeObject, regenerateEntity } from '@lib/stores/sceneStore.svelte'
   import SliderControl from '@ui/controls/SliderControl.svelte'
   import SelectControl from '@ui/controls/SelectControl.svelte'
+  import { luminosity, isBlackHole, formatDerived } from '@lib/physics/PhysicsProperties'
 
   let { entity }: { entity: Entity } = $props()
 
   let comp = $derived(entity.components['star'] as StarComponent | undefined)
+
+  let starLuminosity = $derived.by(() => {
+    if (!entity) return 0
+    return luminosity(entity.mass)
+  })
+
+  let blackHoleDetected = $derived.by(() => {
+    if (!entity) return false
+    return isBlackHole(entity.mass, entity.size)
+  })
 
   const spectralOptions = [
     { value: 'O', label: 'O — Blue' },
@@ -105,5 +116,18 @@
       step={0.1}
       oninput={(v) => updateRegenerate('radius', v)}
     />
+
+    <!-- Derived Star Properties -->
+    <div class="flex flex-col gap-2 pt-2">
+      <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs" style="color: var(--text-muted)">
+        <span>Luminosity</span>
+        <span class="font-mono tabular-nums text-right">{formatDerived(starLuminosity)}</span>
+      </div>
+      {#if blackHoleDetected && comp?.variant !== 'black-hole'}
+        <div class="text-xs px-2 py-1 rounded" style="background: rgba(255,60,60,0.15); color: #ff6b6b; border: 1px solid rgba(255,60,60,0.3)">
+          Mass/size ratio exceeds black hole threshold
+        </div>
+      {/if}
+    </div>
   </div>
 {/if}
