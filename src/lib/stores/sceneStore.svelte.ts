@@ -6,7 +6,10 @@ import { getEngine } from './engineStore.svelte'
 import { generateStar, defaultStarConfig } from '@lib/generators/StarGenerator'
 import { generatePlanet, defaultPlanetConfig } from '@lib/generators/PlanetGenerator'
 import { generateNebula, defaultNebulaConfig } from '@lib/generators/NebulaGenerator'
+import { generateAlienTech, defaultAlienTechConfig } from '@lib/generators/AlienTechGenerator'
+import { createOrbitPath, getOrbitalPosition, defaultOrbitalConfig } from '@lib/generators/OrbitalSystem'
 import { LODManager } from '@lib/impostor/LODManager'
+import type { AlienTechComponent, OrbitalComponent } from '@lib/ecs/types'
 
 // ─── Reactive State ─────────────────────────────────────────────────────────
 
@@ -323,6 +326,17 @@ function buildThreeObject(entity: Entity): THREE.Group {
     return group
   }
 
+  // Alien Tech
+  if (type === 'alien-tech') {
+    const techComp = (entity.components['alien-tech'] as AlienTechComponent) ?? defaultAlienTechConfig()
+    if (!entity.components['alien-tech']) entity.components['alien-tech'] = techComp
+    const group = generateAlienTech(techComp)
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.userData.entityId = entity.id
+    })
+    return group
+  }
+
   // Fallback: placeholder icosahedron
   const group = new THREE.Group()
   const geo = new THREE.IcosahedronGeometry(0.8, 1)
@@ -349,9 +363,28 @@ export function registerAnimationTick(): void {
 
   engine.onTick((_dt, elapsed) => {
     // Update entity shader uniforms + animations
-    for (const [_id, obj] of threeObjects) {
+    for (const [id, obj] of threeObjects) {
       if (obj.userData.update) {
         obj.userData.update(_dt, elapsed, engine.camera)
+      }
+
+      // Orbital animation: entities with orbital component orbit their parent
+      const entity = graph.get(id)
+      if (entity?.components['orbital']) {
+        const orbital = entity.components['orbital'] as OrbitalComponent
+        const pos = getOrbitalPosition(orbital, elapsed)
+
+        // Offset relative to parent position
+        if (entity.parentId) {
+          const parentObj = threeObjects.get(entity.parentId)
+          if (parentObj) {
+            obj.position.copy(parentObj.position).add(pos)
+          } else {
+            obj.position.copy(pos)
+          }
+        } else {
+          obj.position.copy(pos)
+        }
       }
     }
 

@@ -1,7 +1,10 @@
 <script lang="ts">
   import type { EntityType } from '@lib/ecs/types'
-  import { addEntity, removeEntity, duplicateEntity, saveScene, loadScene, clearScene, getSceneName, setSceneName } from '@lib/stores/sceneStore.svelte'
+  import { addEntity, removeEntity, duplicateEntity, saveScene, loadScene, clearScene, getSceneName, setSceneName, getGraph, getThreeObject } from '@lib/stores/sceneStore.svelte'
   import { getSelectedId, clearSelection } from '@lib/stores/selectionStore.svelte'
+  import { defaultOrbitalConfig } from '@lib/generators/OrbitalSystem'
+  import { createOrbitPath } from '@lib/generators/OrbitalSystem'
+  import { getEngine } from '@lib/stores/engineStore.svelte'
 
   let fileInput: HTMLInputElement
 
@@ -13,7 +16,33 @@
   ]
 
   function handleAdd(type: EntityType) {
-    // Spread entities apart
+    const selectedId = getSelectedId()
+    const selectedEntity = selectedId ? getGraph().get(selectedId) : null
+
+    // If a star is selected and we're adding a planet, make it a child with orbital component
+    if (type === 'planet' && selectedEntity?.type === 'star') {
+      const orbitRadius = 3 + Math.random() * 5
+      const orbital = defaultOrbitalConfig(orbitRadius)
+
+      const planet = addEntity(type, undefined, selectedId, {
+        transform: { type: 'transform', position: [orbitRadius, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+        orbital,
+      })
+
+      // Add visible orbit path to the scene
+      const engine = getEngine()
+      if (engine) {
+        const path = createOrbitPath(orbital)
+        const parentObj = getThreeObject(selectedId)
+        if (parentObj) {
+          path.position.copy(parentObj.position)
+        }
+        engine.scene.add(path)
+      }
+      return
+    }
+
+    // Default: spread entities apart at root level
     const offset = Math.random() * 8 - 4
     addEntity(type, undefined, null, {
       transform: {
