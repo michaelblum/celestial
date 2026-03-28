@@ -1,0 +1,106 @@
+import state from './state.js';
+
+export function updatePathVisual() {
+    if (state.pathLine) {
+        state.scene.remove(state.pathLine);
+        state.pathLine.geometry.dispose();
+        state.pathLine.material.dispose();
+        state.pathLine = null;
+    }
+    if (!state.isShowPathEnabled || !state.isPathEnabled) return;
+
+    const pts = state.pathType === 'curve'
+        ? state.smoothCurve.getPoints(100)
+        : [...state.pathPoints, state.pathPoints[0]];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(state.colors.edge[0]),
+        linewidth: 2, transparent: true, opacity: 0.5, depthWrite: false
+    });
+    state.pathLine = new THREE.Line(geo, mat);
+    state.scene.add(state.pathLine);
+}
+
+export function animatePathing(dt) {
+    const isMotionPaused = state.isPaused || state.isMenuOpen || state.isDraggingObject || state.isPanningObject || state.isPanningCamera;
+
+    // Camera tracking
+    if (state.isCenteredView) {
+        let lerpFactor = 0.1;
+        state.perspCamera.position.x += (state.polyGroup.position.x - state.perspCamera.position.x) * lerpFactor;
+        state.perspCamera.position.y += (state.polyGroup.position.y - state.perspCamera.position.y) * lerpFactor;
+        state.orthoCamera.position.x += (state.polyGroup.position.x - state.orthoCamera.position.x) * lerpFactor;
+        state.orthoCamera.position.y += (state.polyGroup.position.y - state.orthoCamera.position.y) * lerpFactor;
+    } else {
+        let lerpFactor = 0.1;
+        state.perspCamera.position.x += (0 - state.perspCamera.position.x) * lerpFactor;
+        state.perspCamera.position.y += (0 - state.perspCamera.position.y) * lerpFactor;
+        state.orthoCamera.position.x += (0 - state.orthoCamera.position.x) * lerpFactor;
+        state.orthoCamera.position.y += (0 - state.orthoCamera.position.y) * lerpFactor;
+    }
+
+    // Path line z-offset
+    if (state.pathLine) {
+        let pathZOffset = ((state.z_depth - state.depth_range.min) / (state.depth_range.max - state.depth_range.min)) * 2.0 - 1.0;
+        state.pathLine.position.z = pathZOffset;
+    }
+
+    // Movement
+    if (!isMotionPaused && !state.isDestroyed) {
+        if (state.isPathEnabled) {
+            let pathZOffset = ((state.z_depth - state.depth_range.min) / (state.depth_range.max - state.depth_range.min)) * 2.0 - 1.0;
+
+            if (state.pathType === 'curve') {
+                state.pathProgress += (state.pathSpeed * 0.02) * dt;
+                if (state.pathProgress > 1) state.pathProgress -= 1;
+                let rawPt = state.smoothCurve.getPointAt(state.pathProgress);
+                state.targetPosition.set(rawPt.x, rawPt.y, rawPt.z + pathZOffset);
+            } else {
+                let p0 = state.pathPoints[state.currentPathIndex];
+                let p1 = state.pathPoints[(state.currentPathIndex + 1) % state.pathPoints.length];
+                let segmentLength = p0.distanceTo(p1);
+
+                state.segmentProgress += (state.pathSpeed * 1.5 / segmentLength) * dt;
+                if (state.segmentProgress >= 1.0) {
+                    state.segmentProgress = 0;
+                    state.currentPathIndex = (state.currentPathIndex + 1) % state.pathPoints.length;
+                } else {
+                    let easedT = Math.sin((state.segmentProgress - 0.5) * Math.PI) * 0.5 + 0.5;
+                    let rawPt = new THREE.Vector3().copy(p0).lerp(p1, easedT);
+                    state.targetPosition.set(rawPt.x, rawPt.y, rawPt.z + pathZOffset);
+                }
+            }
+            state.polyGroup.position.lerp(state.targetPosition, 0.2);
+        } else {
+            state.polyGroup.position.lerp(state.targetPosition, 0.08);
+        }
+
+        // Rotations
+        let activeRotationSpeed = state.idleSpinSpeed;
+
+        if (state.quickSpinActive) {
+            let timeRemaining = state.quickSpinEndTime - performance.now();
+            if (timeRemaining > 0) {
+                let t = timeRemaining / 2000;
+                activeRotationSpeed += state.quickSpinSpeed * t * t;
+                state.polyGroup.rotateOnWorldAxis(state.quickSpinAxis, state.quickSpinSpeed * t * t);
+            } else {
+                state.quickSpinActive = false;
+            }
+        }
+
+        if (state.moveRotationSpeed > 0.001) {
+            state.polyGroup.rotateOnWorldAxis(state.moveRotationAxis, state.moveRotationSpeed);
+            if (!state.isPathEnabled) state.moveRotationSpeed *= 0.96;
+        }
+
+        state.polyGroup.rotation.x += activeRotationSpeed;
+        state.polyGroup.rotation.y += activeRotationSpeed;
+    }
+
+    // Residual momentum
+    if (!isMotionPaused && !state.isPathEnabled && !state.isDestroyed && state.dragMomentumSpeed > 0.0001) {
+        state.polyGroup.rotateOnWorldAxis(state.dragMomentumAxis, state.dragMomentumSpeed);
+        state.dragMomentumSpeed *= 0.95;
+    }
+}
