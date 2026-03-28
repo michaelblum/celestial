@@ -15,16 +15,37 @@
   {#each scales as scale, i}
     {@const isActive = getActiveStudio() === scale.id}
     {#if i > 0}
-      <span class="text-gray-700 text-[10px]">›</span>
+      <span class="text-[10px]" style="color: var(--border-subtle)">›</span>
     {/if}
     <button
       onclick={() => setActiveStudio(scale.id)}
-      class="px-2 py-1 rounded-md text-xs transition-colors
-             {isActive
-               ? 'bg-violet-500/20 text-violet-300 font-semibold'
-               : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}"
+      class="nav-btn"
+      class:active={isActive}
     >
       <span class="mr-1">{scale.icon}</span>{scale.label}
     </button>
   {/each}
 </div>
+
+<style>
+  .nav-btn {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--icon-default);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .nav-btn:hover {
+    color: var(--text-primary);
+    background: var(--accent-hover);
+  }
+  .nav-btn.active {
+    color: var(--text-primary);
+    background: var(--accent);
+    font-weight: 600;
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+</style>
