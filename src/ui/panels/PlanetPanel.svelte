@@ -7,10 +7,16 @@
   import ColorPickerControl from '@ui/controls/ColorPickerControl.svelte'
   import GradientEditor from '@ui/controls/GradientEditor.svelte'
   import type { GradientStop } from '@lib/ecs/types'
+  import { density, formatDerived } from '@lib/physics/PhysicsProperties'
 
   let { entity }: { entity: Entity } = $props()
 
   let comp = $derived(entity.components['planet'] as PlanetComponent | undefined)
+
+  let planetDensity = $derived.by(() => {
+    if (!entity) return 0
+    return density(entity.mass, entity.size)
+  })
 
   const variantOptions = [
     { value: 'rocky', label: 'Rocky' },
@@ -94,6 +100,12 @@
       step={0.1}
       oninput={(v) => updateRegenerate('radius', v)}
     />
+
+    <!-- Derived Planet Properties -->
+    <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs pt-1" style="color: var(--text-muted)">
+      <span>Density</span>
+      <span class="font-mono tabular-nums text-right">{formatDerived(planetDensity)}</span>
+    </div>
 
     <!-- Atmosphere Section -->
     <div class="flex flex-col gap-2 pt-1">
