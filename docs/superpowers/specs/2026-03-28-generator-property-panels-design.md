@@ -144,6 +144,15 @@ After the existing transform section, add a type switch:
 {/if}
 ```
 
+## Universal Body Properties
+
+All entities get `mass` (float) and `size` (float) as base properties on the entity itself (not per-type components). These are physics-relevant attributes that affect behavior across contexts — gravitational influence, collision, orbital mechanics, LOD thresholds, etc.
+
+- **mass**: Relative mass. Drives orbital period calculations, gravitational lensing (future), interaction priority.
+- **size**: Logical diameter independent of visual radius. Used for LOD distance thresholds, impostor baking bounds, collision volumes.
+
+Both appear in `PropertiesPanel` above the type-specific panel, alongside the existing transform controls. Added as fields on the `Entity` type in `src/lib/ecs/types.ts`.
+
 ## Extensibility
 
 The per-type panel pattern supports future additions:
