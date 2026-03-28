@@ -2,9 +2,11 @@
   let {
     label,
     checked = $bindable(false),
+    onchange,
   }: {
     label: string
     checked: boolean
+    onchange?: (checked: boolean) => void
   } = $props()
 </script>
 
@@ -14,7 +16,7 @@
     type="button"
     role="switch"
     aria-checked={checked}
-    onclick={() => (checked = !checked)}
+    onclick={() => { checked = !checked; onchange?.(checked) }}
     class="relative w-9 h-5 rounded-full transition-colors duration-200
            {checked ? 'bg-violet-500' : 'bg-white/15'}"
   >

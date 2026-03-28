@@ -5,12 +5,14 @@
     min = 0,
     max = 1,
     step = 0.01,
+    oninput,
   }: {
     label: string
     value: number
     min?: number
     max?: number
     step?: number
+    oninput?: (value: number) => void
   } = $props()
 </script>
 
@@ -25,6 +27,7 @@
     {min}
     {max}
     {step}
+    oninput={() => oninput?.(value)}
     class="w-full h-1.5 rounded-full appearance-none cursor-pointer
            bg-white/10 accent-violet-500
            [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
