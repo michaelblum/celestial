@@ -2083,7 +2083,7 @@ git commit -m "chore: delete dead OortCloudGenerator — replaced by DebrisVolum
 
 ---
 
-## Task 16: Physics Test Hardening
+## Task 16: Physics Test Hardening ✅ COMPLETE
 
 **Files:**
 - Modify: `src/lib/physics/PhysicsProperties.ts`
@@ -2091,7 +2091,7 @@ git commit -m "chore: delete dead OortCloudGenerator — replaced by DebrisVolum
 
 These are the three minor gaps found during the code review. Each is small but prevents future regressions.
 
-- [ ] **Step 1: Add luminosity negative-input guard**
+- [x] **Step 1: Add luminosity negative-input guard**
 
 In `src/lib/physics/PhysicsProperties.ts`, update the `luminosity` function:
 
@@ -2105,7 +2105,7 @@ export function luminosity(mass: number): number {
 
 Note: changed `mass === 0` to `mass <= 0` to guard against negative values returning `NaN`.
 
-- [ ] **Step 2: Add tests for formatDerived**
+- [x] **Step 2: Add tests for formatDerived**
 
 Append to `src/lib/physics/PhysicsProperties.test.ts`:
 
@@ -2140,7 +2140,7 @@ describe('formatDerived', () => {
 })
 ```
 
-- [ ] **Step 3: Add test for luminosity with negative input**
+- [x] **Step 3: Add test for luminosity with negative input**
 
 Append to the `luminosity` describe block:
 
@@ -2151,7 +2151,7 @@ Append to the `luminosity` describe block:
   })
 ```
 
-- [ ] **Step 4: Add test for orbitalPeriod with zero parent mass**
+- [x] **Step 4: Add test for orbitalPeriod with zero parent mass**
 
 Append to the `orbitalPeriod` describe block:
 
@@ -2165,7 +2165,7 @@ Append to the `orbitalPeriod` describe block:
   })
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 npx vitest run
