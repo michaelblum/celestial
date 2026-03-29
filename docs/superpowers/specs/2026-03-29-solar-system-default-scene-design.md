@@ -367,7 +367,7 @@ The existing `LODManager` in `src/lib/impostor/LODManager.ts` was designed for t
 - Jupiter GRS, Earth continents, Saturn hexagonal pole
 - Per-planet custom shaders
 - Dwarf planets beyond Pluto (Eris, Haumea, Makemake, Sedna)
-- Oort cloud as debris-volume (the existing Oort cloud effect may be adapted later)
+- ~~Oort cloud as debris-volume~~ — **MOVED IN-SCOPE**: The legacy `OortCloudGenerator.ts` is dead code (imported but never called). Delete it and add an Oort cloud entry to `DEBRIS_VOLUMES` using the unified `DebrisVolumeProfile` with `maxInclination: 1.57`. The 2D `OortCloudOverlay.svelte` stays — it's a scale-transition UX effect, not a debris volume.
 - Active-system scoping (`getEntitiesBySystem()` for multi-system universes)
 - **Gaseous Debris Volumes**: The `DebrisVolumeGenerator` is designed to support nebulas and gas clouds by setting `microVisuals.microRenderType: 'sprite'` instead of `'mesh'`. This swaps the near-LOD local bubble from solid rock `InstancedMesh` to translucent, additive-blending billboard planes — same spatial math, same treadmill recycling, different micro render. The existing Nebula generator could eventually be replaced by this unified approach.
 - Data-Driven Profile Pattern for `PlanetComponent` and `StarComponent` (refactoring their flat property lists into sectioned profiles matching the `DebrisVolumeProfile` pattern)

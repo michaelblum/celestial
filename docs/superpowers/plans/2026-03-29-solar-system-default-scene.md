@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Load the real Solar System as the default scene on startup — Sun, 10 planets/dwarfs, ~130 moons, asteroid belt, Kuiper belt, comets — with a 4-tier LOD system governing rendering and a filter panel for orbit path overlays.
+**Goal:** Load the real Solar System as the default scene on startup — Sun, 10 planets/dwarfs, ~130 moons, asteroid belt, Kuiper belt, Oort cloud, comets — with a 4-tier LOD system governing rendering, a filter panel for orbit path overlays, legacy dead-code cleanup, and physics test hardening.
 
 **Architecture:** Data-driven approach. A `SolarSystemData.ts` file contains all physical and visual parameters. A `ScalePolicy.ts` converts real units (km, AU) to scene units. A `SolarSystemLoader.ts` orchestrates entity creation. A `BodyLODManager.ts` manages the Points cloud → Sprite → Low-poly → Hero shader pipeline. A `DebrisVolumeGenerator.ts` with a profiled component handles asteroid belts, Kuiper belt, and planetary rings via unified spherical-coordinate math. A `filterStore.svelte.ts` controls orbit path overlay visibility.
 
@@ -44,6 +44,18 @@ Task 12 (Viewport trigger + default scene load)
                │
                ▼
 Task 13 (PlanetComponent ring removal)
+               │
+               ▼
+Task 14 (Oort cloud debris volume — data + loader)
+               │
+               ▼
+Task 15 (Legacy dead code cleanup — OortCloudGenerator, StarGenerator import)
+               │
+               ▼
+Task 16 (Physics test hardening — formatDerived, luminosity guard, orbitalPeriod(0))
+               │
+               ▼
+Task 17 (Expand Tier 3 moon dataset — Jupiter, Saturn, Uranus, Neptune named moons)
 ```
 
 **Parallel groups:**
@@ -51,6 +63,7 @@ Task 13 (PlanetComponent ring removal)
 - **Wave 2** (after types): Tasks 3, 4, 5
 - **Wave 3** (after data + LOD): Tasks 6, 7, 8, 9
 - **Wave 4** (integration): Tasks 10, 11, 12, 13
+- **Wave 5** (polish + cleanup — all parallelizable): Tasks 14, 15, 16, 17
 
 ---
 
@@ -77,6 +90,20 @@ Task 13 (PlanetComponent ring removal)
 | `src/lib/stores/sceneStore.svelte.ts` | Handle new entity types in `buildThreeObject`, integrate `BodyLODManager` + `filterStore` into animation loop |
 | `src/ui/layout/Viewport.svelte` | Call `loadSolarSystem()` after engine init when scene is empty |
 | `src/lib/ecs/Serializer.ts` | Handle new component types in serialize/deserialize |
+
+### Deleted Files (Cleanup)
+| File | Reason |
+|------|--------|
+| `src/lib/generators/OortCloudGenerator.ts` | Dead code — imported but never called. Oort cloud moves to DebrisVolumeGenerator |
+
+### Additional Modified Files (Wave 5)
+| File | Changes |
+|------|---------|
+| `src/lib/generators/StarGenerator.ts` | Remove dead `import { createOortCloud }` |
+| `src/lib/physics/PhysicsProperties.ts` | Add guard for negative mass in `luminosity()` |
+| `src/lib/physics/PhysicsProperties.test.ts` | Add tests for `formatDerived`, `luminosity(-n)`, `orbitalPeriod(0, r)` |
+| `src/lib/presets/SolarSystemData.ts` | Add Oort cloud debris volume profile + expand Tier 3 moon dataset |
+| `src/lib/presets/SolarSystemLoader.ts` | Wire Oort cloud debris volume into loader |
 
 ---
 
@@ -1956,17 +1983,307 @@ No code changes. Mark this task complete — the ring deprecation is documented 
 
 ---
 
+## Task 14: Oort Cloud as Debris Volume
+
+**Files:**
+- Modify: `src/lib/presets/SolarSystemData.ts`
+- Modify: `src/lib/presets/SolarSystemLoader.ts`
+
+The legacy `OortCloudGenerator.ts` creates a static sphere shell — no LOD, no local bubble, no treadmill. We replace it with a proper debris volume entry using the unified profile system.
+
+- [ ] **Step 1: Add Oort cloud entry to DEBRIS_VOLUMES**
+
+In `src/lib/presets/SolarSystemData.ts`, append to the `DEBRIS_VOLUMES` array:
+
+```ts
+  {
+    name: 'Oort Cloud',
+    variant: 'oort-cloud',
+    parent: 'Sun',
+    profile: {
+      spatial: {
+        minRadius: 300,    // ~100 AU * 3 (inner edge)
+        maxRadius: 600,    // ~200 AU * 3 (outer edge — compressed for visual)
+        maxInclination: 1.57, // π/2 — full spherical shell
+        densityCurve: 'gaussian',
+        orbitSpeed: 0.001,
+      },
+      macroVisuals: {
+        proxyType: 'sprite',
+        color: '#334466',
+        opacity: 0.04,
+        textureStyle: 'dusty',
+      },
+      microVisuals: {
+        microRenderType: 'mesh',
+        geometryType: 'dodecahedron',
+        instanceCount: 1500,
+        minSize: 0.01,
+        maxSize: 0.08,
+        colorPalette: ['#556677', '#445566', '#667788'],
+        roughness: 0.9,
+        tumbleSpeed: 0.05,
+      },
+    },
+  },
+```
+
+- [ ] **Step 2: Verify SolarSystemLoader already handles it**
+
+The `SolarSystemLoader.ts` iterates `DEBRIS_VOLUMES` and creates entities for each entry. The Oort cloud entry will be picked up automatically because `parent: 'Sun'` matches the Sun entity. Verify this by reading the loader's debris volume loop — no code changes needed if it's generic.
+
+If the loader only handles specific variants, add `'oort-cloud'` to any variant checks.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/lib/presets/SolarSystemData.ts
+git commit -m "feat: add Oort cloud as debris volume — spherical shell via unified profile"
+```
+
+---
+
+## Task 15: Legacy Dead Code Cleanup
+
+**Files:**
+- Delete: `src/lib/generators/OortCloudGenerator.ts`
+- Modify: `src/lib/generators/StarGenerator.ts`
+
+- [ ] **Step 1: Remove the dead import from StarGenerator.ts**
+
+In `src/lib/generators/StarGenerator.ts`, delete line 7:
+
+```ts
+// DELETE THIS LINE:
+import { createOortCloud } from './OortCloudGenerator'
+```
+
+Verify with `grep -rn 'createOortCloud' src/` that no other file references it.
+
+- [ ] **Step 2: Delete OortCloudGenerator.ts**
+
+```bash
+rm src/lib/generators/OortCloudGenerator.ts
+```
+
+- [ ] **Step 3: Verify build still passes**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean, no errors. The `OortCloudComponent` type in `types.ts` and the `'oort-cloud'` entity type stay — they're used by the ECS and entity tree. Only the generator file (which was dead code) is removed.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "chore: delete dead OortCloudGenerator — replaced by DebrisVolumeGenerator"
+```
+
+---
+
+## Task 16: Physics Test Hardening
+
+**Files:**
+- Modify: `src/lib/physics/PhysicsProperties.ts`
+- Modify: `src/lib/physics/PhysicsProperties.test.ts`
+
+These are the three minor gaps found during the code review. Each is small but prevents future regressions.
+
+- [ ] **Step 1: Add luminosity negative-input guard**
+
+In `src/lib/physics/PhysicsProperties.ts`, update the `luminosity` function:
+
+```ts
+/** Star luminosity = mass^3.5 (mass-luminosity relation). */
+export function luminosity(mass: number): number {
+  if (mass <= 0) return 0
+  return Math.pow(mass, LUMINOSITY_EXPONENT)
+}
+```
+
+Note: changed `mass === 0` to `mass <= 0` to guard against negative values returning `NaN`.
+
+- [ ] **Step 2: Add tests for formatDerived**
+
+Append to `src/lib/physics/PhysicsProperties.test.ts`:
+
+```ts
+import { formatDerived } from './PhysicsProperties'
+
+describe('formatDerived', () => {
+  it('formats Infinity as ∞', () => {
+    expect(formatDerived(Infinity)).toBe('∞')
+  })
+
+  it('formats 0 as "0"', () => {
+    expect(formatDerived(0)).toBe('0')
+  })
+
+  it('formats normal numbers with precision', () => {
+    expect(formatDerived(123.456, 1)).toBe('123.5')
+    expect(formatDerived(42, 2)).toBe('42.00')
+  })
+
+  it('uses scientific notation for large numbers', () => {
+    const result = formatDerived(1500000, 1)
+    expect(result).toContain('×')
+    expect(result).toContain('10')
+  })
+
+  it('uses scientific notation for very small numbers', () => {
+    const result = formatDerived(0.001, 1)
+    expect(result).toContain('×')
+    expect(result).toContain('10')
+  })
+})
+```
+
+- [ ] **Step 3: Add test for luminosity with negative input**
+
+Append to the `luminosity` describe block:
+
+```ts
+  it('returns 0 for negative mass', () => {
+    expect(luminosity(-5)).toBe(0)
+    expect(luminosity(-0.001)).toBe(0)
+  })
+```
+
+- [ ] **Step 4: Add test for orbitalPeriod with zero parent mass**
+
+Append to the `orbitalPeriod` describe block:
+
+```ts
+  it('returns Infinity for zero parent mass', () => {
+    expect(orbitalPeriod(0, 5)).toBe(Infinity)
+  })
+
+  it('returns Infinity for negative parent mass', () => {
+    expect(orbitalPeriod(-10, 5)).toBe(Infinity)
+  })
+```
+
+- [ ] **Step 5: Run tests**
+
+```bash
+npx vitest run
+```
+
+Expected: all tests pass (32 existing + 9 new = 41 total).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/lib/physics/PhysicsProperties.ts src/lib/physics/PhysicsProperties.test.ts
+git commit -m "test: harden physics tests — formatDerived, negative luminosity guard, orbitalPeriod(0)"
+```
+
+---
+
+## Task 17: Expand Tier 3 Moon Dataset
+
+**Files:**
+- Modify: `src/lib/presets/SolarSystemData.ts`
+
+The initial data has a representative subset of ~8 Tier 3 moons. This task expands it to all officially named moons with known orbital parameters. Data source: NASA/JPL Solar System Dynamics (ssd.jpl.nasa.gov).
+
+- [ ] **Step 1: Add Jupiter's remaining named moons**
+
+Append to the Tier 3 section of the `MOONS` array in `SolarSystemData.ts`. Each entry follows the same `MoonData` interface. Add all named Jovian moons with known orbits (~25 additional entries):
+
+```ts
+  // Jupiter — remaining named moons
+  { name: 'Elara',     parent: 'Jupiter', radiusKm: 43,  orbitRadiusKm: 11741000, periodDays: 259.6, eccentricity: 0.217, inclinationDeg: 26.6,  tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Pasiphae',  parent: 'Jupiter', radiusKm: 30,  orbitRadiusKm: 23624000, periodDays: 743.6, eccentricity: 0.409, inclinationDeg: 151.4, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Sinope',    parent: 'Jupiter', radiusKm: 19,  orbitRadiusKm: 23939000, periodDays: 758.9, eccentricity: 0.250, inclinationDeg: 158.1, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Lysithea',  parent: 'Jupiter', radiusKm: 18,  orbitRadiusKm: 11717000, periodDays: 259.2, eccentricity: 0.112, inclinationDeg: 28.3,  tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Carme',     parent: 'Jupiter', radiusKm: 23,  orbitRadiusKm: 23404000, periodDays: 734.2, eccentricity: 0.253, inclinationDeg: 164.9, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Ananke',    parent: 'Jupiter', radiusKm: 14,  orbitRadiusKm: 21276000, periodDays: 631.0, eccentricity: 0.244, inclinationDeg: 148.9, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Leda',      parent: 'Jupiter', radiusKm: 10,  orbitRadiusKm: 11165000, periodDays: 240.9, eccentricity: 0.164, inclinationDeg: 27.5,  tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Adrastea',  parent: 'Jupiter', radiusKm: 8,   orbitRadiusKm: 129000,   periodDays: 0.298, eccentricity: 0.002, inclinationDeg: 0.05,  tier: 'minor', variant: 'rocky', pointColor: '#909090' },
+  { name: 'Callirrhoe', parent: 'Jupiter', radiusKm: 4,  orbitRadiusKm: 24103000, periodDays: 758.8, eccentricity: 0.283, inclinationDeg: 147.1, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Themisto',  parent: 'Jupiter', radiusKm: 4,   orbitRadiusKm: 7507000,  periodDays: 130.0, eccentricity: 0.242, inclinationDeg: 43.3,  tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+```
+
+- [ ] **Step 2: Add Saturn's remaining named moons**
+
+```ts
+  // Saturn — remaining named moons
+  { name: 'Hyperion',  parent: 'Saturn', radiusKm: 135, orbitRadiusKm: 1481010, periodDays: 21.28, eccentricity: 0.123, inclinationDeg: 0.43,  tier: 'minor', variant: 'ice', pointColor: '#b0a090' },
+  { name: 'Phoebe',    parent: 'Saturn', radiusKm: 107, orbitRadiusKm: 12944300, periodDays: 550.3, eccentricity: 0.163, inclinationDeg: 175.3, tier: 'minor', variant: 'rocky', pointColor: '#606060' },
+  { name: 'Janus',     parent: 'Saturn', radiusKm: 90,  orbitRadiusKm: 151472,  periodDays: 0.695, eccentricity: 0.007, inclinationDeg: 0.16,  tier: 'minor', variant: 'ice', pointColor: '#c0c0c0' },
+  { name: 'Epimetheus', parent: 'Saturn', radiusKm: 58, orbitRadiusKm: 151422,  periodDays: 0.694, eccentricity: 0.010, inclinationDeg: 0.35,  tier: 'minor', variant: 'ice', pointColor: '#c0c0c0' },
+  { name: 'Prometheus', parent: 'Saturn', radiusKm: 43, orbitRadiusKm: 139380,  periodDays: 0.613, eccentricity: 0.002, inclinationDeg: 0.01,  tier: 'minor', variant: 'ice', pointColor: '#d0d0d0' },
+  { name: 'Pandora',   parent: 'Saturn', radiusKm: 40,  orbitRadiusKm: 141720,  periodDays: 0.629, eccentricity: 0.004, inclinationDeg: 0.05,  tier: 'minor', variant: 'ice', pointColor: '#d0d0d0' },
+  { name: 'Helene',    parent: 'Saturn', radiusKm: 18,  orbitRadiusKm: 377396,  periodDays: 2.737, eccentricity: 0.007, inclinationDeg: 0.21,  tier: 'minor', variant: 'ice', pointColor: '#c0c0c0' },
+  { name: 'Telesto',   parent: 'Saturn', radiusKm: 12,  orbitRadiusKm: 294619,  periodDays: 1.888, eccentricity: 0.001, inclinationDeg: 1.18,  tier: 'minor', variant: 'ice', pointColor: '#c0c0c0' },
+  { name: 'Calypso',   parent: 'Saturn', radiusKm: 11,  orbitRadiusKm: 294619,  periodDays: 1.888, eccentricity: 0.001, inclinationDeg: 1.50,  tier: 'minor', variant: 'ice', pointColor: '#c0c0c0' },
+  { name: 'Atlas',     parent: 'Saturn', radiusKm: 15,  orbitRadiusKm: 137670,  periodDays: 0.602, eccentricity: 0.001, inclinationDeg: 0.01,  tier: 'minor', variant: 'ice', pointColor: '#d0d0d0' },
+  { name: 'Pan',       parent: 'Saturn', radiusKm: 14,  orbitRadiusKm: 133583,  periodDays: 0.575, eccentricity: 0.000, inclinationDeg: 0.00,  tier: 'minor', variant: 'ice', pointColor: '#d0d0d0' },
+  { name: 'Daphnis',   parent: 'Saturn', radiusKm: 4,   orbitRadiusKm: 136505,  periodDays: 0.594, eccentricity: 0.000, inclinationDeg: 0.00,  tier: 'minor', variant: 'ice', pointColor: '#d0d0d0' },
+```
+
+- [ ] **Step 3: Add Neptune's remaining named moons**
+
+```ts
+  // Neptune — remaining named moons
+  { name: 'Nereid',    parent: 'Neptune', radiusKm: 170, orbitRadiusKm: 5513400, periodDays: 360.1, eccentricity: 0.751, inclinationDeg: 7.23,   tier: 'minor', variant: 'ice', pointColor: '#a0a0a0' },
+  { name: 'Proteus',   parent: 'Neptune', radiusKm: 210, orbitRadiusKm: 117647,  periodDays: 1.122, eccentricity: 0.000, inclinationDeg: 0.07,   tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Larissa',   parent: 'Neptune', radiusKm: 97,  orbitRadiusKm: 73548,   periodDays: 0.555, eccentricity: 0.001, inclinationDeg: 0.20,   tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Galatea',   parent: 'Neptune', radiusKm: 88,  orbitRadiusKm: 61953,   periodDays: 0.429, eccentricity: 0.000, inclinationDeg: 0.05,   tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Despina',   parent: 'Neptune', radiusKm: 75,  orbitRadiusKm: 52526,   periodDays: 0.335, eccentricity: 0.000, inclinationDeg: 0.06,   tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Thalassa',  parent: 'Neptune', radiusKm: 41,  orbitRadiusKm: 50075,   periodDays: 0.311, eccentricity: 0.000, inclinationDeg: 0.21,   tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Naiad',     parent: 'Neptune', radiusKm: 33,  orbitRadiusKm: 48227,   periodDays: 0.294, eccentricity: 0.000, inclinationDeg: 4.75,   tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Halimede',  parent: 'Neptune', radiusKm: 31,  orbitRadiusKm: 16611000, periodDays: 1879.1, eccentricity: 0.571, inclinationDeg: 112.7, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Neso',      parent: 'Neptune', radiusKm: 30,  orbitRadiusKm: 49285000, periodDays: 9741.0, eccentricity: 0.571, inclinationDeg: 136.4, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+```
+
+- [ ] **Step 4: Add Uranus's remaining named moons**
+
+```ts
+  // Uranus — remaining named moons
+  { name: 'Puck',      parent: 'Uranus', radiusKm: 77,  orbitRadiusKm: 86004,   periodDays: 0.762, eccentricity: 0.000, inclinationDeg: 0.32,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Sycorax',   parent: 'Uranus', radiusKm: 75,  orbitRadiusKm: 12179000, periodDays: 1288.3, eccentricity: 0.522, inclinationDeg: 159.4, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Portia',    parent: 'Uranus', radiusKm: 68,  orbitRadiusKm: 66097,   periodDays: 0.513, eccentricity: 0.000, inclinationDeg: 0.06,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Juliet',    parent: 'Uranus', radiusKm: 47,  orbitRadiusKm: 64358,   periodDays: 0.493, eccentricity: 0.001, inclinationDeg: 0.07,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Belinda',   parent: 'Uranus', radiusKm: 40,  orbitRadiusKm: 75255,   periodDays: 0.624, eccentricity: 0.000, inclinationDeg: 0.03,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Cressida',  parent: 'Uranus', radiusKm: 40,  orbitRadiusKm: 61767,   periodDays: 0.464, eccentricity: 0.000, inclinationDeg: 0.04,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Rosalind',  parent: 'Uranus', radiusKm: 36,  orbitRadiusKm: 69927,   periodDays: 0.558, eccentricity: 0.000, inclinationDeg: 0.28,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Desdemona',  parent: 'Uranus', radiusKm: 32, orbitRadiusKm: 62659,   periodDays: 0.474, eccentricity: 0.000, inclinationDeg: 0.11,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Bianca',    parent: 'Uranus', radiusKm: 26,  orbitRadiusKm: 59165,   periodDays: 0.435, eccentricity: 0.001, inclinationDeg: 0.19,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Ophelia',   parent: 'Uranus', radiusKm: 21,  orbitRadiusKm: 53764,   periodDays: 0.376, eccentricity: 0.010, inclinationDeg: 0.09,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Cordelia',  parent: 'Uranus', radiusKm: 20,  orbitRadiusKm: 49771,   periodDays: 0.335, eccentricity: 0.000, inclinationDeg: 0.08,  tier: 'minor', variant: 'ice', pointColor: '#909090' },
+  { name: 'Caliban',   parent: 'Uranus', radiusKm: 36,  orbitRadiusKm: 7231000, periodDays: 579.7, eccentricity: 0.159, inclinationDeg: 141.5, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+  { name: 'Prospero',  parent: 'Uranus', radiusKm: 25,  orbitRadiusKm: 16256000, periodDays: 1978.3, eccentricity: 0.444, inclinationDeg: 151.8, tier: 'minor', variant: 'rocky', pointColor: '#808080' },
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/presets/SolarSystemData.ts
+git commit -m "data: expand Tier 3 moons — Jupiter, Saturn, Uranus, Neptune named moons"
+```
+
+---
+
 ## Post-Implementation Checklist
 
 After all tasks are complete:
 
+- [ ] Run `npx vitest run` — all tests pass (should be ~41+ tests)
+- [ ] Run `npx tsc --noEmit` — zero TypeScript errors
+- [ ] Run `npm run build` — production build succeeds
 - [ ] Run `npm run dev` and verify the solar system loads on startup
 - [ ] Verify orbit paths are visible at system scale
 - [ ] Verify filter panel toggles hide/show orbit paths
 - [ ] Verify zooming in on a planet shows its procedural shader
 - [ ] Verify asteroid belt renders as a ring proxy from system view
+- [ ] Verify Oort cloud renders as a sprite proxy at outer edge
 - [ ] Verify Points cloud shows colored dots for distant bodies
-- [ ] Run `npm run build` to check for TypeScript errors
+- [ ] Verify `OortCloudGenerator.ts` is deleted and `grep -rn createOortCloud src/` returns nothing
+- [ ] Verify `OortCloudOverlay.svelte` still works (2D CSS transition effect — untouched)
 - [ ] Commit any fixes
 
 ---
