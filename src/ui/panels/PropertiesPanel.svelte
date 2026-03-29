@@ -1,8 +1,11 @@
 <script lang="ts">
-  import { getSelectedId } from '@lib/stores/selectionStore.svelte'
-  import { getGraph, updateComponent, updateEntityField as storeUpdateEntityField } from '@lib/stores/sceneStore.svelte'
-  import type { Entity, TransformComponent } from '@lib/ecs/types'
+  import { getSelectedId, select } from '@lib/stores/selectionStore.svelte'
+  import { getGraph, updateComponent, updateEntityField as storeUpdateEntityField, addEntity, getThreeObject, enterSystemStudio } from '@lib/stores/sceneStore.svelte'
+  import { getEngine } from '@lib/stores/engineStore.svelte'
+  import type { Entity, EntityType, TransformComponent } from '@lib/ecs/types'
   import { density, gravity, escapeVelocity, formatDerived } from '@lib/physics/PhysicsProperties'
+  import { defaultOrbitalConfig, createOrbitPath } from '@lib/generators/OrbitalSystem'
+  import { generateRandomPlanet } from '@lib/generators/PlanetFactory'
   import SliderControl from '@ui/controls/SliderControl.svelte'
   import StarPanel from '@ui/panels/StarPanel.svelte'
   import PlanetPanel from '@ui/panels/PlanetPanel.svelte'
@@ -49,7 +52,78 @@
     if (!selectedEntity) return
     storeUpdateEntityField(selectedEntity.id, field, value)
   }
+
+  // ─── Contextual Add Menu ───────────────────────────────────────────────────
+
+  const childOptionsMap: Partial<Record<EntityType, { type: EntityType; icon: string; label: string }[]>> = {
+    'star': [
+      { type: 'planet', icon: '●', label: 'Planet' },
+      { type: 'oort-cloud', icon: '◌', label: 'Oort Cloud' },
+      { type: 'alien-tech', icon: '◆', label: 'Structure' },
+    ],
+    'planet': [
+      { type: 'moon', icon: '○', label: 'Moon' },
+    ],
+    'galaxy': [
+      { type: 'star', icon: '★', label: 'Star' },
+      { type: 'nebula', icon: '☁', label: 'Nebula' },
+    ],
+  }
+
+  let childOptions = $derived(selectedEntity ? childOptionsMap[selectedEntity.type] ?? [] : [])
+  let showAddMenu = $state(false)
+
+  function addChild(type: EntityType) {
+    if (!selectedEntity) return
+    const parentId = selectedEntity.id
+
+    if (type === 'planet' || type === 'moon') {
+      // Count existing orbital children to determine slot
+      const existingOrbitalCount = selectedEntity.childIds.filter(id => {
+        const child = getGraph().get(id)
+        return child?.components['orbital']
+      }).length
+      const slot = existingOrbitalCount + 1
+
+      // Generate random planet using PlanetFactory
+      const { planet, orbital } = generateRandomPlanet(slot, selectedEntity.size)
+
+      const newEntity = addEntity(type, undefined, parentId, {
+        transform: { type: 'transform', position: [orbital.orbitRadius, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+        orbital,
+        planet,
+      })
+
+      // Add visible orbit path
+      const engine = getEngine()
+      if (engine) {
+        const path = createOrbitPath(orbital)
+        path.userData.orbitFor = newEntity.id
+        const parentObj = getThreeObject(parentId)
+        if (parentObj) parentObj.add(path)
+        else engine.scene.add(path)
+      }
+
+      // Star stays selected — pull camera out to System view
+      enterSystemStudio(parentId)
+    } else {
+      addEntity(type, undefined, parentId, {
+        transform: { type: 'transform', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      })
+    }
+
+    showAddMenu = false
+  }
+
+  function handleClickOutside(e: MouseEvent) {
+    const target = e.target as HTMLElement
+    if (!target.closest('.add-menu-container')) {
+      showAddMenu = false
+    }
+  }
 </script>
+
+<svelte:document onclick={handleClickOutside} />
 
 <div class="flex flex-col gap-4 p-3">
   {#if !selectedEntity}
@@ -63,6 +137,29 @@
         <span class="text-xs uppercase tracking-wider font-semibold" style="color: var(--label)">
           {selectedEntity.type}
         </span>
+        <div class="flex-1"></div>
+        {#if childOptions.length > 0}
+          <div class="add-menu-container relative">
+            <button
+              onclick={(e) => { e.stopPropagation(); showAddMenu = !showAddMenu }}
+              class="add-child-btn"
+              title="Add child entity"
+            >+</button>
+            {#if showAddMenu}
+              <div class="add-menu">
+                {#each childOptions as opt}
+                  <button
+                    class="add-menu-item"
+                    onclick={(e) => { e.stopPropagation(); addChild(opt.type) }}
+                  >
+                    <span class="add-menu-icon">{opt.icon}</span>
+                    {opt.label}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
       <input
         type="text"
@@ -182,3 +279,72 @@
     {/if}
   {/if}
 </div>
+
+<style>
+  .add-child-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-control);
+    border: 1px solid var(--border-control);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 16px;
+    font-weight: 300;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .add-child-btn:hover {
+    background: var(--accent-hover);
+    color: var(--text-primary);
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  .add-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 140px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-control);
+    border-radius: 8px;
+    padding: 4px;
+    z-index: 50;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(20px);
+  }
+
+  .add-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: all 0.1s ease;
+    text-align: left;
+  }
+
+  .add-menu-item:hover {
+    background: var(--accent-hover);
+    color: var(--text-primary);
+  }
+
+  .add-menu-icon {
+    font-size: 11px;
+    opacity: 0.7;
+    width: 16px;
+    text-align: center;
+  }
+</style>
