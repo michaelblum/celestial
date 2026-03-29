@@ -55,11 +55,15 @@ void main() {
   noise = clamp(noise, 0.0, 1.0);
   vec3 surfaceColor = texture2D(colorRamp, vec2(noise, 0.5)).rgb;
 
-  // Diffuse lighting from parent star
+  // Lighting from parent star — no ambient in space, dark side is black
   vec3 lightDir = normalize(lightPosition - vWorldPosition);
   float diffuse = max(dot(vNormal, lightDir), 0.0);
-  float ambient = 0.12;
-  float lighting = ambient + diffuse * 0.88;
+
+  // Specular highlight (Blinn-Phong)
+  vec3 halfDir = normalize(lightDir + viewDir);
+  float specular = pow(max(dot(vNormal, halfDir), 0.0), 32.0) * 0.4;
+
+  float lighting = diffuse * 1.4 + specular;
 
   // Volcanic: emissive glow in cracks
   if (planetType == 3) {

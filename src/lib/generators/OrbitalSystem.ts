@@ -6,34 +6,30 @@ import type { OrbitalComponent } from '@lib/ecs/types'
  * Updates entity positions in a circular/elliptical orbit around their parent.
  */
 
-/** Create a visible orbit path (faint ellipse) */
-export function createOrbitPath(config: OrbitalComponent, color: number = 0x334466): THREE.Line {
-  const segments = 128
-  const points: THREE.Vector3[] = []
+/** Create a visible orbit path using Three.js EllipseCurve for mathematically precise shape */
+export function createOrbitPath(config: OrbitalComponent, color: number = 0x4466aa): THREE.Line {
+  const r = config.orbitRadius
+  const a = r // semi-major axis
+  const b = r * (1 - config.eccentricity * 0.5) // semi-minor axis
 
-  for (let i = 0; i <= segments; i++) {
-    const angle = (i / segments) * Math.PI * 2
-    const r = config.orbitRadius
-    const a = r // semi-major axis
-    const b = r * (1 - config.eccentricity * 0.5) // semi-minor axis (simplified)
+  // EllipseCurve produces a true parametric ellipse — sampled at 512 points for GPU rendering
+  const curve = new THREE.EllipseCurve(0, 0, a, b, 0, Math.PI * 2, false, 0)
+  const curvePoints = curve.getPoints(512)
 
-    const x = a * Math.cos(angle)
-    const z = b * Math.sin(angle)
+  // Map 2D curve points to 3D with inclination
+  const incRad = config.inclination * (Math.PI / 180)
+  const points3D = curvePoints.map(p => {
+    const z = p.y
+    return new THREE.Vector3(p.x, z * Math.sin(incRad), z * Math.cos(incRad))
+  })
 
-    // Apply inclination
-    const incRad = config.inclination * (Math.PI / 180)
-    const y = z * Math.sin(incRad)
-    const zFinal = z * Math.cos(incRad)
-
-    points.push(new THREE.Vector3(x, y, zFinal))
-  }
-
-  const geometry = new THREE.BufferGeometry().setFromPoints(points)
+  const geometry = new THREE.BufferGeometry().setFromPoints(points3D)
   const material = new THREE.LineBasicMaterial({
     color,
     transparent: true,
-    opacity: 0.25,
+    opacity: 0.5,
     depthWrite: false,
+    blending: THREE.AdditiveBlending,
   })
 
   const line = new THREE.Line(geometry, material)
@@ -64,7 +60,7 @@ export function defaultOrbitalConfig(radius: number = 5): OrbitalComponent {
   return {
     type: 'orbital',
     orbitRadius: radius,
-    period: 10 + radius * 2, // Farther = slower (Kepler-ish)
+    period: 30 + radius * 5, // Farther = slower (Kepler-ish)
     inclination: 0,
     eccentricity: 0,
     phase: Math.random() * Math.PI * 2,

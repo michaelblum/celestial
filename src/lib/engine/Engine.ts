@@ -10,6 +10,7 @@ export class Engine {
 
   private animationId: number = 0
   private callbacks: Array<(dt: number, elapsed: number) => void> = []
+  private postUpdateCallbacks: Array<() => void> = []
 
   constructor(canvas: HTMLCanvasElement) {
     // Renderer — antialias on, alpha for compositing, clamp pixel ratio for perf
@@ -123,6 +124,15 @@ export class Engine {
     }
   }
 
+  /** Register a callback to run after controls.update() but before render */
+  onPostUpdate(callback: () => void): () => void {
+    this.postUpdateCallbacks.push(callback)
+    return () => {
+      const idx = this.postUpdateCallbacks.indexOf(callback)
+      if (idx !== -1) this.postUpdateCallbacks.splice(idx, 1)
+    }
+  }
+
   /** Start the animation loop */
   start(): void {
     const animate = () => {
@@ -136,6 +146,7 @@ export class Engine {
       }
 
       this.controls.update()
+      for (const cb of this.postUpdateCallbacks) { cb() }
       this.renderer.render(this.scene, this.camera)
     }
     animate()

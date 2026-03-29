@@ -80,10 +80,37 @@ export function generateStar(config: StarComponent): THREE.Group {
   // ── Point Light (the star emits light) ──
   const light = new THREE.PointLight(
     spectral.color,
-    config.coronaIntensity * 2,
-    50
+    config.coronaIntensity * 50,
+    0, // infinite range
+    1.5 // physical falloff (slightly less than inverse-square for visual clarity)
   )
   group.add(light)
+
+  // ── Distance Glow Sprite (visible at system-view distances) ──
+  const glowCanvas = document.createElement('canvas')
+  glowCanvas.width = 64
+  glowCanvas.height = 64
+  const gctx = glowCanvas.getContext('2d')!
+  const gradient = gctx.createRadialGradient(32, 32, 0, 32, 32, 32)
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)')
+  gradient.addColorStop(0.15, 'rgba(255, 255, 255, 0.8)')
+  gradient.addColorStop(0.4, `rgba(255, 255, 255, 0.3)`)
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+  gctx.fillStyle = gradient
+  gctx.fillRect(0, 0, 64, 64)
+  const glowTexture = new THREE.CanvasTexture(glowCanvas)
+  const glowSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: new THREE.Color(spectral.color),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  )
+  glowSprite.scale.setScalar(radius * 6)
+  glowSprite.userData.isGlow = true
+  group.add(glowSprite)
 
   // ── Store update function ──
   group.userData.update = (dt: number, elapsed: number, camera: THREE.Camera) => {

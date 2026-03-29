@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Entity, EntityType } from '@lib/ecs/types'
-  import { getEntities, getGraph, addEntity, removeEntity, duplicateEntity, getThreeObject } from '@lib/stores/sceneStore.svelte'
+  import { getEntities, getGraph, addEntity, removeEntity, duplicateEntity, getThreeObject, enterSystemStudio } from '@lib/stores/sceneStore.svelte'
   import { getSelectedId, select, clearSelection } from '@lib/stores/selectionStore.svelte'
   import { defaultOrbitalConfig, createOrbitPath } from '@lib/generators/OrbitalSystem'
   import { getEngine } from '@lib/stores/engineStore.svelte'
@@ -35,13 +35,14 @@
     const selectedEntity = selectedId ? getGraph().get(selectedId) : null
 
     if (type === 'planet' && selectedEntity?.type === 'star') {
-      // Minimum orbit radius = star size + planet size + gap
+      // Orbit radius: realistic spacing relative to star size
       const starEntity = selectedEntity
-      const minOrbit = (starEntity?.size ?? 2.0) + 1.5
-      const orbitRadius = minOrbit + Math.random() * 5
+      const starSize = starEntity?.size ?? 2.0
+      const minOrbit = starSize * 5
+      const orbitRadius = minOrbit + Math.random() * starSize * 10
       const orbital = defaultOrbitalConfig(orbitRadius)
 
-      addEntity(type, undefined, selectedId, {
+      const newEntity = addEntity(type, undefined, selectedId, {
         transform: { type: 'transform', position: [orbitRadius, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
         orbital,
       })
@@ -49,12 +50,14 @@
       const engine = getEngine()
       if (engine) {
         const path = createOrbitPath(orbital)
+        path.userData.orbitFor = newEntity.id
         const parentObj = getThreeObject(selectedId)
-        if (parentObj) {
-          path.position.copy(parentObj.position)
-        }
-        engine.scene.add(path)
+        if (parentObj) parentObj.add(path)
+        else engine.scene.add(path)
       }
+
+      // Pull camera out to show the orbital system
+      enterSystemStudio(selectedId)
       return
     }
 
@@ -93,7 +96,7 @@
       if (!overlapping) break
     }
 
-    addEntity(type, undefined, null, {
+    const newEntity = addEntity(type, undefined, null, {
       transform: {
         type: 'transform',
         position,
@@ -101,6 +104,9 @@
         scale: [1, 1, 1],
       },
     })
+
+    // Auto-select and focus camera on the new entity
+    select(newEntity.id)
   }
 
   function handleDelete(id: string, e: Event) {

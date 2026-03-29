@@ -152,12 +152,17 @@ export function generatePlanet(config: PlanetComponent): THREE.Group {
     group.add(ring)
   }
 
+  // ── Axial Tilt ──
+  const tiltRad = (config.axisTilt ?? 0) * (Math.PI / 180)
+  group.rotation.z = tiltRad
+
   // ── Update Function ──
+  const rotSpeed = config.rotationSpeed ?? 0.1
   group.userData.update = (dt: number, elapsed: number, camera: THREE.Camera) => {
     material.uniforms.time.value = elapsed
 
-    // Slow self-rotation
-    mesh.rotation.y += dt * 0.1
+    // Self-rotation around tilted axis
+    mesh.rotation.y += dt * rotSpeed
   }
 
   return group
@@ -198,7 +203,7 @@ export function defaultPlanetConfig(variant: PlanetComponent['variant'] = 'rocky
   return {
     type: 'planet',
     variant,
-    radius: 0.35,
+    radius: 0.05,
     colorRamp: ramps[variant] ?? ramps.rocky,
     roughness: 0.3,
     noiseScale: 3.0,
@@ -211,5 +216,7 @@ export function defaultPlanetConfig(variant: PlanetComponent['variant'] = 'rocky
     ringOuterRadius: 2.5,
     ringSegments: 4,
     moonCount: 0,
+    axisTilt: 23.4,
+    rotationSpeed: 0.15,
   }
 }

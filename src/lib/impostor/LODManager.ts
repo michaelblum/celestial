@@ -33,9 +33,9 @@ export class LODManager {
   private camera: THREE.Camera
 
   /** Distance threshold for triggering live render */
-  approachDistance: number = 15
+  approachDistance: number = 80
   /** Distance threshold for switching back to billboard */
-  retreatDistance: number = 25
+  retreatDistance: number = 120
 
   /** Currently live-rendered entity ID (null = none) */
   private liveEntityId: string | null = null
@@ -134,20 +134,15 @@ export class LODManager {
         }
       }
 
-      // Distance-based LOD switching
-      if (entity.state === 'billboard' || entity.state === 'live') {
+      // Distance-based LOD switching (disabled — billboard impostors not yet production-ready)
+      // All entities stay live-rendered for now
+      if (entity.state === 'billboard') {
         const entityPos = entity.liveGroup.position
         const dist = cameraPos.distanceTo(entityPos)
-
-        if (entity.state === 'billboard' && dist < this.approachDistance) {
-          // Camera approaching — transition to live render
-          // But only if no other entity is live
+        if (dist < this.approachDistance) {
           if (this.liveEntityId === null || this.liveEntityId === entityId) {
             this.transitionToLive(entityId)
           }
-        } else if (entity.state === 'live' && dist > this.retreatDistance && this.entities.size > 1) {
-          // Camera retreating — transition to billboard
-          this.transitionToBillboard(entityId)
         }
       }
     }

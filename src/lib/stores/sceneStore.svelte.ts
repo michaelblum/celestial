@@ -11,6 +11,8 @@ import { generateGalaxy, defaultGalaxyConfig } from '@lib/generators/GalaxyGener
 import { createOrbitPath, getOrbitalPosition, defaultOrbitalConfig } from '@lib/generators/OrbitalSystem'
 import { LODManager } from '@lib/impostor/LODManager'
 import { luminosity, isBlackHole, orbitalPeriod, escapeVelocity } from '@lib/physics/PhysicsProperties'
+import { updateOrbitMarker } from './selectionStore.svelte'
+import { advanceSimTime, getTimeScale } from './timeStore.svelte'
 import type { AlienTechComponent, OrbitalComponent } from '@lib/ecs/types'
 
 // ─── Reactive State ─────────────────────────────────────────────────────────
@@ -641,40 +643,56 @@ export function registerAnimationTick(): void {
   // Initialize LOD Manager
   lodManager = new LODManager(engine.renderer, engine.scene, engine.camera)
 
-  engine.onTick((_dt, elapsed) => {
+  // Register camera follow postUpdate (runs after controls.update, before render)
+  engine.onPostUpdate(() => {
+    const camController = getCameraController()
+    if (camController) camController.postUpdate()
+  })
+
+  engine.onTick((_dt, _rawElapsed) => {
+    // Advance simulation time (respects pause and time scale)
+    const simDt = _dt * getTimeScale()
+    const simElapsed = advanceSimTime(_dt)
+
     // Update entity shader uniforms + animations
     for (const [id, obj] of threeObjects) {
       if (obj.userData.update) {
-        obj.userData.update(_dt, elapsed, engine.camera)
+        obj.userData.update(simDt, simElapsed, engine.camera)
       }
 
       // Orbital animation: entities with orbital component orbit their parent
       const entity = graph.get(id)
       if (entity?.components['orbital']) {
         const orbital = entity.components['orbital'] as OrbitalComponent
-        const pos = getOrbitalPosition(orbital, elapsed)
+        const pos = getOrbitalPosition(orbital, simElapsed)
 
-        // Offset relative to parent position
-        if (entity.parentId) {
-          const parentObj = threeObjects.get(entity.parentId)
-          if (parentObj) {
-            obj.position.copy(parentObj.position).add(pos)
-          } else {
-            obj.position.copy(pos)
-          }
-        } else {
-          obj.position.copy(pos)
-        }
+        // Planet is a Three.js child of its parent, so position is in local coords
+        obj.position.copy(pos)
       }
 
-      // Update planet light position from parent star
+      // Update planet/moon light position from nearest star ancestor (world-space)
       if (entity?.parentId && (entity.type === 'planet' || entity.type === 'moon')) {
-        const parentObj = threeObjects.get(entity.parentId)
-        if (parentObj) {
+        // Walk up the hierarchy to find the star
+        let starEntity = entity
+        let starObj: THREE.Object3D | undefined
+        while (starEntity.parentId) {
+          const parent = graph.get(starEntity.parentId)
+          if (!parent) break
+          starEntity = parent
+          if (parent.type === 'star') {
+            starObj = threeObjects.get(parent.id)
+            break
+          }
+        }
+        // Fallback: use direct parent if no star found
+        if (!starObj) starObj = threeObjects.get(entity.parentId)
+        if (starObj) {
+          const starWorldPos = new THREE.Vector3()
+          starObj.getWorldPosition(starWorldPos)
           obj.traverse((child) => {
             if (child instanceof THREE.Mesh && child.material instanceof THREE.ShaderMaterial) {
               if (child.material.uniforms['lightPosition']) {
-                child.material.uniforms['lightPosition'].value.copy(parentObj.position)
+                child.material.uniforms['lightPosition'].value.copy(starWorldPos)
               }
             }
           })
@@ -682,14 +700,17 @@ export function registerAnimationTick(): void {
       }
     }
 
+    // Update orbit hover marker (follows orbiting planet)
+    updateOrbitMarker(_dt)
+
     // Update LOD transitions
     if (lodManager) {
       lodManager.update(_dt)
     }
 
-    // Check if zoom level should trigger studio switch
+    // Check if zoom level should trigger studio switch (skip during transitions)
     const camController = getCameraController()
-    if (camController && activeStudio === 'body') {
+    if (camController && activeStudio === 'body' && !camController.isTransitioning()) {
       const studioSwitch = camController.checkStudioThreshold()
       if (studioSwitch === 'system') {
         // Find the focused entity's parent to show system view

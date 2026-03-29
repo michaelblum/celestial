@@ -1,7 +1,8 @@
 <script lang="ts">
+  import * as THREE from 'three'
   import { getSelectedId, select } from '@lib/stores/selectionStore.svelte'
   import { getGraph, updateComponent, updateEntityField as storeUpdateEntityField, addEntity, getThreeObject, enterSystemStudio } from '@lib/stores/sceneStore.svelte'
-  import { getEngine } from '@lib/stores/engineStore.svelte'
+  import { getEngine, getCameraController } from '@lib/stores/engineStore.svelte'
   import type { Entity, EntityType, TransformComponent } from '@lib/ecs/types'
   import { density, gravity, escapeVelocity, formatDerived } from '@lib/physics/PhysicsProperties'
   import { defaultOrbitalConfig, createOrbitPath } from '@lib/generators/OrbitalSystem'
@@ -104,8 +105,19 @@
         else engine.scene.add(path)
       }
 
-      // Star stays selected — pull camera out to System view
-      enterSystemStudio(parentId)
+      if (selectedEntity.type === 'star') {
+        // Pull out to System view for star
+        enterSystemStudio(parentId)
+      } else {
+        // Zoom out to show planet + moon orbit, but keep following the planet
+        const camController = getCameraController()
+        const parentObj = getThreeObject(parentId)
+        if (camController && parentObj) {
+          const worldPos = new THREE.Vector3()
+          parentObj.getWorldPosition(worldPos)
+          camController.showSystem(worldPos, orbital.orbitRadius, parentObj)
+        }
+      }
     } else {
       addEntity(type, undefined, parentId, {
         transform: { type: 'transform', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },

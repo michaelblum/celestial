@@ -15,10 +15,10 @@ export function pickPlanetType(slot: number): PlanetComponent['variant'] {
 
 // ─── Orbit Radius ──────────────────────────────────────────────────────────
 
-/** Compute orbit radius for a given slot, ensuring it's outside the star */
+/** Compute orbit radius for a given slot, ensuring realistic spacing */
 export function computeOrbitRadius(slot: number, starSize: number): number {
-  const baseGap = starSize + 2.0
-  const spacing = 3.0 + slot * 1.5
+  const baseGap = starSize * 5
+  const spacing = starSize * 4 + slot * starSize * 3
   return baseGap + slot * spacing + (Math.random() - 0.5) * spacing * 0.3
 }
 
@@ -75,10 +75,10 @@ const VARIANT_RAMPS: Record<string, () => GradientStop[]> = {
 // ─── Radius by Type ────────────────────────────────────────────────────────
 
 const VARIANT_RADIUS: Record<string, () => number> = {
-  rocky: () => 0.15 + Math.random() * 0.2,
-  'gas-giant': () => 0.5 + Math.random() * 0.5,
-  ice: () => 0.12 + Math.random() * 0.15,
-  volcanic: () => 0.1 + Math.random() * 0.15,
+  rocky: () => 0.04 + Math.random() * 0.03,
+  'gas-giant': () => 0.08 + Math.random() * 0.06,
+  ice: () => 0.03 + Math.random() * 0.03,
+  volcanic: () => 0.03 + Math.random() * 0.02,
 }
 
 // ─── Main Generator ────────────────────────────────────────────────────────
@@ -113,6 +113,8 @@ export function generateRandomPlanet(slot: number, starSize: number): RandomPlan
     ringOuterRadius: radius * 3.5,
     ringSegments: 3 + Math.floor(Math.random() * 4),
     moonCount: 0,
+    axisTilt: Math.random() * 45,
+    rotationSpeed: 0.05 + Math.random() * 0.2,
   }
 
   const orbital = defaultOrbitalConfig(orbitRadius)

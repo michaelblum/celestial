@@ -42,8 +42,8 @@ export class SceneGraph {
     const id = generateId()
     const defaultSizes: Record<string, number> = {
       'star': 2.0,
-      'planet': 1.0,
-      'moon': 0.5,
+      'planet': 0.1,
+      'moon': 0.05,
       'nebula': 4.0,
       'galaxy': 12.0,
       'alien-tech': 3.0,

@@ -43,6 +43,8 @@ export interface PlanetComponent {
   ringOuterRadius: number
   ringSegments: number
   moonCount: number
+  axisTilt: number // degrees of axial tilt
+  rotationSpeed: number // radians per second
 }
 
 export interface NebulaComponent {

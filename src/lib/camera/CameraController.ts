@@ -73,6 +73,10 @@ export class CameraController {
   private endPosition = new THREE.Vector3()
   private endTarget = new THREE.Vector3()
 
+  // Follow mode: continuously track a moving entity after transition completes
+  private followObject: THREE.Object3D | null = null
+  private followOffset = new THREE.Vector3()
+
   constructor(camera: THREE.PerspectiveCamera, controls: OrbitControls) {
     this.camera = camera
     this.controls = controls
@@ -83,8 +87,8 @@ export class CameraController {
     return this.currentFocus?.entityId ?? null
   }
 
-  /** Animate camera to focus on a target entity */
-  focusOn(entityId: string, worldPosition: THREE.Vector3, objectRadius: number): void {
+  /** Animate camera to focus on a target entity and follow it */
+  focusOn(entityId: string, worldPosition: THREE.Vector3, objectRadius: number, object?: THREE.Object3D): void {
     this.currentFocus = { entityId, position: worldPosition.clone(), radius: objectRadius }
 
     const distance = computeFramingDistance(objectRadius, this.camera.fov, BODY_FRAMING_FILL)
@@ -99,14 +103,17 @@ export class CameraController {
     this.endTarget.copy(worldPosition)
     this.endPosition.copy(worldPosition).addScaledVector(direction, distance)
 
+    // Set up follow mode — camera will track this object after transition
+    this.followObject = object ?? null
+    this.followOffset.copy(direction).multiplyScalar(distance)
+
     this.transitioning = true
     this.transitionElapsed = 0
   }
 
   /** Animate camera to show a system (pull out to see all children orbits) */
-  showSystem(centerPosition: THREE.Vector3, maxOrbitRadius: number): void {
+  showSystem(centerPosition: THREE.Vector3, maxOrbitRadius: number, follow?: THREE.Object3D): void {
     const systemRadius = maxOrbitRadius * 1.3 // Margin to show full orbits
-    const distance = computeFramingDistance(systemRadius, this.camera.fov, 0.85)
 
     const direction = new THREE.Vector3()
     direction.subVectors(this.camera.position, this.controls.target).normalize()
@@ -115,6 +122,15 @@ export class CameraController {
     // Elevate slightly for an angled top-down view
     direction.y = Math.max(direction.y, 0.4)
     direction.normalize()
+
+    // Compute distance accounting for the elevation angle —
+    // the orbit lies in the XZ plane, so what matters is the projected horizontal distance
+    const horizontalComponent = Math.sqrt(1 - direction.y * direction.y)
+    const distance = computeFramingDistance(systemRadius, this.camera.fov, 0.85) * horizontalComponent
+
+    this.currentFocus = { entityId: follow ? '__follow_system__' : '__system__', position: centerPosition.clone(), radius: systemRadius }
+    this.followObject = follow ?? null
+    this.followOffset.copy(direction).multiplyScalar(distance)
 
     this.startPosition.copy(this.camera.position)
     this.startTarget.copy(this.controls.target)
@@ -137,6 +153,17 @@ export class CameraController {
 
   /** Call every frame from the animation loop */
   update(dt: number): void {
+    // Follow mode is handled in postUpdate (after OrbitControls)
+    if (!this.transitioning && this.followObject) {
+      this.controls.enableDamping = false
+      return
+    }
+
+    // Re-enable damping when not following
+    if (!this.controls.enableDamping) {
+      this.controls.enableDamping = true
+    }
+
     if (!this.transitioning) return
 
     this.transitionElapsed += dt
@@ -146,6 +173,14 @@ export class CameraController {
     const t = rawT < 0.5
       ? 4 * rawT * rawT * rawT
       : 1 - Math.pow(-2 * rawT + 2, 3) / 2
+
+    // During transition, if following a moving object, update end targets
+    if (this.followObject) {
+      const worldPos = new THREE.Vector3()
+      this.followObject.getWorldPosition(worldPos)
+      this.endTarget.copy(worldPos)
+      this.endPosition.copy(worldPos).add(this.followOffset)
+    }
 
     this.camera.position.lerpVectors(this.startPosition, this.endPosition, t)
     this.controls.target.lerpVectors(this.startTarget, this.endTarget, t)
@@ -157,7 +192,26 @@ export class CameraController {
         this.controls.minDistance = this.currentFocus.radius * 1.5
         this.controls.maxDistance = this.currentFocus.radius * 200
       }
+      // Sync follow position so delta tracking starts from the correct spot
+      if (this.followObject && this.currentFocus) {
+        this.followObject.getWorldPosition(this.currentFocus.position)
+      }
     }
+  }
+
+  /** Call AFTER controls.update() — applies follow offset without jitter */
+  postUpdate(): void {
+    if (this.transitioning || !this.followObject || !this.currentFocus) return
+
+    const worldPos = new THREE.Vector3()
+    this.followObject.getWorldPosition(worldPos)
+
+    const delta = new THREE.Vector3().subVectors(worldPos, this.currentFocus.position)
+    this.currentFocus.position.copy(worldPos)
+
+    // Shift both together AFTER OrbitControls has finished its update
+    this.controls.target.add(delta)
+    this.camera.position.add(delta)
   }
 
   /** Whether a camera transition is currently in progress */
