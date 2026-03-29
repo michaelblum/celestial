@@ -1,6 +1,7 @@
 import * as THREE from 'three'
-import { getThreeObject } from './sceneStore.svelte'
-import { getEngine } from './engineStore.svelte'
+import { getThreeObject, getEntityVisualRadius } from './sceneStore.svelte'
+import { getEngine, getCameraController } from './engineStore.svelte'
+import { setActivePanel } from './uiStore.svelte'
 
 // ─── Reactive State ─────────────────────────────────────────────────────────
 
@@ -27,9 +28,20 @@ export function select(entityId: string | null): void {
 
   selectedId = entityId
 
-  // Apply highlight to new selection
+  // Apply highlight to new selection and show properties
   if (entityId) {
     applyHighlight(entityId)
+    setActivePanel('properties')
+
+    // Focus camera on selected entity
+    const camController = getCameraController()
+    const obj = getThreeObject(entityId)
+    if (camController && obj) {
+      const worldPos = new THREE.Vector3()
+      obj.getWorldPosition(worldPos)
+      const radius = getEntityVisualRadius(entityId)
+      camController.focusOn(entityId, worldPos, radius)
+    }
   }
 }
 

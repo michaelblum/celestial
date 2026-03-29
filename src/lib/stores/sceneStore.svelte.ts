@@ -666,6 +666,20 @@ export function registerAnimationTick(): void {
           obj.position.copy(pos)
         }
       }
+
+      // Update planet light position from parent star
+      if (entity?.parentId && (entity.type === 'planet' || entity.type === 'moon')) {
+        const parentObj = threeObjects.get(entity.parentId)
+        if (parentObj) {
+          obj.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material instanceof THREE.ShaderMaterial) {
+              if (child.material.uniforms['lightPosition']) {
+                child.material.uniforms['lightPosition'].value.copy(parentObj.position)
+              }
+            }
+          })
+        }
+      }
     }
 
     // Update LOD transitions
@@ -678,6 +692,16 @@ export function registerAnimationTick(): void {
 /** Get the LOD manager instance */
 export function getLODManager(): LODManager | null {
   return lodManager
+}
+
+/** Get the visual bounding radius of an entity's Three.js object */
+export function getEntityVisualRadius(entityId: string): number {
+  const obj = threeObjects.get(entityId)
+  if (!obj) return 1.0
+  const box = new THREE.Box3().setFromObject(obj)
+  const size = new THREE.Vector3()
+  box.getSize(size)
+  return Math.max(size.x, size.y, size.z) / 2
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
