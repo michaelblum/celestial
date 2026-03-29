@@ -36,14 +36,13 @@ export class Engine {
     )
     this.camera.position.set(0, 5, 25)
 
-    // OrbitControls with damping (matches experiment settings)
+    // OrbitControls with damping
     this.controls = new OrbitControls(this.camera, canvas)
     this.controls.enableDamping = true
     this.controls.dampingFactor = 0.05
-    this.controls.autoRotate = true
-    this.controls.autoRotateSpeed = 0.3
+    this.controls.autoRotate = false
     this.controls.maxDistance = 500
-    this.controls.minDistance = 1
+    this.controls.minDistance = 0.5
 
     // Clock for delta time
     this.clock = new THREE.Clock()

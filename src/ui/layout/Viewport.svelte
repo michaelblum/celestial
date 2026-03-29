@@ -2,9 +2,10 @@
   import * as THREE from 'three'
   import { onMount, onDestroy } from 'svelte'
   import { Engine } from '@lib/engine/Engine'
-  import { setEngine } from '@lib/stores/engineStore.svelte'
+  import { setEngine, setCameraController } from '@lib/stores/engineStore.svelte'
   import { handleViewportClick } from '@lib/stores/selectionStore.svelte'
   import { registerAnimationTick } from '@lib/stores/sceneStore.svelte'
+  import { CameraController } from '@lib/camera/CameraController'
 
   let canvasEl: HTMLCanvasElement
   let containerEl: HTMLDivElement
@@ -14,15 +15,14 @@
     engine = new Engine(canvasEl)
     setEngine(engine)
 
-    // Add a directional light for entities
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0)
-    dirLight.position.set(5, 8, 5)
-    engine.scene.add(dirLight)
+    // Initialize camera controller
+    const camController = new CameraController(engine.camera, engine.controls)
+    setCameraController(camController)
 
-    // Add a subtle point light at origin for warmth
-    const pointLight = new THREE.PointLight(0xffddaa, 0.5, 50)
-    pointLight.position.set(0, 2, 0)
-    engine.scene.add(pointLight)
+    // Camera controller update in the render loop
+    engine.onTick((dt) => {
+      camController.update(dt)
+    })
 
     // Size to container
     const rect = containerEl.getBoundingClientRect()
