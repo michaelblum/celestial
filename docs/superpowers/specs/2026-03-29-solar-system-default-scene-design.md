@@ -52,21 +52,61 @@ Add to `EntityType` in `types.ts`:
 
 ### New Component Types
 
+#### DebrisVolumeComponent (Data-Driven Profile Pattern)
+
+The component is structured as a **Profile** with distinct sections, designed so each section maps directly to a future UI panel (e.g., "Debris Studio" sliders). This pattern will eventually extend to planets and stars.
+
 ```ts
+interface DebrisVolumeProfile {
+  // --- Section 1: Spatial Math ---
+  // Defines the mathematical volume in spherical coordinates.
+  // Controls placement, density distribution, and orbital motion.
+  spatial: {
+    minRadius: number            // inner edge (scene units)
+    maxRadius: number            // outer edge (scene units)
+    maxInclination: number       // radians: ~0 = flat ring, ~0.035 = thin belt, ~1.57 = shell
+    densityCurve: 'uniform' | 'gaussian' | 'banded'
+    densityPeak?: number         // where gaussian peaks (scene units, e.g., 2.7 AU for asteroids)
+    orbitSpeed: number           // base angular speed
+  }
+
+  // --- Section 2: Far LOD Visuals (Macro) ---
+  // Appearance of the static proxy mesh seen from system scale.
+  // RingGeometry for belts/rings, Sprite for spherical shells.
+  macroVisuals: {
+    proxyType: 'ring' | 'sprite'
+    color: string                // hex — dominant tint
+    opacity: number              // 0-1 — how solid vs. dusty
+    textureStyle: 'smooth' | 'banded' | 'dusty'  // drives the 1D gradient generation
+    bandCount?: number           // for 'banded' style (e.g., Saturn's ring gaps)
+  }
+
+  // --- Section 3: Near LOD Visuals (Micro) ---
+  // Appearance of individual rocks/particles in the local bubble.
+  microVisuals: {
+    microRenderType: 'mesh'      // Phase 1: solid rocks. Phase 2+: 'sprite' for gas/nebula
+    geometryType: 'dodecahedron' | 'icosahedron' | 'tetrahedron'
+    instanceCount: number        // rocks in the local bubble (2000-4000)
+    minSize: number              // scene units
+    maxSize: number              // scene units
+    colorPalette: string[]       // hex array — rocks randomly pick from this
+    roughness: number            // 0-1 — material roughness
+    tumbleSpeed: number          // per-rock self-rotation speed
+  }
+}
+
 interface DebrisVolumeComponent {
   type: 'debris-volume'
   variant: 'asteroid-belt' | 'kuiper-belt' | 'planetary-ring' | 'oort-cloud'
-  minRadius: number          // inner edge (scene units)
-  maxRadius: number          // outer edge (scene units)
-  maxInclination: number     // radians: ~0 = flat ring, ~0.035 = thin belt, ~1.57 = spherical shell
-  instanceCount: number      // rocks in the local bubble when near (2000-4000)
-  minRockSize: number        // scene units
-  maxRockSize: number        // scene units
-  orbitSpeed: number         // base angular speed
-  color: string              // hex
-  densityCurve: 'uniform' | 'gaussian' | 'banded'  // radial distribution
+  profile: DebrisVolumeProfile
 }
+```
 
+Each profile section is independently editable — a future "Debris Studio" UI can bind sliders directly to `profile.spatial.*`, `profile.macroVisuals.*`, and `profile.microVisuals.*` without flattening or remapping.
+
+#### CometComponent
+
+```ts
 interface CometComponent {
   type: 'comet'
   nucleusRadius: number      // scene units
@@ -96,8 +136,13 @@ The LOD system — not the filter UI — decides what geometry is drawn for each
 
 ### LOD Level 3: Points Cloud (Macro Scale)
 - **When**: Body is sub-pixel or very far from camera
-- **Tech**: Single `THREE.Points` object batching ALL distant bodies into **1 draw call**
-- **Behavior**: ECS calculates orbital positions on CPU (~0.1ms for 150 bodies), updates the Points position array. Each body is a luminous colored pixel.
+- **Tech**: Single `THREE.Points` object with a custom `THREE.ShaderMaterial`, batching ALL distant bodies into **1 draw call**
+- **Buffer attributes**: The Points geometry carries three per-vertex buffer attributes that the ECS updates each frame:
+  - `position` (vec3) — orbital position in world space
+  - `color` (vec3) — body's characteristic color (Mars = red, Earth = blue, Titan = orange, etc.)
+  - `size` (float) — apparent size hint based on body's real radius (gas giants get slightly larger points than rocky moons)
+- **ShaderMaterial**: The vertex shader reads `size` to set `gl_PointSize` (with distance attenuation). The fragment shader reads `color` and applies a soft radial falloff for a luminous dot appearance (not a hard square pixel).
+- **Behavior**: ECS calculates orbital positions on CPU (~0.1ms for 150 bodies), updates position/color/size buffers, then sets `geometry.attributes.position.needsUpdate = true` (and color/size on first frame or when bodies transition in/out of the cloud).
 
 ### LOD Level 2: Billboard / Sprite (Mid Scale)
 - **When**: Body is a few pixels wide (e.g., zooming toward Jupiter, its moons become visible discs)
@@ -218,18 +263,33 @@ Each moon entry: name, parent planet, orbital radius (km), orbital period (days)
 
 Moon display radii follow the proportional scaling policy with the 0.001 minimum clamp. Moons render via `PlanetComponent` with variant `'rocky'` or `'ice'`.
 
-### Debris Volumes
+### Debris Volume Profiles
 
-| Volume | Variant | Inner (AU) | Outer (AU) | Max Incl. | Instance Count | Density |
-|--------|---------|-----------|-----------|-----------|---------------|---------|
-| Asteroid Belt | `asteroid-belt` | 2.2 | 3.2 | 0.035 rad (~2°) | 3000 | gaussian peak at 2.7 AU |
-| Kuiper Belt | `kuiper-belt` | 30 | 50 | 0.17 rad (~10°) | 4000 | gaussian |
-| Saturn's Rings | `planetary-ring` | 0.1* | 0.22* | ~0 rad | 2000 | banded |
-| Uranus's Rings | `planetary-ring` | 0.06* | 0.08* | ~0 rad | 500 | banded (faint) |
+Each debris volume uses the profile structure. Key parameters per volume:
 
-*Ring radii are relative to parent planet, in scene units.
+**Asteroid Belt** (`variant: 'asteroid-belt'`):
+- `spatial`: minRadius 2.2 AU, maxRadius 3.2 AU, maxInclination 0.035 rad (~2°), densityCurve `'gaussian'`, densityPeak 2.7 AU
+- `macroVisuals`: proxyType `'ring'`, color `#777777`, opacity 0.3, textureStyle `'dusty'`
+- `microVisuals`: microRenderType `'mesh'`, geometryType `'dodecahedron'`, instanceCount 3000, minSize 0.005, maxSize 0.03, colorPalette `['#666666', '#7a7060', '#8a7a6a']`, roughness 1.0
 
-Saturn's rings get the `debris-volume` treatment: textured RingGeometry from far, local bubble of icy rocks when zoomed in. This replaces the existing simple `ringEnabled` approach on PlanetComponent.
+**Kuiper Belt** (`variant: 'kuiper-belt'`):
+- `spatial`: minRadius 30 AU, maxRadius 50 AU, maxInclination 0.17 rad (~10°), densityCurve `'gaussian'`
+- `macroVisuals`: proxyType `'ring'`, color `#8899aa`, opacity 0.15, textureStyle `'dusty'`
+- `microVisuals`: microRenderType `'mesh'`, geometryType `'dodecahedron'`, instanceCount 4000, minSize 0.008, maxSize 0.05, colorPalette `['#8899aa', '#99aabb', '#7788aa']`, roughness 0.8
+
+**Saturn's Rings** (`variant: 'planetary-ring'`):
+- `spatial`: minRadius 0.1*, maxRadius 0.22*, maxInclination ~0 rad, densityCurve `'banded'`, bandCount 5
+- `macroVisuals`: proxyType `'ring'`, color `#e8d5a3`, opacity 0.7, textureStyle `'banded'`
+- `microVisuals`: microRenderType `'mesh'`, geometryType `'icosahedron'`, instanceCount 2000, minSize 0.001, maxSize 0.008, colorPalette `['#f0e8d8', '#e8dcc8', '#d8ccb8']`, roughness 0.3
+
+**Uranus's Rings** (`variant: 'planetary-ring'`):
+- `spatial`: minRadius 0.06*, maxRadius 0.08*, maxInclination ~0 rad, densityCurve `'banded'`
+- `macroVisuals`: proxyType `'ring'`, color `#aabbcc`, opacity 0.1, textureStyle `'banded'`
+- `microVisuals`: microRenderType `'mesh'`, geometryType `'icosahedron'`, instanceCount 500, minSize 0.001, maxSize 0.005, colorPalette `['#c0d0e0', '#b0c0d0']`, roughness 0.4
+
+*Ring radii are in scene units relative to parent planet.
+
+Saturn's rings get the full `debris-volume` treatment: textured RingGeometry from far, local bubble of icy rocks when zoomed in. This replaces the existing simple `ringEnabled` approach on PlanetComponent.
 
 ### Comets
 
@@ -309,3 +369,5 @@ The existing `LODManager` in `src/lib/impostor/LODManager.ts` was designed for t
 - Dwarf planets beyond Pluto (Eris, Haumea, Makemake, Sedna)
 - Oort cloud as debris-volume (the existing Oort cloud effect may be adapted later)
 - Active-system scoping (`getEntitiesBySystem()` for multi-system universes)
+- **Gaseous Debris Volumes**: The `DebrisVolumeGenerator` is designed to support nebulas and gas clouds by setting `microVisuals.microRenderType: 'sprite'` instead of `'mesh'`. This swaps the near-LOD local bubble from solid rock `InstancedMesh` to translucent, additive-blending billboard planes — same spatial math, same treadmill recycling, different micro render. The existing Nebula generator could eventually be replaced by this unified approach.
+- Data-Driven Profile Pattern for `PlanetComponent` and `StarComponent` (refactoring their flat property lists into sectioned profiles matching the `DebrisVolumeProfile` pattern)
