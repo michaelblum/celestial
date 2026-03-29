@@ -331,7 +331,7 @@ export const DEBRIS_VOLUMES: DebrisVolumeData[] = [
       spatial: {
         minRadius: 6.6,   // 2.2 AU * 3
         maxRadius: 9.6,   // 3.2 AU * 3
-        maxInclination: 0.035,
+        maxInclination: 0.15,  // exaggerated from real ~2° for visual toroidal volume
         densityCurve: 'gaussian',
         densityPeak: 8.1, // 2.7 AU * 3
         orbitSpeed: 0.02,
@@ -362,7 +362,7 @@ export const DEBRIS_VOLUMES: DebrisVolumeData[] = [
       spatial: {
         minRadius: 90,   // 30 AU * 3
         maxRadius: 150,  // 50 AU * 3
-        maxInclination: 0.17,
+        maxInclination: 0.35,  // exaggerated from real ~10° for visual toroidal volume
         densityCurve: 'gaussian',
         orbitSpeed: 0.005,
       },

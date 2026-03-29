@@ -7,15 +7,85 @@ import type { DebrisVolumeComponent } from '@lib/ecs/types'
  * to morph between flat disk (ring) and spherical shell (cloud).
  *
  * LOD approach:
- * - Far: static proxy mesh (RingGeometry or Sprite)
+ * - Far: static proxy mesh (TorusGeometry for belts, RingGeometry for planetary rings, Sprite for shells)
  * - Near: local-bubble InstancedMesh with treadmill recycling
  */
 
 // ─── Far LOD: Proxy Mesh ────────────────────────────────────────────────────
 
+/**
+ * Creates a torus proxy with a radial density gradient shader.
+ * The torus tube cross-section matches the volume's maxInclination,
+ * and the shader fades edges to make it look like a soft cloud rather than solid rubber.
+ */
+function createTorusProxy(comp: DebrisVolumeComponent): THREE.Mesh {
+  const { spatial, macroVisuals } = comp.profile
+  const centerRadius = (spatial.minRadius + spatial.maxRadius) / 2
+  const tubeRadius = (spatial.maxRadius - spatial.minRadius) / 2
+  // Scale tube vertically by inclination — thin disk at 0, fat torus at π/2
+  const verticalScale = Math.max(spatial.maxInclination / (Math.PI / 2), 0.05)
+
+  const geo = new THREE.TorusGeometry(centerRadius, tubeRadius, 32, 128)
+  const color = new THREE.Color(macroVisuals.color)
+
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    uniforms: {
+      uColor: { value: color },
+      uOpacity: { value: macroVisuals.opacity },
+      uCenterRadius: { value: centerRadius },
+      uTubeRadius: { value: tubeRadius },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPos = worldPos.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      uniform float uCenterRadius;
+      uniform float uTubeRadius;
+      varying vec3 vWorldPos;
+      void main() {
+        // Distance from the torus ring center (in the XZ plane)
+        float radialDist = length(vWorldPos.xz);
+        // Distance from the torus tube center
+        float toCenter = length(vec2(radialDist - uCenterRadius, vWorldPos.y));
+        // Normalized 0..1 from tube center to edge
+        float edgeFactor = clamp(toCenter / uTubeRadius, 0.0, 1.0);
+        // Gaussian-ish density: dense at center, sparse at edges
+        float density = exp(-edgeFactor * edgeFactor * 3.0);
+        float alpha = uOpacity * density;
+        if (alpha < 0.002) discard;
+        gl_FragColor = vec4(uColor, alpha);
+      }
+    `,
+  })
+
+  const mesh = new THREE.Mesh(geo, mat)
+  // Squash the tube vertically to match inclination
+  mesh.scale.y = verticalScale
+  mesh.name = 'debris-far-proxy'
+  mesh.frustumCulled = false
+  return mesh
+}
+
 function createFarProxy(comp: DebrisVolumeComponent): THREE.Object3D {
   const { spatial, macroVisuals } = comp.profile
 
+  // Belts with significant inclination get a torus proxy
+  if (macroVisuals.proxyType === 'ring' && spatial.maxInclination > 0.01) {
+    return createTorusProxy(comp)
+  }
+
+  // Flat planetary rings stay as RingGeometry
   if (macroVisuals.proxyType === 'ring') {
     const geo = new THREE.RingGeometry(spatial.minRadius, spatial.maxRadius, 128)
     const mat = new THREE.MeshBasicMaterial({
@@ -33,10 +103,27 @@ function createFarProxy(comp: DebrisVolumeComponent): THREE.Object3D {
   }
 
   // Sprite proxy (for Oort cloud or spherical shells)
+  // Uses a soft radial gradient canvas texture so it fades smoothly
+  // when the camera flies through it (distance-fade hole-punch)
+  const size = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0)')     // hollow center
+  gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.6)') // shell density peak
+  gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.4)') // gradual fade
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')     // soft outer edge
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, size, size)
+  const texture = new THREE.CanvasTexture(canvas)
+
   const spriteMat = new THREE.SpriteMaterial({
+    map: texture,
     color: macroVisuals.color,
     transparent: true,
-    opacity: macroVisuals.opacity,
+    opacity: macroVisuals.opacity * 5, // boost from 0.04 — sprite needs more to be visible
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   })
@@ -44,6 +131,7 @@ function createFarProxy(comp: DebrisVolumeComponent): THREE.Object3D {
   const avgRadius = (spatial.minRadius + spatial.maxRadius) / 2
   sprite.scale.setScalar(avgRadius * 2)
   sprite.name = 'debris-far-proxy'
+  sprite.frustumCulled = false
   return sprite
 }
 
@@ -165,7 +253,21 @@ export function generateDebrisVolume(comp: DebrisVolumeComponent): THREE.Group {
     // Distance-aware update
     const isNear = distToVolume < volumeWidth * 1.5
     bubble.visible = isNear
-    proxy.visible = !isNear || true  // proxy always visible as background
+
+    // Proxy fades out as camera enters the volume (distance-fade hole-punch)
+    const fadeStart = volumeWidth * 2
+    const fadeEnd = volumeWidth * 0.5
+    if (distToVolume > fadeStart) {
+      proxy.visible = true
+      if ((proxy as any).material) (proxy as any).material.opacity = comp.profile.macroVisuals.opacity * (comp.profile.macroVisuals.proxyType === 'sprite' ? 5 : 1)
+    } else if (distToVolume < fadeEnd) {
+      proxy.visible = false
+    } else {
+      proxy.visible = true
+      const fade = (distToVolume - fadeEnd) / (fadeStart - fadeEnd)
+      const baseOpacity = comp.profile.macroVisuals.opacity * (comp.profile.macroVisuals.proxyType === 'sprite' ? 5 : 1)
+      if ((proxy as any).material) (proxy as any).material.opacity = baseOpacity * fade
+    }
 
     if (isNear) {
       // Per-instance orbital update
