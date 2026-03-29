@@ -4,6 +4,7 @@ import starVert from '@shaders/star.vert'
 import starFrag from '@shaders/star.frag'
 import coronaVert from '@shaders/corona.vert'
 import coronaFrag from '@shaders/corona.frag'
+import { createOortCloud } from './OortCloudGenerator'
 
 // ─── Spectral Class Data ────────────────────────────────────────────────────
 
@@ -92,6 +93,10 @@ export function generateStar(config: StarComponent): THREE.Group {
     // Billboard: corona always faces camera
     corona.quaternion.copy(camera.quaternion)
   }
+
+  // Auto-add visual oort cloud
+  const oortCloud = createOortCloud(333000) // Default sun mass; updated by physics system
+  group.add(oortCloud)
 
   return group
 }
