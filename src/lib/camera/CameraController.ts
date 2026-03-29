@@ -187,10 +187,10 @@ export class CameraController {
 
     if (rawT >= 1) {
       this.transitioning = false
-      // Update orbit controls limits based on focused object
+      // Set zoom limits — always allow zooming close, scale max by system size
       if (this.currentFocus) {
-        this.controls.minDistance = this.currentFocus.radius * 1.5
-        this.controls.maxDistance = this.currentFocus.radius * 200
+        this.controls.minDistance = 0.15
+        this.controls.maxDistance = Math.max(this.currentFocus.radius * 200, 500)
       }
       // Sync follow position so delta tracking starts from the correct spot
       if (this.followObject && this.currentFocus) {

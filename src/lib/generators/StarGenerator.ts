@@ -121,10 +121,6 @@ export function generateStar(config: StarComponent): THREE.Group {
     corona.quaternion.copy(camera.quaternion)
   }
 
-  // Auto-add visual oort cloud
-  const oortCloud = createOortCloud(333000) // Default sun mass; updated by physics system
-  group.add(oortCloud)
-
   return group
 }
 

@@ -64,7 +64,7 @@ export class Engine {
 
     for (let i = 0; i < count; i++) {
       // Distribute in a large sphere
-      const r = 200 + Math.random() * 800
+      const r = 300 + Math.random() * 700
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(2 * Math.random() - 1)
 
@@ -92,7 +92,7 @@ export class Engine {
         colors[i * 3 + 2] = brightness
       }
 
-      sizes[i] = 0.5 + Math.random() * 1.5
+      sizes[i] = 0.3 + Math.random() * 1.0
     }
 
     const geometry = new THREE.BufferGeometry()
@@ -101,7 +101,7 @@ export class Engine {
     geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1))
 
     const material = new THREE.PointsMaterial({
-      size: 0.8,
+      size: 0.5,
       vertexColors: true,
       transparent: true,
       opacity: 0.9,
