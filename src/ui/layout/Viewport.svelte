@@ -4,7 +4,8 @@
   import { Engine } from '@lib/engine/Engine'
   import { setEngine, setCameraController } from '@lib/stores/engineStore.svelte'
   import { handleViewportClick, handleViewportHover } from '@lib/stores/selectionStore.svelte'
-  import { registerAnimationTick } from '@lib/stores/sceneStore.svelte'
+  import { registerAnimationTick, getEntities } from '@lib/stores/sceneStore.svelte'
+  import { loadSolarSystem } from '@lib/presets/SolarSystemLoader'
   import { CameraController } from '@lib/camera/CameraController'
 
   let canvasEl: HTMLCanvasElement
@@ -44,6 +45,11 @@
 
     // Register entity animation tick (shader uniforms, billboards, etc.)
     registerAnimationTick()
+
+    // Load default solar system if scene is empty
+    if (getEntities().length === 0) {
+      loadSolarSystem()
+    }
 
     return () => {
       observer.disconnect()
