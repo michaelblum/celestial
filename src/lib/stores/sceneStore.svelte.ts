@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { SceneGraph } from '@lib/ecs/SceneGraph'
 import type { Entity, EntityType, Component, StudioScale, StarComponent, PlanetComponent, NebulaComponent, GalaxyComponent } from '@lib/ecs/types'
 import { serializeScene, deserializeScene, downloadScene, loadSceneFile } from '@lib/ecs/Serializer'
-import { getEngine } from './engineStore.svelte'
+import { getEngine, getCameraController } from './engineStore.svelte'
 import { generateStar, defaultStarConfig } from '@lib/generators/StarGenerator'
 import { generatePlanet, defaultPlanetConfig, createColorRampTexture } from '@lib/generators/PlanetGenerator'
 import { generateNebula, defaultNebulaConfig } from '@lib/generators/NebulaGenerator'
@@ -686,6 +686,21 @@ export function registerAnimationTick(): void {
     if (lodManager) {
       lodManager.update(_dt)
     }
+
+    // Check if zoom level should trigger studio switch
+    const camController = getCameraController()
+    if (camController && activeStudio === 'body') {
+      const studioSwitch = camController.checkStudioThreshold()
+      if (studioSwitch === 'system') {
+        // Find the focused entity's parent to show system view
+        const focusedId = camController.getFocusedEntityId()
+        if (focusedId) {
+          const focused = graph.get(focusedId)
+          const parentId = focused?.parentId ?? focusedId
+          enterSystemStudio(parentId)
+        }
+      }
+    }
   })
 }
 
@@ -702,6 +717,52 @@ export function getEntityVisualRadius(entityId: string): number {
   const size = new THREE.Vector3()
   box.getSize(size)
   return Math.max(size.x, size.y, size.z) / 2
+}
+
+/** Switch to System studio — pull camera out to show all children orbits */
+export function enterSystemStudio(parentEntityId: string): void {
+  const entity = graph.get(parentEntityId)
+  if (!entity) return
+
+  const parentObj = threeObjects.get(parentEntityId)
+  if (!parentObj) return
+
+  const camController = getCameraController()
+  if (!camController) return
+
+  // Find the max orbit radius among children
+  let maxOrbitRadius = 5
+  for (const childId of entity.childIds) {
+    const child = graph.get(childId)
+    if (child?.components['orbital']) {
+      const orbital = child.components['orbital'] as OrbitalComponent
+      if (orbital.orbitRadius > maxOrbitRadius) {
+        maxOrbitRadius = orbital.orbitRadius
+      }
+    }
+  }
+
+  const worldPos = new THREE.Vector3()
+  parentObj.getWorldPosition(worldPos)
+  camController.showSystem(worldPos, maxOrbitRadius)
+  activeStudio = 'star-system'
+  sync()
+}
+
+/** Switch to Body studio — focus on a specific entity */
+export function enterBodyStudio(entityId: string): void {
+  const obj = threeObjects.get(entityId)
+  if (!obj) return
+
+  const camController = getCameraController()
+  if (!camController) return
+
+  const worldPos = new THREE.Vector3()
+  obj.getWorldPosition(worldPos)
+  const radius = getEntityVisualRadius(entityId)
+  camController.focusOn(entityId, worldPos, radius)
+  activeStudio = 'body'
+  sync()
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

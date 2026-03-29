@@ -1,30 +1,58 @@
 <script lang="ts">
-  import type { StudioScale } from '@lib/ecs/types'
-  import { getActiveStudio, setActiveStudio } from '@lib/stores/sceneStore.svelte'
+  import { getActiveStudio, enterBodyStudio, enterSystemStudio } from '@lib/stores/sceneStore.svelte'
+  import { getSelectedId } from '@lib/stores/selectionStore.svelte'
+  import { getGraph } from '@lib/stores/sceneStore.svelte'
 
-  const scales: { id: StudioScale; label: string; icon: string }[] = [
-    { id: 'body', label: 'Body', icon: '◉' },
-    { id: 'star-system', label: 'System', icon: '☉' },
-    { id: 'galaxy', label: 'Galaxy', icon: '🌀' },
-    { id: 'cluster', label: 'Cluster', icon: '✧' },
-    { id: 'universe', label: 'Universe', icon: '∞' },
-  ]
+  let breadcrumb = $derived.by(() => {
+    const id = getSelectedId()
+    if (!id) return []
+    const graph = getGraph()
+    const crumbs: { id: string; name: string; type: string }[] = []
+
+    let current = graph.get(id)
+    while (current) {
+      crumbs.unshift({ id: current.id, name: current.name, type: current.type })
+      current = current.parentId ? graph.get(current.parentId) : undefined
+    }
+    return crumbs
+  })
+
+  let studio = $derived(getActiveStudio())
 </script>
 
 <div class="glass-panel px-2 py-1 flex items-center gap-0.5 pointer-events-auto">
-  {#each scales as scale, i}
-    {@const isActive = getActiveStudio() === scale.id}
-    {#if i > 0}
-      <span class="text-[10px]" style="color: var(--border-subtle)">›</span>
+  {#if breadcrumb.length === 0}
+    <span class="nav-label">No selection</span>
+  {:else}
+    {#each breadcrumb as crumb, i}
+      {#if i > 0}
+        <span class="text-[10px]" style="color: var(--border-subtle)">></span>
+      {/if}
+      <button
+        onclick={() => enterBodyStudio(crumb.id)}
+        class="nav-btn"
+        class:active={i === breadcrumb.length - 1 && studio === 'body'}
+      >
+        {crumb.name}
+      </button>
+    {/each}
+
+    <!-- System view toggle for entities with children -->
+    {#if breadcrumb.length > 0}
+      {@const last = breadcrumb[breadcrumb.length - 1]}
+      {@const entity = getGraph().get(last.id)}
+      {#if entity && entity.childIds.length > 0}
+        <span class="text-[10px]" style="color: var(--border-subtle)">></span>
+        <button
+          onclick={() => enterSystemStudio(last.id)}
+          class="nav-btn"
+          class:active={studio === 'star-system'}
+        >
+          System
+        </button>
+      {/if}
     {/if}
-    <button
-      onclick={() => setActiveStudio(scale.id)}
-      class="nav-btn"
-      class:active={isActive}
-    >
-      <span class="mr-1">{scale.icon}</span>{scale.label}
-    </button>
-  {/each}
+  {/if}
 </div>
 
 <style>
@@ -47,5 +75,10 @@
     background: var(--accent);
     font-weight: 600;
     box-shadow: 0 0 10px var(--accent-glow);
+  }
+  .nav-label {
+    font-size: 12px;
+    color: var(--icon-default);
+    padding: 4px 8px;
   }
 </style>
