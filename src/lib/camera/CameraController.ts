@@ -190,7 +190,7 @@ export class CameraController {
       // Set zoom limits — always allow zooming close, scale max by system size
       if (this.currentFocus) {
         this.controls.minDistance = 0.15
-        this.controls.maxDistance = Math.max(this.currentFocus.radius * 200, 500)
+        this.controls.maxDistance = Math.max(this.currentFocus.radius * 200, 5000)
       }
       // Sync follow position so delta tracking starts from the correct spot
       if (this.followObject && this.currentFocus) {
