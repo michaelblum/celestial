@@ -8,12 +8,16 @@ import { generatePlanet, defaultPlanetConfig, createColorRampTexture } from '@li
 import { generateNebula, defaultNebulaConfig } from '@lib/generators/NebulaGenerator'
 import { generateAlienTech, defaultAlienTechConfig } from '@lib/generators/AlienTechGenerator'
 import { generateGalaxy, defaultGalaxyConfig } from '@lib/generators/GalaxyGenerator'
+import { generateDebrisVolume } from '@lib/generators/DebrisVolumeGenerator'
+import { generateComet } from '@lib/generators/CometGenerator'
+import { BodyLODManager } from '@lib/lod/BodyLODManager'
+import { isOverlayVisible } from '@lib/stores/filterStore.svelte'
 import { createOrbitPath, getOrbitalPosition, defaultOrbitalConfig } from '@lib/generators/OrbitalSystem'
 import { LODManager } from '@lib/impostor/LODManager'
 import { luminosity, isBlackHole, orbitalPeriod, escapeVelocity } from '@lib/physics/PhysicsProperties'
 import { updateOrbitMarker } from './selectionStore.svelte'
 import { advanceSimTime, getTimeScale } from './timeStore.svelte'
-import type { AlienTechComponent, OrbitalComponent } from '@lib/ecs/types'
+import type { AlienTechComponent, OrbitalComponent, DebrisVolumeComponent, CometComponent } from '@lib/ecs/types'
 
 // ─── Reactive State ─────────────────────────────────────────────────────────
 
@@ -23,6 +27,7 @@ let entities = $state<Entity[]>([])
 let sceneName = $state('Untitled Scene')
 let activeStudio = $state<StudioScale>('body')
 let lodManager: LODManager | null = null
+let bodyLODManager: BodyLODManager | null = null
 
 /** Map of entityId → THREE.Object3D for the live scene */
 const threeObjects = new Map<string, THREE.Object3D>()
@@ -602,6 +607,43 @@ function buildThreeObject(entity: Entity): THREE.Group {
       if (child instanceof THREE.Mesh) child.userData.entityId = entity.id
     })
 
+  // Dwarf Planet (same rendering as planet)
+  } else if (type === 'dwarf-planet') {
+    const planetComp = (entity.components['planet'] as PlanetComponent) ?? defaultPlanetConfig()
+    if (!entity.components['planet']) entity.components['planet'] = planetComp
+    group = generatePlanet(planetComp)
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.userData.entityId = entity.id
+    })
+
+  // Debris Volume (belt, ring, cloud)
+  } else if (type === 'debris-volume') {
+    const debrisComp = entity.components['debris-volume'] as DebrisVolumeComponent | undefined
+    if (debrisComp) {
+      group = generateDebrisVolume(debrisComp)
+    } else {
+      group = new THREE.Group()
+    }
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
+        child.userData.entityId = entity.id
+      }
+    })
+
+  // Comet
+  } else if (type === 'comet') {
+    const cometComp = entity.components['comet'] as CometComponent | undefined
+    if (cometComp) {
+      group = generateComet(cometComp)
+    } else {
+      group = new THREE.Group()
+    }
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
+        child.userData.entityId = entity.id
+      }
+    })
+
   // Fallback: placeholder icosahedron
   } else {
     group = new THREE.Group()
@@ -643,6 +685,9 @@ export function registerAnimationTick(): void {
   // Initialize LOD Manager
   lodManager = new LODManager(engine.renderer, engine.scene, engine.camera)
 
+  // Initialize Body LOD Manager (Points cloud → Sprite → Low-poly → Hero pipeline)
+  bodyLODManager = new BodyLODManager(engine.scene, 256)
+
   // Register camera follow postUpdate (runs after controls.update, before render)
   engine.onPostUpdate(() => {
     const camController = getCameraController()
@@ -668,6 +713,18 @@ export function registerAnimationTick(): void {
 
         // Planet is a Three.js child of its parent, so position is in local coords
         obj.position.copy(pos)
+      }
+
+      // Filter: orbit path overlay visibility
+      if (entity) {
+        const parentObj = entity.parentId ? threeObjects.get(entity.parentId) : null
+        if (parentObj) {
+          parentObj.traverse((child) => {
+            if (child instanceof THREE.Line && child.userData.orbitFor === id) {
+              child.visible = isOverlayVisible(entity)
+            }
+          })
+        }
       }
 
       // Update planet/moon light position from nearest star ancestor (world-space)
@@ -715,6 +772,11 @@ export function registerAnimationTick(): void {
 /** Get the LOD manager instance */
 export function getLODManager(): LODManager | null {
   return lodManager
+}
+
+/** Get the Body LOD manager instance */
+export function getBodyLODManager(): BodyLODManager | null {
+  return bodyLODManager
 }
 
 /** Get the visual bounding radius of an entity's Three.js object */
@@ -784,6 +846,9 @@ function getEntityColor(type: EntityType): number {
     case 'galaxy': return 0xaabb44
     case 'oort-cloud': return 0x446688
     case 'alien-tech': return 0x44ffaa
+    case 'dwarf-planet': return 0x9988aa
+    case 'debris-volume': return 0x888888
+    case 'comet': return 0x88bbff
     case 'placeholder': return 0x666666
   }
 }
