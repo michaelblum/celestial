@@ -27,7 +27,7 @@ export function escapeVelocity(mass: number, size: number): number {
 
 /** Star luminosity = mass^3.5 (mass-luminosity relation). */
 export function luminosity(mass: number): number {
-  if (mass === 0) return 0
+  if (mass <= 0) return 0
   return Math.pow(mass, LUMINOSITY_EXPONENT)
 }
 

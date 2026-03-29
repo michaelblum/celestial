@@ -6,6 +6,7 @@ import {
   luminosity,
   isBlackHole,
   orbitalPeriod,
+  formatDerived,
   BLACK_HOLE_THRESHOLD,
   ORBITAL_SCALE_FACTOR,
 } from './PhysicsProperties'
@@ -66,6 +67,12 @@ describe('luminosity', () => {
     expect(luminosity(0)).toBe(0)
   })
 
+  it('returns 0 for negative mass (no NaN)', () => {
+    expect(luminosity(-1)).toBe(0)
+    expect(luminosity(-100)).toBe(0)
+    expect(Number.isNaN(luminosity(-5))).toBe(false)
+  })
+
   it('scales steeply with mass', () => {
     // 10x mass = ~3162x luminosity
     const ratio = luminosity(10) / luminosity(1)
@@ -109,5 +116,55 @@ describe('orbitalPeriod', () => {
     const p2 = orbitalPeriod(1, 4)
     // p2/p1 should be sqrt(4^3 / 1^3) = sqrt(64) = 8
     expect(p2 / p1).toBeCloseTo(8, 5)
+  })
+
+  it('returns Infinity for zero parent mass', () => {
+    expect(orbitalPeriod(0, 5)).toBe(Infinity)
+  })
+
+  it('returns Infinity for negative parent mass', () => {
+    expect(orbitalPeriod(-1, 5)).toBe(Infinity)
+    expect(orbitalPeriod(-100, 10)).toBe(Infinity)
+  })
+})
+
+describe('formatDerived', () => {
+  it('returns ∞ for Infinity', () => {
+    expect(formatDerived(Infinity)).toBe('\u221E')
+    expect(formatDerived(-Infinity)).toBe('\u221E')
+  })
+
+  it('returns "0" for zero', () => {
+    expect(formatDerived(0)).toBe('0')
+  })
+
+  it('formats normal numbers with one decimal place', () => {
+    expect(formatDerived(42.567)).toBe('42.6')
+    expect(formatDerived(0.5)).toBe('0.5')
+  })
+
+  it('respects custom precision', () => {
+    expect(formatDerived(42.567, 2)).toBe('42.57')
+    expect(formatDerived(42.567, 0)).toBe('43')
+  })
+
+  it('uses scientific notation for values >= 1e6', () => {
+    const result = formatDerived(2500000)
+    expect(result).toContain('×')
+    expect(result).toContain('10')
+  })
+
+  it('uses scientific notation for values < 0.01', () => {
+    const result = formatDerived(0.0005)
+    expect(result).toContain('×')
+    expect(result).toContain('10')
+  })
+
+  it('formats values just below 1e6 as plain decimal', () => {
+    expect(formatDerived(999999)).toBe('999999.0')
+  })
+
+  it('formats values at exactly 0.01 as plain decimal', () => {
+    expect(formatDerived(0.01)).toBe('0.0')
   })
 })
