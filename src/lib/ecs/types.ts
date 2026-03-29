@@ -7,6 +7,8 @@ export interface GradientStop {
   color: string      // hex like '#ff00aa'
 }
 
+export type MoonTier = 'major' | 'notable' | 'minor'
+
 // ─── Component Types ────────────────────────────────────────────────────────
 
 export interface TransformComponent {
@@ -109,6 +111,61 @@ export interface GalaxyComponent {
   outerColor: string
 }
 
+export interface PhysicalDataComponent {
+  type: 'physical'
+  radiusKm: number
+  semiMajorAxisAu: number
+  orbitalPeriodDays: number
+  massKg?: number
+  eccentricity: number
+  inclinationDeg: number
+  axisTiltDeg: number
+}
+
+export interface DebrisVolumeProfile {
+  spatial: {
+    minRadius: number
+    maxRadius: number
+    maxInclination: number
+    densityCurve: 'uniform' | 'gaussian' | 'banded'
+    densityPeak?: number
+    bandCount?: number
+    orbitSpeed: number
+  }
+  macroVisuals: {
+    proxyType: 'ring' | 'sprite'
+    color: string
+    opacity: number
+    textureStyle: 'smooth' | 'banded' | 'dusty'
+    bandCount?: number
+  }
+  microVisuals: {
+    microRenderType: 'mesh'
+    geometryType: 'dodecahedron' | 'icosahedron' | 'tetrahedron'
+    instanceCount: number
+    minSize: number
+    maxSize: number
+    colorPalette: string[]
+    roughness: number
+    tumbleSpeed: number
+  }
+}
+
+export interface DebrisVolumeComponent {
+  type: 'debris-volume'
+  variant: 'asteroid-belt' | 'kuiper-belt' | 'planetary-ring' | 'oort-cloud'
+  profile: DebrisVolumeProfile
+}
+
+export interface CometComponent {
+  type: 'comet'
+  nucleusRadius: number
+  tailLength: number
+  tailParticleCount: number
+  tailColor: string
+  coreColor: string
+}
+
 // ─── Component Union ────────────────────────────────────────────────────────
 
 export type Component =
@@ -121,6 +178,9 @@ export type Component =
   | AlienTechComponent
   | OortCloudComponent
   | GalaxyComponent
+  | PhysicalDataComponent
+  | DebrisVolumeComponent
+  | CometComponent
 
 export type ComponentType = Component['type']
 
@@ -130,10 +190,13 @@ export type EntityType =
   | 'star'
   | 'planet'
   | 'moon'
+  | 'dwarf-planet'
   | 'nebula'
   | 'galaxy'
   | 'oort-cloud'
   | 'alien-tech'
+  | 'debris-volume'
+  | 'comet'
   | 'placeholder'
 
 // ─── Entity ─────────────────────────────────────────────────────────────────
