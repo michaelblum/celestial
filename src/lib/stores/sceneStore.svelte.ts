@@ -708,20 +708,7 @@ export function registerAnimationTick(): void {
       lodManager.update(_dt)
     }
 
-    // Check if zoom level should trigger studio switch (skip during transitions)
-    const camController = getCameraController()
-    if (camController && activeStudio === 'body' && !camController.isTransitioning()) {
-      const studioSwitch = camController.checkStudioThreshold()
-      if (studioSwitch === 'system') {
-        // Find the focused entity's parent to show system view
-        const focusedId = camController.getFocusedEntityId()
-        if (focusedId) {
-          const focused = graph.get(focusedId)
-          const parentId = focused?.parentId ?? focusedId
-          enterSystemStudio(parentId)
-        }
-      }
-    }
+    // Auto studio switching disabled — user controls zoom freely
   })
 }
 

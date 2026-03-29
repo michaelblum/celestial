@@ -2,8 +2,28 @@
   import Viewport from '@ui/layout/Viewport.svelte'
   import Sidebar from '@ui/layout/Sidebar.svelte'
   import StudioNav from '@ui/layout/StudioNav.svelte'
+  import OortCloudOverlay from '@ui/layout/OortCloudOverlay.svelte'
   import { getEntities, getActiveStudio } from '@lib/stores/sceneStore.svelte'
   import { isPaused, togglePause, getRawTimeScale, setTimeScale } from '@lib/stores/timeStore.svelte'
+  import { getEngine } from '@lib/stores/engineStore.svelte'
+
+  let cameraDistance = $state(0)
+
+  // Update odometer every frame via requestAnimationFrame
+  function updateOdometer() {
+    const engine = getEngine()
+    if (engine) {
+      cameraDistance = engine.camera.position.length()
+    }
+    requestAnimationFrame(updateOdometer)
+  }
+  requestAnimationFrame(updateOdometer)
+
+  function formatDistance(d: number): string {
+    if (d < 1) return d.toFixed(2) + ' u'
+    if (d < 1000) return d.toFixed(1) + ' u'
+    return (d / 1000).toFixed(2) + ' ku'
+  }
 
   const speedPresets = [0.1, 0.25, 0.5, 1, 2, 5]
 
@@ -23,6 +43,9 @@
 <div class="w-screen h-screen relative" style="background: #050208">
   <!-- 3D Viewport -->
   <Viewport />
+
+  <!-- Oort cloud exit overlay (2D screen-space effect) -->
+  <OortCloudOverlay />
 
   <!-- UI Overlay -->
   <div class="absolute inset-0 pointer-events-none z-10">
@@ -53,6 +76,14 @@
             {isPaused() ? 'II' : formatSpeed(getRawTimeScale())}
           </span>
         </div>
+      </div>
+    </div>
+
+    <!-- Odometer — bottom right -->
+    <div class="absolute bottom-4 right-4 pointer-events-none">
+      <div class="text-[11px] px-3 py-1.5 rounded-full backdrop-blur-sm tabular-nums font-mono"
+           style="color: var(--icon-default); background: rgba(20, 10, 30, 0.6)">
+        {formatDistance(cameraDistance)}
       </div>
     </div>
   </div>
