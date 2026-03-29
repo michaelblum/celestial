@@ -1,21 +1,22 @@
-# Solar System Default Scene
+# Solar System Default Scene (Revised)
 
 **Date:** 2026-03-29
-**Scope:** Default scene loading, solar system data, asteroid/Kuiper belts, comets, filter UI
-**Phase:** This is Phase 1. Phase 2 (texture override system for planet-specific visuals) is separate.
+**Scope:** Default scene loading, solar system data, debris volumes, comets, LOD-driven rendering, filter UI for overlays
+**Phase:** Phase 1. Phase 2 (texture override system for planet-specific visuals) is separate.
 
 ## Overview
 
-On startup, the app loads the real Solar System as the default scene: Sun, all 8 planets, Pluto, all named moons (~130+), an asteroid belt, a Kuiper belt, and 1-2 comets. A filter panel lets users toggle visibility of object classes and moon tiers.
+On startup, the app loads the real Solar System as the default scene: Sun, all 8 planets, Pluto, Ceres, all named moons (~130+), an asteroid belt, a Kuiper belt, and 1-2 comets. A **4-tier LOD system** governs what geometry is rendered for each body based on camera distance. A **filter panel** controls visibility of informational overlays (orbit paths, labels) — NOT body rendering.
 
-## Architecture Decisions
+## 1. Architecture Decisions
 
 ### Physical vs. Visual Data Decoupling
 
 Every entity stores **real physical values** (km, AU, days) alongside **scene-unit values** for rendering. A single scaling policy function converts between them.
 
 ```ts
-interface PhysicalData {
+interface PhysicalDataComponent {
+  type: 'physical'
   radiusKm: number
   semiMajorAxisAu: number
   orbitalPeriodDays: number
@@ -26,48 +27,149 @@ interface PhysicalData {
 }
 ```
 
-**Scaling policy** (swappable):
-- Orbit distances: `1 AU = 3 scene units`
-- Planet radii: `sceneRadius = realKm * 0.0000063` (linear proportional, Earth = 0.04)
-- Orbital periods: `scenePeriod = realDays * (60 / 365.25)` (1 Earth year = 60 seconds of sim time)
+### Scaling Policy (`src/lib/presets/ScalePolicy.ts`)
 
-The `PlanetComponent.radius` and `OrbitalComponent.orbitRadius` use scene values. `PhysicalData` is stored as a component on the entity (type: `'physical'`) so it's serializable and accessible via the ECS.
+Three separate scales — planet orbits, moon orbits, and body radii — because the real ratios span many orders of magnitude:
+
+- **Planet orbit distances**: `1 AU = 3 scene units`
+- **Moon orbit distances**: Custom compressed scale anchored to parent's visual radius.
+  ```ts
+  toSceneMoonOrbit(moonOrbitKm, parentRadiusKm) =
+    toSceneRadius(parentRadiusKm) * 1.2 + Math.pow(moonOrbitKm, 0.3) * MOON_ORBIT_FACTOR
+  ```
+  This prevents moons from rendering inside their parent planets (Io's orbit of 421,700 km would be 0.0084 scene units in the solar scale — buried inside Jupiter's 0.44 visual radius).
+- **Body radii**: `sceneRadius = Math.max(realKm * 0.0000063, 0.001)` — linear proportional with a minimum clamp to prevent sub-pixel/z-fighting issues for tiny bodies (Deimos at 6.2 km → 0.000039 without clamp).
+- **Orbital periods**: `scenePeriod = realDays * (60 / 365.25)` (1 Earth year = 60 seconds of sim time)
+
+`PlanetComponent.radius` and `OrbitalComponent.orbitRadius` use scene values. `PhysicalDataComponent` is stored as a component on the entity so it's serializable and available for future annotations/tooltips.
 
 ### New Entity Types
 
-Add to the `EntityType` union in `types.ts`:
-- `'dwarf-planet'` — Pluto, Ceres (renders via `PlanetComponent`, separate type for filtering)
-- `'asteroid-belt'` — single entity, Three.js object is an InstancedMesh of rocks
+Add to `EntityType` in `types.ts`:
+- `'dwarf-planet'` — Pluto, Ceres (renders via `PlanetComponent`, separate type for overlay filtering)
+- `'debris-volume'` — Unified type for asteroid belt, Kuiper belt, planetary rings, Oort cloud
 - `'comet'` — nucleus mesh + particle tail
 
 ### New Component Types
 
 ```ts
-interface AsteroidBeltComponent {
-  type: 'asteroid-belt'
-  innerRadius: number       // scene units
-  outerRadius: number       // scene units
-  instanceCount: number     // 2000-5000
-  heightSpread: number      // vertical scatter (scene units)
-  minRockSize: number       // scene units
-  maxRockSize: number       // scene units
-  orbitSpeed: number        // base angular speed
-  color: string             // hex
+interface DebrisVolumeComponent {
+  type: 'debris-volume'
+  variant: 'asteroid-belt' | 'kuiper-belt' | 'planetary-ring' | 'oort-cloud'
+  minRadius: number          // inner edge (scene units)
+  maxRadius: number          // outer edge (scene units)
+  maxInclination: number     // radians: ~0 = flat ring, ~0.035 = thin belt, ~1.57 = spherical shell
+  instanceCount: number      // rocks in the local bubble when near (2000-4000)
+  minRockSize: number        // scene units
+  maxRockSize: number        // scene units
+  orbitSpeed: number         // base angular speed
+  color: string              // hex
+  densityCurve: 'uniform' | 'gaussian' | 'banded'  // radial distribution
 }
 
 interface CometComponent {
   type: 'comet'
-  nucleusRadius: number     // scene units
-  tailLength: number        // scene units
-  tailParticleCount: number // 200-500
-  tailColor: string         // hex
-  coreColor: string         // hex
+  nucleusRadius: number      // scene units
+  tailLength: number         // scene units
+  tailParticleCount: number  // 200-500
+  tailColor: string          // hex
+  coreColor: string          // hex
 }
 ```
 
-Both Kuiper belt and asteroid belt use `AsteroidBeltComponent` — same rendering tech, different parameters. The entity name distinguishes them.
+### The Unified Debris Volume
 
-## Solar System Data
+The key insight: asteroid belts, Kuiper belts, planetary rings, and the Oort cloud are all the **same structure in spherical coordinates** — differing only in `maxInclination`:
+
+| Structure | maxInclination | Shape |
+|-----------|---------------|-------|
+| Planetary rings | ~0 rad | Perfectly flat disk |
+| Asteroid belt | ~0.035 rad (~2°) | Thin torus |
+| Kuiper belt | ~0.17 rad (~10°) | Fat torus |
+| Oort cloud | ~1.57 rad (90°) | Spherical shell |
+
+A single `DebrisVolumeGenerator` handles all of these with a `densityCurve` parameter for radial tapering (e.g., asteroid belt peaks at ~2.7 AU, Oort cloud tapers at edges).
+
+## 2. LOD System (Rendering Governor)
+
+The LOD system — not the filter UI — decides what geometry is drawn for each body. 4 tiers based on camera distance:
+
+### LOD Level 3: Points Cloud (Macro Scale)
+- **When**: Body is sub-pixel or very far from camera
+- **Tech**: Single `THREE.Points` object batching ALL distant bodies into **1 draw call**
+- **Behavior**: ECS calculates orbital positions on CPU (~0.1ms for 150 bodies), updates the Points position array. Each body is a luminous colored pixel.
+
+### LOD Level 2: Billboard / Sprite (Mid Scale)
+- **When**: Body is a few pixels wide (e.g., zooming toward Jupiter, its moons become visible discs)
+- **Tech**: `THREE.Sprite` or shared `THREE.InstancedMesh` of camera-facing planes
+- **Behavior**: Body removed from Points cloud, drawn as a tiny colored circle with basic glow
+
+### LOD Level 1: Low-Poly 3D (Near Scale)
+- **When**: Body takes up ~5% of screen
+- **Tech**: `DodecahedronGeometry` or `IcosahedronGeometry`
+- **Behavior**: Real 3D with lighting. No procedural shader yet.
+
+### LOD Level 0: Hero Shader (Studio Scale)
+- **When**: Camera is in the body's local space (entering body studio)
+- **Tech**: High-poly sphere with the full procedural shader (noise, color ramp, atmosphere, rings)
+- **Behavior**: Only 1-3 hero shaders active at once (the focused body + nearest moons)
+
+### LOD for Debris Volumes
+
+Debris volumes have their own 3-tier LOD, independent of the body LOD:
+
+1. **Far LOD**: A static proxy mesh.
+   - Belts/rings: `THREE.RingGeometry` with 1D gradient texture (bands, gaps, dust).
+   - Oort cloud: `THREE.Sprite` with radial gradient billboard.
+   - **Cost**: 1 draw call, 2 triangles. Zero CPU per frame.
+
+2. **Mid LOD**: Static proxy stays visible as volumetric background. Additionally spawn a **Local Bubble** `InstancedMesh` of ~2000-4000 rocks around the camera within the volume's bounds.
+
+3. **Near LOD (Treadmill)**: Camera is inside the volume. Rocks that fall behind the camera frustum are pooled and repositioned ahead of the camera with randomized scale/rotation/noise-seed — creating the illusion of an infinite field without melting the GPU. Rock positions are clamped to the volume's allowed radius and inclination bounds.
+
+## 3. Filter UI (Overlay Governor)
+
+The filter panel controls **informational overlays only** — orbit path lines and future UI labels/annotations. It does NOT control body rendering (that's the LOD system's job).
+
+| Filter | Default | Controls |
+|--------|---------|----------|
+| Planet Orbits | ON | Orbit path lines for Mercury–Neptune |
+| Dwarf Planet Orbits | ON | Orbit paths for Pluto, Ceres |
+| Major Moon Orbits | ON | Orbit paths for Tier 1 moons (~8) |
+| Notable Moon Orbits | OFF | Orbit paths for Tier 2 moons (~13) |
+| Minor Moon Orbits | OFF | Orbit paths for Tier 3 moons (~100+) |
+| Comet Orbits | ON | Orbit paths for comets |
+
+**Implementation** (`filterStore.svelte.ts`):
+- Reactive state for each overlay toggle
+- Orbit path `Line` objects check filter state: `orbitLine.visible = isFilterVisible(entity)`
+- Filter changes are immediate (no transition)
+- Future: labels, annotations, distance markers would also respect these filters
+
+**Animation loop optimization**: When orbit paths are filtered out, skip their update logic entirely:
+
+```ts
+for (const [id, obj] of threeObjects) {
+  const entity = getEntity(id)
+
+  // LOD system decides body rendering (always runs)
+  lodManager.updateEntity(id, obj, camera)
+
+  // Filter only affects overlays (orbit lines, labels)
+  const orbitLine = obj.getObjectByName('orbit-path')
+  if (orbitLine) {
+    orbitLine.visible = isOverlayVisible(entity)
+  }
+
+  // Always update orbital position (LOD needs it even for Points cloud)
+  if (entity?.components['orbital']) {
+    const orbital = entity.components['orbital'] as OrbitalComponent
+    obj.position.copy(getOrbitalPosition(orbital, simElapsed))
+  }
+}
+```
+
+## 4. Solar System Data
 
 ### Planets
 
@@ -84,7 +186,7 @@ Both Kuiper belt and asteroid belt use `AsteroidBeltComponent` — same renderin
 | 9 | Pluto | dwarf-planet | ice | 1,188 | 39.48 | 247.9 | 0.249 | 17.2 | 122.5 | yes (thin, #c9b8a0) | no |
 | 10 | Ceres | dwarf-planet | rocky | 473 | 2.77 | 4.60 | 0.076 | 10.6 | 4.0 | no | no |
 
-**Sun**: G-class main-sequence star. Entity `mass: 100` (drives child orbital period calculation via existing physics), `size: 1`. Uses `defaultStarConfig('G')` with `radius: 0.5`, `temperature: 5778`, `coronaIntensity: 1.2`.
+**Sun**: G-class main-sequence star. Entity `mass: 100` (drives child orbital period calculation via existing Kepler physics — ensure `Math.sqrt(G * M / r)` is calibrated for M=100 at scene distances), `size: 1`. Uses `defaultStarConfig('G')` with `radius: 0.5`, `temperature: 5778`, `coronaIntensity: 1.2`.
 
 ### Per-Planet Color Ramps
 
@@ -99,12 +201,11 @@ Hand-tuned to approximate real appearance with the procedural shader:
 - **Uranus**: Pale cyan/blue — `[#5f8f8f, #8ec4c4, #b0d8d8, #d1e7e7]`
 - **Neptune**: Deep blue — `[#1a2a6c, #2d3fa0, #3f54ba, #5a6fd0]`
 - **Pluto**: Beige/tan/brown — `[#7a6a5a, #9e8e7e, #c9b8a0, #a8967e]`
+- **Ceres**: Dark gray — `[#3a3a3a, #555555, #6e6e6e, #888888]`
 
 ### Moon Tiers
 
-Moons are tagged with a tier for the filter system:
-
-**Tier 1 — Major (default visible, ~8):**
+**Tier 1 — Major (~8):**
 Moon (Earth), Io, Europa, Ganymede, Callisto (Jupiter), Titan (Saturn), Triton (Neptune), Charon (Pluto)
 
 **Tier 2 — Notable (~13):**
@@ -113,27 +214,22 @@ Phobos, Deimos (Mars), Enceladus, Mimas, Rhea, Dione, Tethys, Iapetus (Saturn), 
 **Tier 3 — Minor (all remaining named moons, ~100+):**
 All other officially named moons of Jupiter (~25+), Saturn (~40+), Uranus (~10+), Neptune (~10+), Pluto (Styx, Nix, Kerberos, Hydra).
 
-Each moon entry in the data file includes: name, parent planet, orbital radius (km from planet), orbital period (days), radius (km), tier, and optionally eccentricity/inclination.
+Each moon entry: name, parent planet, orbital radius (km), orbital period (days), radius (km), tier, eccentricity, inclination.
 
-Moon display radii follow the same proportional scaling policy. Moons render using `PlanetComponent` with variant `'rocky'` or `'ice'` and appropriate color ramps.
+Moon display radii follow the proportional scaling policy with the 0.001 minimum clamp. Moons render via `PlanetComponent` with variant `'rocky'` or `'ice'`.
 
-### Asteroid Belt
+### Debris Volumes
 
-- **Location**: 2.2–3.2 AU (6.6–9.6 scene units)
-- **Instance count**: 3000
-- **Rock geometry**: `DodecahedronGeometry(1, 0)` — 12-face low-poly
-- **Materials**: 2-3 gray/brown variants for variety
-- **Height spread**: 0.5 scene units (thin belt)
-- **Rock sizes**: 0.005–0.03 scene units
-- **Animation**: Per-instance orbital motion, Kepler-ish speed falloff by radius, per-rock tumble rotation
+| Volume | Variant | Inner (AU) | Outer (AU) | Max Incl. | Instance Count | Density |
+|--------|---------|-----------|-----------|-----------|---------------|---------|
+| Asteroid Belt | `asteroid-belt` | 2.2 | 3.2 | 0.035 rad (~2°) | 3000 | gaussian peak at 2.7 AU |
+| Kuiper Belt | `kuiper-belt` | 30 | 50 | 0.17 rad (~10°) | 4000 | gaussian |
+| Saturn's Rings | `planetary-ring` | 0.1* | 0.22* | ~0 rad | 2000 | banded |
+| Uranus's Rings | `planetary-ring` | 0.06* | 0.08* | ~0 rad | 500 | banded (faint) |
 
-### Kuiper Belt
+*Ring radii are relative to parent planet, in scene units.
 
-- **Location**: 30–50 AU (90–150 scene units)
-- **Instance count**: 4000
-- **Height spread**: 3.0 scene units (thicker, more scattered)
-- **Rock sizes**: 0.008–0.05 scene units
-- **More scattered/icy appearance** — slightly bluish tint vs. asteroid belt gray
+Saturn's rings get the `debris-volume` treatment: textured RingGeometry from far, local bubble of icy rocks when zoomed in. This replaces the existing simple `ringEnabled` approach on PlanetComponent.
 
 ### Comets
 
@@ -151,79 +247,65 @@ Moon display radii follow the same proportional scaling policy. Moons render usi
   - Tail length and brightness increase near perihelion (inversely proportional to distance from sun)
   - Color: blue-white (ion tail) with slight yellow (dust tail)
 
-## New Files
+## 5. New Files
 
 | File | Purpose |
 |------|---------|
-| `src/lib/presets/SolarSystemData.ts` | All hardcoded physical + visual data for planets, moons, belts, comets |
+| `src/lib/presets/SolarSystemData.ts` | All hardcoded physical + visual data for planets, moons, debris volumes, comets |
 | `src/lib/presets/SolarSystemLoader.ts` | Orchestrates creating all entities from the data on startup |
-| `src/lib/presets/ScalePolicy.ts` | Scaling functions: `toSceneRadius(km)`, `toSceneOrbit(au)`, `toScenePeriod(days)` |
-| `src/lib/generators/AsteroidBeltGenerator.ts` | InstancedMesh generator for asteroid/Kuiper belts |
+| `src/lib/presets/ScalePolicy.ts` | `toSceneRadius(km)`, `toSceneOrbit(au)`, `toSceneMoonOrbit(km, parentKm)`, `toScenePeriod(days)` |
+| `src/lib/generators/DebrisVolumeGenerator.ts` | Unified generator: spherical-coord placement, far proxy mesh, local bubble InstancedMesh, treadmill recycling |
 | `src/lib/generators/CometGenerator.ts` | Nucleus + particle tail generator |
-| `src/lib/stores/filterStore.svelte.ts` | Filter state (which object classes are visible) |
-| `src/ui/panels/FilterPanel.svelte` | Toggle UI for object class visibility |
+| `src/lib/lod/BodyLODManager.ts` | 4-tier LOD: Points cloud → Sprite → Low-poly → Hero shader. Manages transitions, Points batch object |
+| `src/lib/stores/filterStore.svelte.ts` | Overlay filter state (orbit paths, labels) |
+| `src/ui/panels/FilterPanel.svelte` | Toggle UI for orbit path / overlay visibility |
 
-## Modified Files
+## 6. Modified Files
 
 | File | Changes |
 |------|---------|
-| `src/lib/ecs/types.ts` | Add `EntityType` entries, `AsteroidBeltComponent`, `CometComponent`, `PhysicalDataComponent` to Component union |
-| `src/lib/stores/sceneStore.svelte.ts` | Import and call `SolarSystemLoader` on init when scene is empty; handle new entity types in `buildThreeObject`; integrate filter visibility in animation loop |
+| `src/lib/ecs/types.ts` | Add `EntityType` entries (`dwarf-planet`, `debris-volume`, `comet`), `DebrisVolumeComponent`, `CometComponent`, `PhysicalDataComponent` to Component union |
+| `src/lib/stores/sceneStore.svelte.ts` | Import and call `SolarSystemLoader` on init; handle new entity types in `buildThreeObject`; delegate rendering decisions to `BodyLODManager`; overlay filter integration |
 | `src/ui/layout/Viewport.svelte` | Call solar system loader after engine init |
 | `src/lib/ecs/Serializer.ts` | Handle new component types in save/load |
+| `src/lib/generators/PlanetGenerator.ts` | Remove `ringEnabled`/ring params from PlanetComponent (rings become debris-volume children) |
 
-## Filter Panel UI
+## 7. Default Scene Loading Flow
 
-Located in the system view area (near time controls or as a collapsible sidebar section).
-
-| Filter | Default | Controls |
-|--------|---------|----------|
-| Planets | ON | Mercury through Neptune |
-| Dwarf Planets | ON | Pluto, Ceres |
-| Major Moons | ON | Tier 1 (~8 moons) |
-| Notable Moons | OFF | Tier 2 (~13 moons) |
-| Minor Moons | OFF | Tier 3 (~100+ moons) |
-| Asteroid Belt | ON | Main belt InstancedMesh |
-| Kuiper Belt | ON | Outer belt InstancedMesh |
-| Comets | ON | All comets |
-| Orbit Paths | ON | All orbital path lines |
-
-**Implementation:**
-- `filterStore.svelte.ts` exposes reactive state for each filter toggle
-- On each animation tick, entities check their type + tier against filter state
-- Filtered-out entities: `threeObject.visible = false` (cheap, no scene graph modification)
-- Orbit path lines check the "Orbit Paths" filter independently
-- Filter changes are immediate (no animation/transition needed)
-
-## Default Scene Loading Flow
-
-1. `Viewport.svelte` mounts → calls `registerAnimationTick()`
-2. After engine init, check if scene is empty (`getEntities().length === 0`)
-3. If empty, call `loadSolarSystem()` from `SolarSystemLoader.ts`
-4. `loadSolarSystem()`:
+1. `Viewport.svelte` mounts → engine init → checks if scene is empty
+2. If empty, `SolarSystemLoader.loadSolarSystem()` runs:
    a. Creates Sun entity (G-class star)
-   b. Iterates planet data → creates each planet as child of Sun
-   c. Iterates moon data → creates each moon as child of its planet
-   d. Creates asteroid belt entity as child of Sun
-   e. Creates Kuiper belt entity as child of Sun
-   f. Creates comet entities as children of Sun
-   g. Applies initial filter state (minor moons hidden)
+   b. Creates all planets + dwarf planets as children of Sun
+   c. Creates all moons as children of their respective planets (all tiers, ECS data + Points cloud entries)
+   d. Creates debris volume entities: asteroid belt, Kuiper belt as children of Sun; Saturn/Uranus rings as children of their planets
+   e. Creates comet entities as children of Sun
+   f. Initializes `BodyLODManager` with all entity positions
+   g. Applies default overlay filter state (minor moon orbits hidden)
    h. Calls `enterSystemStudio(sunId)` to set camera
-5. Scene is ready — user sees orbit paths with the Sun at center
+3. Scene is ready — user sees orbit paths with the Sun at center, all bodies rendered as Points at system scale
 
-## Performance Considerations
+## 8. Performance Budget (Non-Gaming Laptop Target)
 
-- **~150 entities** total (9 planets/dwarfs + ~130 moons + 2 belts + 2 comets + 1 star)
-- **InstancedMesh** for belts: 3000 + 4000 = 7000 instances total, single draw call each
-- **Orbit paths**: ~150 Line objects (512 points each). Minor moon orbit paths only created when their filter is enabled (lazy creation) to avoid 100+ line objects on startup
-- **Comet particles**: 300-500 points, negligible
-- **Filter visibility toggle**: `object.visible = false` prevents traversal — O(1) per entity per frame
-- **Minor moon lazy loading**: Tier 3 moon entities are created in the ECS but their Three.js objects are only built when the "Minor Moons" filter is first enabled. This avoids ~100 mesh/orbit-line creations on startup.
+- **ECS orbital updates**: ~150 `Math.sin/cos` calls per frame = ~0.1-0.2ms CPU. Always runs.
+- **Points cloud**: 1 draw call for all distant bodies. Negligible GPU.
+- **Hero shaders**: 1-3 active at any time (focused body + close neighbors). Dominant GPU cost.
+- **Debris far proxies**: 4 RingGeometry/Sprite objects = 4 draw calls. Negligible.
+- **Debris local bubbles**: 2000-4000 InstancedMesh rocks when camera is near a belt = 1 draw call each. Per-frame matrix updates only when camera is inside the volume.
+- **Orbit path lines**: ~20-30 visible by default (planets + major moons). Minor moon orbit lines only created when filter is toggled ON. 512 points each.
+- **Draw call budget**: ~10-20 total at system scale (1 Points + 4 debris proxies + orbit lines). Well within laptop GPU limits.
 
-## Out of Scope (Phase 2)
+## 9. Relationship to Existing LOD System
+
+The existing `LODManager` in `src/lib/impostor/LODManager.ts` was designed for the "dive into one entity" use case (billboard impostors). It is currently **disabled** (billboard transitions commented out). The solar system requires a different LOD paradigm (many simultaneously visible bodies at vastly different scales).
+
+**Approach**: Build `BodyLODManager` as a **new, parallel** LOD system. The existing `LODManager` remains for future use (dive-into transitions). The two systems can coexist — `BodyLODManager` handles system-scale rendering, `LODManager` handles studio-scale impostor transitions.
+
+## Out of Scope (Phase 2+)
 
 - Texture override system (BaseColorMap, BandProfileMap, FeatureMap blending)
 - NASA texture maps for specific planets
 - Jupiter GRS, Earth continents, Saturn hexagonal pole
 - Per-planet custom shaders
 - Dwarf planets beyond Pluto (Eris, Haumea, Makemake, Sedna)
+- Oort cloud as debris-volume (the existing Oort cloud effect may be adapted later)
+- Active-system scoping (`getEntitiesBySystem()` for multi-system universes)
