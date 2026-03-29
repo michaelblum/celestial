@@ -8,12 +8,17 @@
   import { getEngine } from '@lib/stores/engineStore.svelte'
 
   let cameraDistance = $state(0)
+  let cameraPos = $state({ x: 0, y: 0, z: 0 })
+  let cameraDir = $state({ x: 0, y: 0, z: 0 })
 
-  // Update odometer every frame via requestAnimationFrame
   function updateOdometer() {
     const engine = getEngine()
     if (engine) {
-      cameraDistance = engine.camera.position.length()
+      const p = engine.camera.position
+      cameraDistance = p.length()
+      cameraPos = { x: Math.round(p.x), y: Math.round(p.y), z: Math.round(p.z) }
+      const d = p.clone().normalize()
+      cameraDir = { x: +d.x.toFixed(3), y: +d.y.toFixed(3), z: +d.z.toFixed(3) }
     }
     requestAnimationFrame(updateOdometer)
   }
@@ -79,11 +84,13 @@
       </div>
     </div>
 
-    <!-- Odometer — bottom right -->
+    <!-- Camera debug — bottom right -->
     <div class="absolute bottom-4 right-4 pointer-events-none">
-      <div class="text-[11px] px-3 py-1.5 rounded-full backdrop-blur-sm tabular-nums font-mono"
+      <div class="text-[10px] px-3 py-1.5 rounded-lg backdrop-blur-sm tabular-nums font-mono flex flex-col items-end gap-0.5"
            style="color: var(--icon-default); background: rgba(20, 10, 30, 0.6)">
-        {formatDistance(cameraDistance)}
+        <span>{formatDistance(cameraDistance)}</span>
+        <span style="opacity: 0.5">pos ({cameraPos.x}, {cameraPos.y}, {cameraPos.z})</span>
+        <span style="opacity: 0.5">dir ({cameraDir.x}, {cameraDir.y}, {cameraDir.z})</span>
       </div>
     </div>
   </div>

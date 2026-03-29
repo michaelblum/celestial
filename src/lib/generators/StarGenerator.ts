@@ -5,6 +5,9 @@ import starFrag from '@shaders/star.frag'
 import coronaVert from '@shaders/corona.vert'
 import coronaFrag from '@shaders/corona.frag'
 import { createOortCloud } from './OortCloudGenerator'
+import { createCoronalEjectionSystem } from './CoronalEjectionSystem'
+import blackholeVert from '@shaders/blackhole.vert'
+import blackholeFrag from '@shaders/blackhole.frag'
 
 // ─── Spectral Class Data ────────────────────────────────────────────────────
 
@@ -112,6 +115,14 @@ export function generateStar(config: StarComponent): THREE.Group {
   glowSprite.userData.isGlow = true
   group.add(glowSprite)
 
+  // ── Coronal Ejections (magnetic flux tube particle loops) ──
+  const ejections = createCoronalEjectionSystem({
+    starRadius: radius,
+    starColor: new THREE.Color(spectral.color),
+    temperature: config.temperature || spectral.temperature,
+  })
+  group.add(ejections.group)
+
   // ── Store update function ──
   group.userData.update = (dt: number, elapsed: number, camera: THREE.Camera) => {
     material.uniforms.time.value = elapsed
@@ -119,79 +130,63 @@ export function generateStar(config: StarComponent): THREE.Group {
 
     // Billboard: corona always faces camera
     corona.quaternion.copy(camera.quaternion)
+
+    // Coronal ejections
+    ejections.update(dt, elapsed, camera)
   }
 
   return group
 }
 
-// ─── Black Hole Variant ─────────────────────────────────────────────────────
+// ─── Black Hole Variant (Schwarzschild geodesic ray-tracer) ─────────────────
+
+// Quality presets: { stepSize, maxSteps }
+// Lower stepSize + higher maxSteps = better quality, more GPU work
+const BH_QUALITY = {
+  low:    { stepSize: 0.10, maxSteps: 300 },
+  medium: { stepSize: 0.05, maxSteps: 600 },
+  high:   { stepSize: 0.02, maxSteps: 1000 },
+}
 
 function generateBlackHole(config: StarComponent, group: THREE.Group): THREE.Group {
   const radius = config.radius
+  const SPHERE_RADIUS = 8.0
+  const quality = BH_QUALITY.medium // tune this for performance
 
-  // Event horizon — black sphere
-  const horizonGeo = new THREE.SphereGeometry(radius, 32, 32)
-  const horizonMat = new THREE.MeshBasicMaterial({ color: 0x000000 })
-  const horizon = new THREE.Mesh(horizonGeo, horizonMat)
-  horizon.userData.entityId = ''
-  group.add(horizon)
-
-  // Halo glow
-  const haloGeo = new THREE.SphereGeometry(radius * 1.05, 32, 32)
-  const haloMat = new THREE.MeshBasicMaterial({
-    color: 0x4444ff,
+  const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 48, 48)
+  const material = new THREE.ShaderMaterial({
+    vertexShader: blackholeVert,
+    fragmentShader: blackholeFrag,
+    uniforms: {
+      time: { value: 0 },
+      cam_pos: { value: new THREE.Vector3(0, 0, 10) },
+      sphereRadius: { value: SPHERE_RADIUS },
+      stepSize: { value: quality.stepSize },
+      maxSteps: { value: quality.maxSteps },
+    },
     transparent: true,
-    opacity: 0.15,
-    side: THREE.BackSide,
-  })
-  group.add(new THREE.Mesh(haloGeo, haloMat))
-
-  // Accretion disk
-  const diskCanvas = document.createElement('canvas')
-  diskCanvas.width = 512
-  diskCanvas.height = 512
-  const ctx = diskCanvas.getContext('2d')!
-  const center = 256
-  const gradient = ctx.createRadialGradient(center, center, 50, center, center, 250)
-  gradient.addColorStop(0, 'rgba(255, 255, 255, 0)')
-  gradient.addColorStop(0.1, 'rgba(255, 255, 255, 1)')
-  gradient.addColorStop(0.3, 'rgba(255, 150, 0, 0.9)')
-  gradient.addColorStop(0.7, 'rgba(100, 20, 0, 0.5)')
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, 512, 512)
-
-  const diskTexture = new THREE.CanvasTexture(diskCanvas)
-  const diskGeo = new THREE.PlaneGeometry(radius * 8, radius * 8)
-  const diskMat = new THREE.MeshBasicMaterial({
-    map: diskTexture,
-    transparent: true,
-    opacity: 0.9,
+    depthWrite: true,
     side: THREE.DoubleSide,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
   })
-  const disk = new THREE.Mesh(diskGeo, diskMat)
-  disk.rotation.x = Math.PI / 2.2
-  group.add(disk)
 
-  // Jet beams (bipolar)
-  const jetGeo = new THREE.CylinderGeometry(0.1, radius * 0.5, radius * 12, 8)
-  const jetMat = new THREE.MeshBasicMaterial({
-    color: 0x6666ff,
-    transparent: true,
-    opacity: 0.3,
-    blending: THREE.AdditiveBlending,
-  })
-  const jetUp = new THREE.Mesh(jetGeo, jetMat)
-  jetUp.position.y = radius * 6
-  group.add(jetUp)
-  const jetDown = new THREE.Mesh(jetGeo, jetMat)
-  jetDown.position.y = -radius * 6
-  group.add(jetDown)
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.scale.setScalar(radius) // scale from Schwarzschild units to world units
+  mesh.userData.entityId = ''
+  mesh.userData.shaderMaterial = material
+  group.add(mesh)
 
-  group.userData.update = (_dt: number, elapsed: number) => {
-    disk.rotation.z = elapsed * 0.5
+  // Faint point light — accretion disk emits some light
+  const light = new THREE.PointLight(0xff8844, 2.0, 0, 1.5)
+  group.add(light)
+
+  group.userData.update = (_dt: number, elapsed: number, camera: THREE.Camera) => {
+    material.uniforms.time.value = elapsed
+
+    // Camera position in black hole local space, converted to Schwarzschild units
+    const bhWorldPos = new THREE.Vector3()
+    group.getWorldPosition(bhWorldPos)
+    const camLocal = camera.position.clone().sub(bhWorldPos).divideScalar(radius)
+    material.uniforms.cam_pos.value.copy(camLocal)
   }
 
   return group

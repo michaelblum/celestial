@@ -192,8 +192,8 @@ export function updateEntityField(entityId: string, field: 'mass' | 'size' | 've
 
   entity[field] = value
 
-  // Cascade 1: Star luminosity → corona uniforms
-  if (entity.type === 'star' && (field === 'mass' || field === 'size')) {
+  // Cascade 1: Star luminosity → corona uniforms (mass only — luminosity doesn't depend on size)
+  if (entity.type === 'star' && field === 'mass') {
     const starComp = entity.components['star'] as StarComponent | undefined
     if (starComp) {
       const lum = luminosity(entity.mass)
@@ -206,8 +206,8 @@ export function updateEntityField(entityId: string, field: 'mass' | 'size' | 've
     }
   }
 
-  // Cascade 2: Black hole auto-detection
-  if (entity.type === 'star' && (field === 'mass' || field === 'size')) {
+  // Cascade 2: Black hole auto-detection (mass only — size slider shouldn't snap variant)
+  if (entity.type === 'star' && field === 'mass') {
     const starComp = entity.components['star'] as StarComponent | undefined
     if (starComp) {
       const shouldBeBlackHole = isBlackHole(entity.mass, entity.size)

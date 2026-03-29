@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { getThreeObject, getEntityVisualRadius } from './sceneStore.svelte'
 import { getEngine, getCameraController } from './engineStore.svelte'
-import { setActivePanel } from './uiStore.svelte'
+import { setActivePanel, setSidebarOpen } from './uiStore.svelte'
 
 // ─── Reactive State ─────────────────────────────────────────────────────────
 
@@ -163,6 +163,7 @@ export function handleViewportClick(event: MouseEvent): void {
     }
   } else {
     clearSelection()
+    setSidebarOpen(false)
   }
 }
 

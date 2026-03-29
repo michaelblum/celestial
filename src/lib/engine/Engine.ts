@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { generateStar, defaultStarConfig } from '@lib/generators/StarGenerator'
 
 export class Engine {
   renderer: THREE.WebGLRenderer
@@ -49,6 +50,8 @@ export class Engine {
 
     // Background sky — always visible static star canvas
     this.createBackgroundSky()
+    // Neighbor star — a real 3D object you can fly to
+    this.createNeighborStar()
 
     // Add minimal lighting
     const ambient = new THREE.AmbientLight(0x222233, 0.5)
@@ -129,6 +132,37 @@ export class Engine {
     sky.frustumCulled = false
     sky.renderOrder = -1
     this.scene.add(sky)
+  }
+
+  /** Create a real neighbor star just off the zoom vector — fly right past it */
+  private createNeighborStar(): void {
+    // Pick a random spectral class for variety
+    const classes = ['F', 'G', 'K', 'M']
+    const spectral = classes[Math.floor(Math.random() * classes.length)]
+    const config = defaultStarConfig(spectral)
+
+    const starGroup = generateStar(config)
+    starGroup.name = 'neighbor-star'
+
+    // Small lateral offset from zoom vector — stays in FOV for ~15 scroll events
+    // Camera zooms along (0, 0.196, 0.981), so place it slightly to the right
+    starGroup.position.set(300, 2500, 15000)
+
+    // Tag all meshes for raycasting
+    starGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.userData.entityId = '__neighbor_star__'
+      }
+    })
+
+    this.scene.add(starGroup)
+
+    // Register its animation in the tick loop
+    this.onTick((_dt, elapsed) => {
+      if (starGroup.userData.update) {
+        starGroup.userData.update(_dt, elapsed, this.camera)
+      }
+    })
   }
 
 

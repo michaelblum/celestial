@@ -7,8 +7,6 @@
   const SHELL_START = 1500    // Shell disc appears
   const SHELL_FULL = 2500     // Shell fills viewport
   const SHELL_SHRINK_END = 8000 // Shell has shrunk to a dot
-  const NEIGHBOR_START = 6000 // Neighbor star enters field of view
-  const NEIGHBOR_PASS = 10000 // Neighbor star passes camera
 
   interface Debris {
     id: number
@@ -24,7 +22,6 @@
   let debrisProgress = $state(0)
   let shellProgress = $state(0)   // 0=invisible, 0-1=growing, 1+=shrinking
   let shellShrink = $state(0)     // 0=full size, 1=dot
-  let neighborProgress = $state(0)
   let dist = $state(0)
   let nextId = 0
 
@@ -65,9 +62,6 @@
 
     // Shell shrink: SHELL_FULL to SHELL_SHRINK_END
     shellShrink = Math.max(0, Math.min(1, (dist - SHELL_FULL) / (SHELL_SHRINK_END - SHELL_FULL)))
-
-    // Neighbor star
-    neighborProgress = Math.max(0, Math.min(1, (dist - NEIGHBOR_START) / (NEIGHBOR_PASS - NEIGHBOR_START)))
 
     // Spawn debris — more frequent as progress increases
     if (debrisProgress > 0 && shellShrink < 0.5) {
@@ -142,21 +136,9 @@
     return `radial-gradient(circle, rgba(130,150,180,${centerOpacity.toFixed(4)}) ${clearRadius.toFixed(1)}%, rgba(110,130,160,${edgeOpacity.toFixed(4)}) 100%)`
   }
 
-  // Neighbor star: enters from a viewport edge, crosses the field
-  function getNeighborStyle(): string {
-    // Travel from upper-right to lower-left across the viewport
-    const x = 85 - neighborProgress * 70
-    const y = 15 + neighborProgress * 70
-    const brightness = neighborProgress < 0.5
-      ? neighborProgress * 2       // brighten as it approaches
-      : 2 - neighborProgress * 2   // dim as it recedes
-    const size = 2 + brightness * 4
-
-    return `left:${x}%;top:${y}%;width:${size}px;height:${size}px;opacity:${brightness * 0.9};`
-  }
 </script>
 
-{#if debrisProgress > 0 || shellProgress > 0 || neighborProgress > 0}
+{#if debrisProgress > 0 || shellProgress > 0}
   <div class="absolute inset-0 pointer-events-none overflow-hidden" style="z-index: 5">
 
     <!-- Debris circles flying toward center -->
@@ -192,12 +174,5 @@
       ></div>
     {/if}
 
-    <!-- Neighbor star passing through field of view -->
-    {#if neighborProgress > 0 && neighborProgress < 1}
-      <div
-        class="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style="{getNeighborStyle()}background: white; box-shadow: 0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(200,220,255,0.4);"
-      ></div>
-    {/if}
   </div>
 {/if}
