@@ -399,6 +399,36 @@ export const DEBRIS_VOLUMES: DebrisVolumeData[] = [
       },
     },
   },
+  {
+    name: 'Oort Cloud',
+    variant: 'oort-cloud',
+    parent: 'Sun',
+    profile: {
+      spatial: {
+        minRadius: 300,    // ~100 AU * 3 (inner edge)
+        maxRadius: 600,    // ~200 AU * 3 (outer edge — compressed for visual)
+        maxInclination: 1.57, // π/2 — full spherical shell
+        densityCurve: 'gaussian',
+        orbitSpeed: 0.001,
+      },
+      macroVisuals: {
+        proxyType: 'sprite',
+        color: '#334466',
+        opacity: 0.04,
+        textureStyle: 'dusty',
+      },
+      microVisuals: {
+        microRenderType: 'mesh',
+        geometryType: 'dodecahedron',
+        instanceCount: 1500,
+        minSize: 0.01,
+        maxSize: 0.08,
+        colorPalette: ['#556677', '#445566', '#667788'],
+        roughness: 0.9,
+        tumbleSpeed: 0.05,
+      },
+    },
+  },
 ]
 
 // ─── Comet Data ─────────────────────────────────────────────────────────────
