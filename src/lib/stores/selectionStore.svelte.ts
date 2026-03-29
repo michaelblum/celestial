@@ -121,3 +121,54 @@ function clearHighlight(): void {
   }
   highlightedMesh = null
 }
+
+// ─── Orbit Path Hover ──────────────────────────────────────────────────────
+
+/** Handle mouse move on viewport — highlight orbit paths on hover */
+export function handleViewportHover(event: MouseEvent): void {
+  const engine = getEngine()
+  if (!engine) return
+
+  const canvas = engine.renderer.domElement
+  const rect = canvas.getBoundingClientRect()
+
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+  raycaster.setFromCamera(pointer, engine.camera)
+  raycaster.params.Line = { threshold: 0.5 } // Generous threshold for orbit paths
+
+  // Find orbit path lines
+  const lines: THREE.Object3D[] = []
+  engine.scene.traverse((obj) => {
+    if (obj instanceof THREE.Line && obj.name === 'orbit-path') {
+      lines.push(obj)
+    }
+  })
+
+  const intersects = raycaster.intersectObjects(lines, false)
+
+  // Reset all orbit paths to default appearance
+  engine.scene.traverse((obj) => {
+    if (obj instanceof THREE.Line && obj.name === 'orbit-path') {
+      const mat = obj.material as THREE.LineBasicMaterial
+      mat.opacity = 0.25
+      mat.color.setHex(0x334466)
+    }
+  })
+
+  if (intersects.length > 0) {
+    const hitLine = intersects[0].object as THREE.Line
+    const mat = hitLine.material as THREE.LineBasicMaterial
+    mat.opacity = 0.8
+    mat.color.setHex(0x8844ff)
+
+    // Find the entity this orbit belongs to
+    const entityId = hitLine.userData.orbitFor
+    if (entityId) {
+      hover(entityId)
+    }
+  } else {
+    hover(null)
+  }
+}

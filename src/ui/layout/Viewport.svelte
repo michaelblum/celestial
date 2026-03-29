@@ -3,7 +3,7 @@
   import { onMount, onDestroy } from 'svelte'
   import { Engine } from '@lib/engine/Engine'
   import { setEngine, setCameraController } from '@lib/stores/engineStore.svelte'
-  import { handleViewportClick } from '@lib/stores/selectionStore.svelte'
+  import { handleViewportClick, handleViewportHover } from '@lib/stores/selectionStore.svelte'
   import { registerAnimationTick } from '@lib/stores/sceneStore.svelte'
   import { CameraController } from '@lib/camera/CameraController'
 
@@ -57,10 +57,14 @@
   function onClick(e: MouseEvent) {
     handleViewportClick(e)
   }
+
+  function onHover(e: MouseEvent) {
+    handleViewportHover(e)
+  }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div bind:this={containerEl} class="absolute inset-0 w-full h-full" onclick={onClick}>
+<div bind:this={containerEl} class="absolute inset-0 w-full h-full" onclick={onClick} onmousemove={onHover}>
   <canvas bind:this={canvasEl} class="block w-full h-full"></canvas>
 </div>
