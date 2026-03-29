@@ -74,6 +74,7 @@ export function generatePlanet(config: PlanetComponent): THREE.Group {
       roughness: { value: config.roughness },
       colorRamp: { value: colorRampTexture },
       planetType: { value: PLANET_TYPE_MAP[config.variant] ?? 0 },
+      lightPosition: { value: new THREE.Vector3(0, 0, 0) },
     },
   })
 
@@ -197,7 +198,7 @@ export function defaultPlanetConfig(variant: PlanetComponent['variant'] = 'rocky
   return {
     type: 'planet',
     variant,
-    radius: 1.0,
+    radius: 0.35,
     colorRamp: ramps[variant] ?? ramps.rocky,
     roughness: 0.3,
     noiseScale: 3.0,

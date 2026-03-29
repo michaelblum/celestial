@@ -1,8 +1,8 @@
 // ─── Constants (tuning knobs) ──────────────────────────────────────────────
 
-export const BLACK_HOLE_THRESHOLD = 50000    // mass/size ratio
-export const NEUTRON_STAR_THRESHOLD = 5000   // mass/size ratio
-export const ORBITAL_SCALE_FACTOR = 10       // tuning factor for orbital period feel
+export const BLACK_HOLE_THRESHOLD = 500000   // mass/size ratio (default sun is ~166500)
+export const NEUTRON_STAR_THRESHOLD = 50000  // mass/size ratio
+export const ORBITAL_SCALE_FACTOR = 1000     // tuning factor for orbital period feel (matches Earth-mass scale)
 export const LUMINOSITY_EXPONENT = 3.5       // mass-luminosity relation
 
 // ─── Derived Property Functions ────────────────────────────────────────────

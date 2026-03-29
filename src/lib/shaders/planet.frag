@@ -9,6 +9,7 @@ uniform float roughness;
 uniform sampler2D colorRamp;   // 1D gradient texture (256×1)
 // cameraPosition is provided by Three.js automatically
 uniform int planetType;         // 0=rocky, 1=gas-giant, 2=ice, 3=volcanic
+uniform vec3 lightPosition;     // World-space position of parent star
 
 varying vec3 vPosition;
 varying vec3 vNormal;
@@ -54,11 +55,11 @@ void main() {
   noise = clamp(noise, 0.0, 1.0);
   vec3 surfaceColor = texture2D(colorRamp, vec2(noise, 0.5)).rgb;
 
-  // Simple diffuse lighting from a directional source
-  vec3 lightDir = normalize(vec3(1.0, 0.8, 0.5));
+  // Diffuse lighting from parent star
+  vec3 lightDir = normalize(lightPosition - vWorldPosition);
   float diffuse = max(dot(vNormal, lightDir), 0.0);
-  float ambient = 0.15;
-  float lighting = ambient + diffuse * 0.85;
+  float ambient = 0.12;
+  float lighting = ambient + diffuse * 0.88;
 
   // Volcanic: emissive glow in cracks
   if (planetType == 3) {

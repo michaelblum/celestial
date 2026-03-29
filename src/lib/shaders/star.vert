@@ -4,7 +4,7 @@ varying vec3 vWorldPosition;
 
 void main() {
   vPosition = position;
-  vNormal = normalize(normalMatrix * normal);
+  vNormal = normalize(mat3(modelMatrix) * normal);
 
   vec4 worldPosition = modelMatrix * vec4(position, 1.0);
   vWorldPosition = worldPosition.xyz;

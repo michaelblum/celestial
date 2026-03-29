@@ -5,7 +5,7 @@ varying vec2 vUv;
 
 void main() {
   vPosition = position;
-  vNormal = normalize(normalMatrix * normal);
+  vNormal = normalize(mat3(modelMatrix) * normal);
   vUv = uv;
 
   vec4 worldPosition = modelMatrix * vec4(position, 1.0);
