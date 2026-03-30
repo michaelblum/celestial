@@ -1006,6 +1006,13 @@ export function setupUI() {
         state.grid3dRenderRadius = parseFloat(e.target.value);
         document.getElementById('grid3dRadiusVal').innerText = state.grid3dRenderRadius >= 30 ? 'Full' : state.grid3dRenderRadius.toFixed(1);
     });
+    document.getElementById('grid3dGravitySlider').addEventListener('input', (e) => {
+        state.swarmGravity = parseInt(e.target.value);
+        document.getElementById('grid3dGravityVal').innerText = state.swarmGravity;
+        // Sync with swarm gravity slider if it exists
+        const swarmSlider = document.getElementById('swarmGravitySlider');
+        if (swarmSlider) { swarmSlider.value = state.swarmGravity; document.getElementById('swarmGravityVal').innerText = state.swarmGravity; }
+    });
     document.getElementById('grid3dTimeSlider').addEventListener('input', (e) => {
         state.grid3dTimeScale = parseFloat(e.target.value);
         document.getElementById('grid3dTimeVal').innerText = state.grid3dTimeScale.toFixed(1);
@@ -1026,6 +1033,9 @@ export function setupUI() {
     document.getElementById('swarmGravitySlider').addEventListener('input', (e) => {
         state.swarmGravity = parseInt(e.target.value);
         document.getElementById('swarmGravityVal').innerText = state.swarmGravity;
+        // Sync with grid gravity slider
+        const gridSlider = document.getElementById('grid3dGravitySlider');
+        if (gridSlider) { gridSlider.value = state.swarmGravity; document.getElementById('grid3dGravityVal').innerText = state.swarmGravity; }
     });
     document.getElementById('swarmHorizonSlider').addEventListener('input', (e) => {
         state.swarmEventHorizon = parseFloat(e.target.value);
