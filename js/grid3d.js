@@ -28,6 +28,10 @@ let cloudTexture = null;
 // Grid offset for relative-motion mode
 const gridOffset = new THREE.Vector3();
 
+// Cached flat-mode colors (reset when colors change)
+let _flatColor1 = null;
+let _flatColor2 = null;
+
 // ── Texture generation ─────────────────────────────────────────────────────
 function makeCloudTexture() {
     const size = 32;
@@ -286,9 +290,11 @@ export function animateGrid3d(dt) {
         return;
     }
 
-    const mass = state.swarmGravity;
+    const isFlat = state.gridMode === 'flat';
+    // Flat mode: much weaker gravity (backdrop effect), 3D mode: full strength
+    const mass = isFlat ? Math.min(state.swarmGravity * 0.05, 3.0) : state.swarmGravity;
     const eventHorizon = state.z_depth * state.novaScale;
-    const renderRadius = state.grid3dRenderRadius;
+    const renderRadius = isFlat ? 999 : state.grid3dRenderRadius; // Flat grid always fully visible
     const isBlackHole = state.isBlackHoleMode;
     const isSnowGlobe = state.grid3dSnowGlobe;
     const isWireframe = state.grid3dRenderMode === 'wireframe';
@@ -303,8 +309,8 @@ export function animateGrid3d(dt) {
     // ── Toggle mesh visibility ─────────────────────────────────────────
     if (state.grid3dMesh) state.grid3dMesh.visible = isWireframe;
     if (state.grid3dPointCloud) state.grid3dPointCloud.visible = !isWireframe;
-    if (state.grid3dProbeMesh) state.grid3dProbeMesh.visible = state.grid3dShowProbe;
-    if (state.grid3dGlobeMesh) state.grid3dGlobeMesh.visible = isSnowGlobe;
+    if (state.grid3dProbeMesh) state.grid3dProbeMesh.visible = !isFlat && state.grid3dShowProbe;
+    if (state.grid3dGlobeMesh) state.grid3dGlobeMesh.visible = !isFlat && isSnowGlobe;
 
     // ── Relative motion offset ─────────────────────────────────────────
     if (state.grid3dRelativeMotion) {
@@ -325,46 +331,51 @@ export function animateGrid3d(dt) {
             const by = basePositions[i3 + 1] + gridOffset.y;
             const bz = basePositions[i3 + 2] + gridOffset.z;
 
-            // Direction to mass center
-            let dx, dy, dz;
-            if (state.grid3dRelativeMotion) {
-                // Mass is at origin in relative mode
-                dx = -bx;
-                dy = -by;
-                dz = -bz;
-            } else {
-                dx = massPos.x - bx;
-                dy = massPos.y - by;
-                dz = massPos.z - bz;
-            }
+            let dx, dy, dz, dist, distSq, pull, nx, ny, nz;
 
-            const distSq = dx * dx + dy * dy + dz * dz;
-            const dist = Math.sqrt(distSq);
-
-            // Calculate pull
-            let pull;
-            if (isBlackHole) {
-                pull = (mass / 2) / (Math.pow(dist, 1.5) + 1);
-            } else {
-                pull = (mass / 10) / (distSq + 1);
-            }
-
-            // Clamp
-            if (pull > dist - eventHorizon) {
-                pull = Math.max(0, dist - eventHorizon);
-            }
-
-            // Move vertex toward mass
-            let nx, ny, nz;
-            if (dist > 0.001) {
-                const invDist = 1 / dist;
-                nx = bx + dx * invDist * pull;
-                ny = by + dy * invDist * pull;
-                nz = bz + dz * invDist * pull;
-            } else {
+            if (isFlat) {
+                // Flat mode: Gaussian Z-dip based on XY distance from mass projection
+                dx = bx - massPos.x;
+                dy = by - massPos.y;
+                distSq = dx * dx + dy * dy;
+                dist = Math.sqrt(distSq);
+                const influenceRadius = Math.max(mass * 2.5, 1.0);
+                const zOffset = -(mass * 10.0) * Math.exp(-distSq / (influenceRadius * influenceRadius));
                 nx = bx;
                 ny = by;
-                nz = bz;
+                nz = bz + zOffset;
+                pull = Math.abs(zOffset) / 10.0; // For color intensity
+            } else {
+                // 3D mode: radial pull toward mass center
+                if (state.grid3dRelativeMotion) {
+                    dx = -bx; dy = -by; dz = -bz;
+                } else {
+                    dx = massPos.x - bx;
+                    dy = massPos.y - by;
+                    dz = massPos.z - bz;
+                }
+
+                distSq = dx * dx + dy * dy + dz * dz;
+                dist = Math.sqrt(distSq);
+
+                if (isBlackHole) {
+                    pull = (mass / 2) / (Math.pow(dist, 1.5) + 1);
+                } else {
+                    pull = (mass / 10) / (distSq + 1);
+                }
+
+                if (pull > dist - eventHorizon) {
+                    pull = Math.max(0, dist - eventHorizon);
+                }
+
+                if (dist > 0.001) {
+                    const invDist = 1 / dist;
+                    nx = bx + dx * invDist * pull;
+                    ny = by + dy * invDist * pull;
+                    nz = bz + dz * invDist * pull;
+                } else {
+                    nx = bx; ny = by; nz = bz;
+                }
             }
 
             positions[i3]     = nx;
@@ -372,42 +383,55 @@ export function animateGrid3d(dt) {
             positions[i3 + 2] = nz;
 
             // ── Color ──────────────────────────────────────────────────
-            const intensity = Math.min(pull / (dist + 0.5), 1.0);
-
-            let hue, sat, light;
-            if (isBlackHole) {
-                hue = 0.15 - intensity * 0.15; // orange -> red
-                sat = 1.0;
-                light = 0.1 + intensity * 0.6;
-                // Extra brightness near event horizon
-                if (dist < eventHorizon * 2) {
-                    light = Math.min(1.0, light + 0.3 * (1 - dist / (eventHorizon * 2)));
-                }
+            if (isFlat) {
+                // Flat mode: use grid gradient colors with distance-based fade
+                _flatColor1 = _flatColor1 || new THREE.Color();
+                _flatColor2 = _flatColor2 || new THREE.Color();
+                _flatColor1.set(state.colors.grid[0]);
+                _flatColor2.set(state.colors.grid[1]);
+                const c1 = _flatColor1;
+                const c2 = _flatColor2;
+                const xyDist = Math.sqrt((bx - massPos.x) ** 2 + (by - massPos.y) ** 2);
+                const t = Math.min(xyDist / 50.0, 1.0);
+                const cr = c1.r + (c2.r - c1.r) * t;
+                const cg = c1.g + (c2.g - c1.g) * t;
+                const cb = c1.b + (c2.b - c1.b) * t;
+                // Brighten near gravity well
+                const warpBright = Math.min(1.0, pull * 3.0);
+                colors[i3]     = cr + warpBright * 0.3;
+                colors[i3 + 1] = cg + warpBright * 0.1;
+                colors[i3 + 2] = cb + warpBright * 0.4;
             } else {
-                hue = 0.6 - intensity * 0.6; // blue -> red
-                sat = 1.0;
-                light = 0.08 + intensity * 0.45;
-            }
-
-            // ── Visibility fade (distance from mass, not origin) ─────
-            let alpha = 1.0;
-            const distFromMass = dist;
-            if (isSnowGlobe) {
-                // Hard cutoff
-                if (distFromMass > renderRadius) {
-                    alpha = 0.0;
+                const intensity = Math.min(pull / (dist + 0.5), 1.0);
+                let hue, sat, light;
+                if (isBlackHole) {
+                    hue = 0.15 - intensity * 0.15;
+                    sat = 1.0;
+                    light = 0.1 + intensity * 0.6;
+                    if (dist < eventHorizon * 2) {
+                        light = Math.min(1.0, light + 0.3 * (1 - dist / (eventHorizon * 2)));
+                    }
+                } else {
+                    hue = 0.6 - intensity * 0.6;
+                    sat = 1.0;
+                    light = 0.08 + intensity * 0.45;
                 }
-            } else {
-                // Soft fade at render radius
-                if (distFromMass > renderRadius * 0.7) {
-                    alpha = Math.max(0, 1.0 - (distFromMass - renderRadius * 0.7) / (renderRadius * 0.3));
-                }
-            }
 
-            const [cr, cg, cb] = hslToRgb(hue, sat, light);
-            colors[i3]     = cr * alpha;
-            colors[i3 + 1] = cg * alpha;
-            colors[i3 + 2] = cb * alpha;
+                let alpha = 1.0;
+                const distFromMass = dist;
+                if (isSnowGlobe) {
+                    if (distFromMass > renderRadius) alpha = 0.0;
+                } else {
+                    if (distFromMass > renderRadius * 0.7) {
+                        alpha = Math.max(0, 1.0 - (distFromMass - renderRadius * 0.7) / (renderRadius * 0.3));
+                    }
+                }
+
+                const [cr, cg, cb] = hslToRgb(hue, sat, light);
+                colors[i3]     = cr * alpha;
+                colors[i3 + 1] = cg * alpha;
+                colors[i3 + 2] = cb * alpha;
+            }
         }
 
         // Mark attributes for GPU upload
