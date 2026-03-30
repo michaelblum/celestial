@@ -4,6 +4,8 @@ import state from './state.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const UNIVERSE_SIZE = 24.0;
+const DEFAULT_CAMERA_Z = 7.5;
+const MAX_EFFECTIVE_DENSITY = 128;
 
 // ── Scratch vectors (reused per-frame, never allocate in loops) ────────────
 const _v = new THREE.Vector3();
@@ -31,6 +33,12 @@ const gridOffset = new THREE.Vector3();
 // Cached flat-mode colors (reset when colors change)
 let _flatColor1 = null;
 let _flatColor2 = null;
+
+// Fat line data (flat mode only — LineSegments2)
+let segmentPairs = null;      // Int32Array of [a, b, a, b, ...] vertex index pairs
+let linePositions = null;     // Float32Array — interleaved start/end positions
+let lineColors = null;        // Float32Array — interleaved start/end colors
+let useFatLines = false;      // Whether current build uses fat lines
 
 // ── Texture generation ─────────────────────────────────────────────────────
 function makeCloudTexture() {
@@ -74,8 +82,22 @@ function hslToRgb(h, s, l) {
     return [r, g, b];
 }
 
+// ── Zoom-adaptive density (flat mode only) ────────────────────────────────
+function computeFlatZoomMultiplier() {
+    const cameraZ = state.perspCamera
+        ? state.perspCamera.position.z
+        : DEFAULT_CAMERA_Z;
+    const raw = DEFAULT_CAMERA_Z / Math.max(cameraZ, 0.5);
+    // Quantize to nearest power-of-2 (1, 2, 4, 8, …)
+    const pow2 = Math.pow(2, Math.round(Math.log2(raw)));
+    const multiplier = Math.max(1, pow2);
+    // Clamp so effectiveDensity stays within budget
+    const maxMult = Math.floor(MAX_EFFECTIVE_DENSITY / state.grid3dDensity);
+    return Math.min(multiplier, maxMult);
+}
+
 // ── Grid construction ──────────────────────────────────────────────────────
-function buildGrid3dInternal(density) {
+function buildGrid3dInternal(density, stride = 1) {
     const isFlat = state.gridMode === 'flat';
     const spacing = UNIVERSE_SIZE / density;
     const halfSize = UNIVERSE_SIZE / 2;
@@ -118,52 +140,116 @@ function buildGrid3dInternal(density) {
     }
 
     // Build index buffer for line segments
+    // In flat mode with stride > 1: only draw gridlines at stride intervals,
+    // but connect ALL consecutive vertices along each visible line for smooth curves.
     const indices = [];
     for (let ix = 0; ix < density; ix++) {
         for (let iy = 0; iy < yLayers; iy++) {
             for (let iz = 0; iz < density; iz++) {
                 const current = ix * yLayers * density + iy * density + iz;
-                // X+1 neighbor
-                if (ix < density - 1) {
-                    indices.push(current, (ix + 1) * yLayers * density + iy * density + iz);
-                }
-                // Y+1 neighbor (only in 3D mode)
-                if (!isFlat && iy < yLayers - 1) {
-                    indices.push(current, ix * yLayers * density + (iy + 1) * density + iz);
-                }
-                // Z+1 neighbor
-                if (iz < density - 1) {
-                    indices.push(current, ix * yLayers * density + iy * density + (iz + 1));
+
+                if (isFlat && stride > 1) {
+                    // X-direction lines: draw along rows where iz is stride-aligned
+                    if (iz % stride === 0 && ix < density - 1) {
+                        indices.push(current, (ix + 1) * yLayers * density + iy * density + iz);
+                    }
+                    // Z-direction lines: draw along columns where ix is stride-aligned
+                    if (ix % stride === 0 && iz < density - 1) {
+                        indices.push(current, ix * yLayers * density + iy * density + (iz + 1));
+                    }
+                } else {
+                    // Default: connect every vertex to its neighbors
+                    if (ix < density - 1) {
+                        indices.push(current, (ix + 1) * yLayers * density + iy * density + iz);
+                    }
+                    if (!isFlat && iy < yLayers - 1) {
+                        indices.push(current, ix * yLayers * density + (iy + 1) * density + iz);
+                    }
+                    if (iz < density - 1) {
+                        indices.push(current, ix * yLayers * density + iy * density + (iz + 1));
+                    }
                 }
             }
         }
     }
 
-    // Shared buffer attributes
+    // Standard buffer attributes (used by point cloud, and by thin lines in 3D mode)
     const posAttr = new THREE.BufferAttribute(positions, 3);
     posAttr.setUsage(THREE.DynamicDrawUsage);
     const colAttr = new THREE.BufferAttribute(colors, 3);
     colAttr.setUsage(THREE.DynamicDrawUsage);
 
-    // Line segments geometry
-    gridGeo = new THREE.BufferGeometry();
-    gridGeo.setAttribute('position', posAttr);
-    gridGeo.setAttribute('color', colAttr);
-    gridGeo.setIndex(new THREE.BufferAttribute(
-        vertexCount > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), 1
-    ));
+    // ── Line segments: fat lines for flat mode, thin lines for 3D ─────
+    if (isFlat && state.grid3dFatLines && typeof THREE.LineSegmentsGeometry !== 'undefined') {
+        useFatLines = true;
+        gridGeo = null;
 
-    const lineMat = new THREE.LineBasicMaterial({
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.35,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-    });
-    state.grid3dMesh = new THREE.LineSegments(gridGeo, lineMat);
-    state.grid3dMesh.frustumCulled = false;
+        // Store segment pairs for per-frame buffer copy
+        segmentPairs = new Int32Array(indices);
+        const numSegments = indices.length / 2;
+        linePositions = new Float32Array(numSegments * 6);
+        lineColors = new Float32Array(numSegments * 6);
 
-    // Points geometry (shares same data)
+        // Fill initial interleaved positions/colors
+        for (let s = 0; s < numSegments; s++) {
+            const a = segmentPairs[s * 2], b = segmentPairs[s * 2 + 1];
+            const s6 = s * 6, a3 = a * 3, b3 = b * 3;
+            linePositions[s6]     = positions[a3];
+            linePositions[s6 + 1] = positions[a3 + 1];
+            linePositions[s6 + 2] = positions[a3 + 2];
+            linePositions[s6 + 3] = positions[b3];
+            linePositions[s6 + 4] = positions[b3 + 1];
+            linePositions[s6 + 5] = positions[b3 + 2];
+            lineColors[s6]     = colors[a3];
+            lineColors[s6 + 1] = colors[a3 + 1];
+            lineColors[s6 + 2] = colors[a3 + 2];
+            lineColors[s6 + 3] = colors[b3];
+            lineColors[s6 + 4] = colors[b3 + 1];
+            lineColors[s6 + 5] = colors[b3 + 2];
+        }
+
+        const fatGeo = new THREE.LineSegmentsGeometry();
+        fatGeo.setPositions(linePositions);
+        fatGeo.setColors(lineColors);
+
+        const fatMat = new THREE.LineMaterial({
+            vertexColors: true,
+            linewidth: 1.5,
+            transparent: true,
+            opacity: 0.5,
+            resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        state.grid3dMesh = new THREE.LineSegments2(fatGeo, fatMat);
+        state.grid3dMesh.frustumCulled = false;
+    } else {
+        // Standard thin lines (3D mode or fallback)
+        useFatLines = false;
+        segmentPairs = null;
+        linePositions = null;
+        lineColors = null;
+
+        gridGeo = new THREE.BufferGeometry();
+        gridGeo.setAttribute('position', posAttr);
+        gridGeo.setAttribute('color', colAttr);
+        gridGeo.setIndex(new THREE.BufferAttribute(
+            vertexCount > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), 1
+        ));
+
+        const lineMat = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.35,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        state.grid3dMesh = new THREE.LineSegments(gridGeo, lineMat);
+        state.grid3dMesh.frustumCulled = false;
+    }
+
+    // ── Points geometry (always uses standard attributes) ─────────────
     pointGeo = new THREE.BufferGeometry();
     pointGeo.setAttribute('position', posAttr);
     pointGeo.setAttribute('color', colAttr);
@@ -227,8 +313,18 @@ function buildAccessories() {
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function createGrid3d() {
-    // 1. Build the initial 3D grid
-    buildGrid3dInternal(state.grid3dDensity);
+    // 1. Build the initial 3D grid (zoom-adaptive for flat mode)
+    const isFlat = state.gridMode === 'flat';
+    let effectiveDensity = state.grid3dDensity;
+    let stride = 1;
+    if (isFlat && state.perspCamera) {
+        const mult = computeFlatZoomMultiplier();
+        effectiveDensity = state.grid3dDensity * mult;
+        stride = mult;
+        state._flatZoomMultiplier = mult;
+        state._flatEffectiveDensity = effectiveDensity;
+    }
+    buildGrid3dInternal(effectiveDensity, stride);
 
     // 2. Create probe sphere
     buildProbe();
@@ -264,8 +360,18 @@ export function rebuildGrid3d() {
         state.grid3dPointCloud = null;
     }
 
-    // Rebuild with new density
-    buildGrid3dInternal(state.grid3dDensity);
+    // Compute zoom-adaptive density for flat mode
+    const isFlat = state.gridMode === 'flat';
+    let effectiveDensity = state.grid3dDensity;
+    let stride = 1;
+    if (isFlat) {
+        const mult = computeFlatZoomMultiplier();
+        effectiveDensity = state.grid3dDensity * mult;
+        stride = mult;
+        state._flatZoomMultiplier = mult;
+        state._flatEffectiveDensity = effectiveDensity;
+    }
+    buildGrid3dInternal(effectiveDensity, stride);
 
     // Re-add to scene
     state.scene.add(state.grid3dMesh);
@@ -291,6 +397,16 @@ export function animateGrid3d(dt) {
     }
 
     const isFlat = state.gridMode === 'flat';
+
+    // ── Zoom-adaptive rebuild check (flat mode only) ──────────────────
+    if (isFlat) {
+        const newMult = computeFlatZoomMultiplier();
+        if (newMult !== state._flatZoomMultiplier) {
+            rebuildGrid3d();
+            return; // skip this frame; rebuilt geometry will animate next frame
+        }
+    }
+
     // Flat mode: much weaker gravity (backdrop effect), 3D mode: full strength
     const mass = isFlat ? Math.min(state.swarmGravity * 0.05, 3.0) : state.swarmGravity;
     const eventHorizon = state.z_depth * state.novaScale;
@@ -334,13 +450,15 @@ export function animateGrid3d(dt) {
             let dx, dy, dz, dist, distSq, pull, nx, ny, nz;
 
             if (isFlat) {
-                // Flat mode: Gaussian Z-dip based on XY distance from mass projection
+                // Flat mode: "bowling ball on a trampoline" — 1/r funnel well
+                // The whole surface slopes toward the mass, with a deep well at center
                 dx = bx - massPos.x;
                 dy = by - massPos.y;
                 distSq = dx * dx + dy * dy;
                 dist = Math.sqrt(distSq);
-                const influenceRadius = Math.max(mass * 2.5, 1.0);
-                const zOffset = -(mass * 10.0) * Math.exp(-distSq / (influenceRadius * influenceRadius));
+                const depth = mass * 8.0;
+                const softening = Math.max(mass * 0.5, 0.3);
+                const zOffset = -depth / Math.sqrt(distSq + softening * softening);
                 nx = bx;
                 ny = by;
                 nz = bz + zOffset;
@@ -435,9 +553,42 @@ export function animateGrid3d(dt) {
         }
 
         // Mark attributes for GPU upload
-        gridGeo.attributes.position.needsUpdate = true;
-        gridGeo.attributes.color.needsUpdate = true;
-        // pointGeo shares the same attributes, no separate update needed
+        if (useFatLines) {
+            // Copy warped positions/colors into fat line interleaved buffers
+            const numSegments = segmentPairs.length / 2;
+            for (let s = 0; s < numSegments; s++) {
+                const a = segmentPairs[s * 2], b = segmentPairs[s * 2 + 1];
+                const s6 = s * 6, a3 = a * 3, b3 = b * 3;
+                linePositions[s6]     = positions[a3];
+                linePositions[s6 + 1] = positions[a3 + 1];
+                linePositions[s6 + 2] = positions[a3 + 2];
+                linePositions[s6 + 3] = positions[b3];
+                linePositions[s6 + 4] = positions[b3 + 1];
+                linePositions[s6 + 5] = positions[b3 + 2];
+                lineColors[s6]     = colors[a3];
+                lineColors[s6 + 1] = colors[a3 + 1];
+                lineColors[s6 + 2] = colors[a3 + 2];
+                lineColors[s6 + 3] = colors[b3];
+                lineColors[s6 + 4] = colors[b3 + 1];
+                lineColors[s6 + 5] = colors[b3 + 2];
+            }
+            const geo = state.grid3dMesh.geometry;
+            geo.attributes.instanceStart.data.array.set(linePositions);
+            geo.attributes.instanceStart.data.needsUpdate = true;
+            if (geo.attributes.instanceColorStart) {
+                geo.attributes.instanceColorStart.data.array.set(lineColors);
+                geo.attributes.instanceColorStart.data.needsUpdate = true;
+            }
+            // Keep LineMaterial resolution in sync
+            state.grid3dMesh.material.resolution.set(window.innerWidth, window.innerHeight);
+            // Point cloud uses separate attributes — mark dirty
+            pointGeo.attributes.position.needsUpdate = true;
+            pointGeo.attributes.color.needsUpdate = true;
+        } else {
+            gridGeo.attributes.position.needsUpdate = true;
+            gridGeo.attributes.color.needsUpdate = true;
+            // pointGeo shares the same attributes, no separate update needed
+        }
     }
 
     // ── Probe physics ──────────────────────────────────────────────────

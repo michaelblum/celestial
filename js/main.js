@@ -6,7 +6,7 @@ import { createAuraObjects, animateAura } from './aura.js';
 import { createPhenomena, animatePhenomena } from './phenomena.js';
 import { createParticleObjects, animateParticles, animateTrails, fireExplosion, fireSuperNova } from './particles.js';
 // grid.js removed — unified into grid3d.js
-import { setupInteraction } from './interaction.js';
+import { setupInteraction, updateCameraTransition } from './interaction.js';
 import { animatePathing } from './pathing.js';
 import { setupUI, setupEditableLabels } from './ui.js';
 import { createLightning, animateLightning } from './lightning.js';
@@ -62,6 +62,9 @@ function animate() {
     } else {
         state.novaScale = 1.0;
     }
+
+    // Camera transition (smooth reorientation on mode switch)
+    updateCameraTransition(dt);
 
     // Module animations
     animatePathing(dt);

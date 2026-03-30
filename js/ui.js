@@ -7,7 +7,7 @@ import { applyPreset } from './presets.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateOmegaGeometry } from './geometry.js';
 import { rebuildGrid3d } from './grid3d.js';
-import { resetCameraOrbit } from './interaction.js';
+import { resetCameraOrbit, transitionToFlatView } from './interaction.js';
 
 // --- Seeded PRNG (mulberry32) ---
 function mulberry32(seed) {
@@ -989,11 +989,14 @@ export function setupUI() {
 
     // Unified Grid Mode
     document.getElementById('gridModeSelect').addEventListener('change', (e) => {
+        const prev = state.gridMode;
         state.gridMode = e.target.value;
         document.getElementById('gridSettings').style.display = state.gridMode !== 'off' ? 'block' : 'none';
         // Hide old 2D grid (no longer used)
         if (state.gridHelper) state.gridHelper.visible = false;
         if (state.gridMode === 'off') resetCameraOrbit();
+        // Smooth camera transition when switching from 3D to flat
+        if (prev === '3d' && state.gridMode === 'flat') transitionToFlatView();
         rebuildGrid3d();
     });
     document.getElementById('grid3dRenderMode').addEventListener('change', (e) => { state.grid3dRenderMode = e.target.value; });
@@ -1020,6 +1023,7 @@ export function setupUI() {
     document.getElementById('grid3dSnowGlobeToggle').addEventListener('change', (e) => { state.grid3dSnowGlobe = e.target.checked; });
     document.getElementById('grid3dProbeToggle').addEventListener('change', (e) => { state.grid3dShowProbe = e.target.checked; });
     document.getElementById('grid3dRelativeToggle').addEventListener('change', (e) => { state.grid3dRelativeMotion = e.target.checked; });
+    document.getElementById('grid3dFatLinesToggle').addEventListener('change', (e) => { state.grid3dFatLines = e.target.checked; rebuildGrid3d(); });
 
     // Particle Swarm (standalone phenomenon)
     document.getElementById('swarmToggle').addEventListener('change', (e) => {

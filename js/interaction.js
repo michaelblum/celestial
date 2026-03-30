@@ -6,8 +6,67 @@ let cameraOrbitPhi = Math.PI / 4; // vertical angle (start at 45°)
 let cameraOrbitRadius = 7.5;    // initial camera distance
 let cameraOrbitInitialized = false;
 
+// Camera transition state (smooth reorientation on mode switch)
+let _camTransition = null;  // { startTheta, startPhi, startRadius, targetTheta, targetPhi, targetRadius, progress }
+
 export function resetCameraOrbit() {
     cameraOrbitInitialized = false;
+}
+
+/** Start a smooth camera transition to the head-on flat view */
+export function transitionToFlatView() {
+    // Capture current orbit state
+    if (!cameraOrbitInitialized) initCameraOrbit();
+    // Normalize theta to [-π, π] for shortest-path interpolation
+    let theta = cameraOrbitTheta % (2 * Math.PI);
+    if (theta > Math.PI) theta -= 2 * Math.PI;
+    if (theta < -Math.PI) theta += 2 * Math.PI;
+    // Clamp target radius to flat-mode zoom range [2, 50]
+    const targetRadius = Math.max(2, Math.min(50, cameraOrbitRadius));
+    _camTransition = {
+        startTheta: theta,
+        startPhi: cameraOrbitPhi,
+        startRadius: cameraOrbitRadius,
+        targetTheta: 0,
+        targetPhi: Math.PI / 2,   // equator = straight on
+        targetRadius: targetRadius,
+        progress: 0
+    };
+}
+
+/** Advance the camera transition each frame. Returns true while active. */
+export function updateCameraTransition(dt) {
+    if (!_camTransition) return false;
+    const speed = 3.0;  // ~0.33s for full transition
+    _camTransition.progress = Math.min(1, _camTransition.progress + dt * speed);
+    // Smooth ease-out
+    const t = 1 - Math.pow(1 - _camTransition.progress, 3);
+
+    const theta = _camTransition.startTheta + (_camTransition.targetTheta - _camTransition.startTheta) * t;
+    const phi = _camTransition.startPhi + (_camTransition.targetPhi - _camTransition.startPhi) * t;
+    const radius = _camTransition.startRadius + (_camTransition.targetRadius - _camTransition.startRadius) * t;
+
+    cameraOrbitTheta = theta;
+    cameraOrbitPhi = phi;
+    cameraOrbitRadius = radius;
+
+    state.camera.position.set(
+        radius * Math.sin(phi) * Math.sin(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.cos(theta)
+    );
+    state.camera.lookAt(0, 0, 0);
+
+    if (_camTransition.progress >= 1) {
+        // Snap to exact head-on and transfer to flat-mode camera z
+        state.perspCamera.position.set(0, 0, radius);
+        state.perspCamera.lookAt(0, 0, 0);
+        cameraOrbitTheta = 0;
+        cameraOrbitPhi = Math.PI / 2;
+        _camTransition = null;
+        return false;
+    }
+    return true;
 }
 
 function initCameraOrbit() {
