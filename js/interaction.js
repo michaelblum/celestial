@@ -48,13 +48,14 @@ export function setupInteraction() {
         if (state.is3dGridEnabled) {
             // Orbit zoom: adjust radius and reposition camera
             if (!cameraOrbitInitialized) initCameraOrbit();
-            cameraOrbitRadius = Math.max(2, Math.min(50, cameraOrbitRadius + e.deltaY * 0.01));
+            cameraOrbitRadius = Math.max(3, Math.min(80, cameraOrbitRadius + e.deltaY * 0.02));
             state.camera.position.set(
                 cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.sin(cameraOrbitTheta),
                 cameraOrbitRadius * Math.cos(cameraOrbitPhi),
                 cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.cos(cameraOrbitTheta)
             );
-            state.camera.lookAt(state.polyGroup.position);
+            state.camera.lookAt(0, 0, 0);
+            return;
         } else if (state.camera.isPerspectiveCamera) {
             state.perspCamera.position.z = Math.max(2, Math.min(50, state.perspCamera.position.z + e.deltaY * 0.01));
         } else {
@@ -129,7 +130,14 @@ export function setupInteraction() {
                 state.previousMouse.x = e.clientX;
                 state.previousMouse.y = e.clientY;
             } else {
-                if (intersects) {
+                if (state.is3dGridEnabled) {
+                    // In 3D grid mode, all left-drag orbits the camera
+                    state.isDraggingObject = true;
+                    state.previousMouse.x = e.clientX;
+                    state.previousMouse.y = e.clientY;
+                    state.dragVelocity = { x: 0, y: 0 };
+                    state.dragMomentumSpeed = 0;
+                } else if (intersects) {
                     state.isDraggingObject = true;
                     state.previousMouse.x = e.clientX;
                     state.previousMouse.y = e.clientY;
@@ -180,7 +188,7 @@ export function setupInteraction() {
                 cameraOrbitRadius * Math.cos(cameraOrbitPhi),
                 cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.cos(cameraOrbitTheta)
             );
-            state.camera.lookAt(state.polyGroup.position);
+            state.camera.lookAt(0, 0, 0);
 
             state.previousMouse.x = e.clientX;
             state.previousMouse.y = e.clientY;
@@ -211,10 +219,13 @@ export function setupInteraction() {
             state.isPanningObject = false;
             if (state.isDraggingObject) {
                 state.isDraggingObject = false;
-                let speed = Math.sqrt(state.dragVelocity.x ** 2 + state.dragVelocity.y ** 2);
-                if (speed > 0.05) {
-                    state.dragMomentumAxis.set(state.dragVelocity.y, state.dragVelocity.x, 0).normalize();
-                    state.dragMomentumSpeed = Math.min(speed * 0.05, 0.5);
+                // No drag momentum in 3D grid mode (camera orbit doesn't fling the object)
+                if (!state.is3dGridEnabled) {
+                    let speed = Math.sqrt(state.dragVelocity.x ** 2 + state.dragVelocity.y ** 2);
+                    if (speed > 0.05) {
+                        state.dragMomentumAxis.set(state.dragVelocity.y, state.dragVelocity.x, 0).normalize();
+                        state.dragMomentumSpeed = Math.min(speed * 0.05, 0.5);
+                    }
                 }
             }
         }
