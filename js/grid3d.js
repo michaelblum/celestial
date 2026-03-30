@@ -283,7 +283,10 @@ export function animateGrid3d(dt) {
     const timeScale = state.grid3dTimeScale;
 
     // Mass center
-    const massPos = state.polyGroup.position;
+    // In relative motion mode, use the logical position (polyGroup stays at origin visually)
+    const massPos = (state.grid3dRelativeMotion && state._grid3dLogicalPos)
+        ? state._grid3dLogicalPos
+        : state.polyGroup.position;
 
     // ── Toggle mesh visibility ─────────────────────────────────────────
     if (state.grid3dMesh) state.grid3dMesh.visible = isWireframe;

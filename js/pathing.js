@@ -31,11 +31,23 @@ export function animatePathing(dt) {
         if (state.isPathEnabled) {
             state.grid3dTime = (state.grid3dTime || 0) + dt * state.grid3dTimeScale;
             const t = state.grid3dTime;
-            state.polyGroup.position.set(
-                Math.sin(t) * 6,
-                Math.sin(t * 1.5) * 3,
-                Math.cos(t * 0.8) * 6
-            );
+            const ox = Math.sin(t) * 6;
+            const oy = Math.sin(t * 1.5) * 3;
+            const oz = Math.cos(t * 0.8) * 6;
+
+            if (state.grid3dRelativeMotion) {
+                // Relative motion: polyGroup stays at origin visually,
+                // but we store the "logical" position so grid3d can offset the grid
+                state._grid3dLogicalPos = state._grid3dLogicalPos || new THREE.Vector3();
+                state._grid3dLogicalPos.set(ox, oy, oz);
+                state.polyGroup.position.set(0, 0, 0);
+            } else {
+                // Normal: mass moves through the grid
+                state.polyGroup.position.set(ox, oy, oz);
+                state._grid3dLogicalPos = null;
+            }
+        } else {
+            state._grid3dLogicalPos = null;
         }
         // Keep camera looking at origin
         state.camera.lookAt(0, 0, 0);
