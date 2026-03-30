@@ -13,6 +13,7 @@ import { createLightning, animateLightning } from './lightning.js';
 import { createMagneticField, animateMagneticField } from './magnetic.js';
 import { createOmega, animateOmega } from './omega.js';
 import { createGrid3d, animateGrid3d } from './grid3d.js';
+import { createSwarm, animateSwarm } from './swarm.js';
 
 function init() {
     initScene();
@@ -24,6 +25,7 @@ function init() {
     createMagneticField();
     createOmega();
     createGrid3d();
+    createSwarm();
 
     updateGeometry(state.currentGeometryType);
     updateAllColors();
@@ -65,6 +67,7 @@ function animate() {
     animatePathing(dt);
     animateGrid();
     animateGrid3d(dt);
+    animateSwarm(dt);
     animateParticles(dt);
     animatePhenomena(dt);
     animateAura(dt);

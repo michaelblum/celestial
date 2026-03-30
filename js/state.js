@@ -184,6 +184,20 @@ const state = {
     gridMass: 0.0,
     gridDivs: 30,
 
+    // Particle Swarm (standalone phenomenon)
+    isSwarmEnabled: false,
+    swarmCount: 2000,
+    swarmGravity: 60,
+    swarmTimeScale: 1.0,
+    swarmEventHorizon: 2.0,
+    swarmAbsorbed: 0,
+    swarmMesh: null,
+
+    // Black Hole Mode (standalone — affects swarm gravity + shows disk)
+    isBlackHoleMode: false,
+    blackHoleDiskMesh: null,
+    blackHoleHaloMesh: null,
+
     // 3D Volumetric Grid
     is3dGridEnabled: false,
     grid3dRenderMode: 'wireframe',
@@ -191,21 +205,14 @@ const state = {
     grid3dRenderRadius: 30.0,
     grid3dMass: 60,
     grid3dEventHorizon: 2.0,
-    grid3dBlackHole: false,
     grid3dSnowGlobe: false,
     grid3dShowProbe: false,
-    grid3dShowSwarm: true,
-    grid3dSwarmCount: 2000,
     grid3dTimeScale: 1.0,
     grid3dRelativeMotion: false,
-    grid3dAbsorbed: 0,
     // 3D Grid object refs (set during init)
     grid3dMesh: null,
     grid3dPointCloud: null,
-    grid3dSwarmMesh: null,
     grid3dProbeMesh: null,
-    grid3dHaloMesh: null,
-    grid3dDiskMesh: null,
     grid3dGlobeMesh: null,
 
     // Scale / Depth

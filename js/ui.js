@@ -7,6 +7,7 @@ import { applyPreset } from './presets.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateOmegaGeometry } from './geometry.js';
 import { rebuildGrid3d } from './grid3d.js';
+import { resetCameraOrbit } from './interaction.js';
 
 // --- Seeded PRNG (mulberry32) ---
 function mulberry32(seed) {
@@ -903,6 +904,7 @@ export function setupUI() {
     // 3D Volumetric Grid
     document.getElementById('grid3dToggle').addEventListener('change', (e) => {
         state.is3dGridEnabled = e.target.checked;
+        if (!e.target.checked) resetCameraOrbit();
         document.getElementById('grid3dSettings').style.display = e.target.checked ? 'block' : 'none';
         // Hide 2D grid when 3D is active
         if (e.target.checked && state.gridHelper) state.gridHelper.visible = false;
@@ -930,15 +932,32 @@ export function setupUI() {
         state.grid3dTimeScale = parseFloat(e.target.value);
         document.getElementById('grid3dTimeVal').innerText = state.grid3dTimeScale.toFixed(1);
     });
-    document.getElementById('grid3dBlackHoleToggle').addEventListener('change', (e) => { state.grid3dBlackHole = e.target.checked; });
     document.getElementById('grid3dSnowGlobeToggle').addEventListener('change', (e) => { state.grid3dSnowGlobe = e.target.checked; });
     document.getElementById('grid3dProbeToggle').addEventListener('change', (e) => { state.grid3dShowProbe = e.target.checked; });
     document.getElementById('grid3dRelativeToggle').addEventListener('change', (e) => { state.grid3dRelativeMotion = e.target.checked; });
-    document.getElementById('grid3dSwarmToggle').addEventListener('change', (e) => { state.grid3dShowSwarm = e.target.checked; });
-    document.getElementById('grid3dSwarmCountSlider').addEventListener('input', (e) => {
-        state.grid3dSwarmCount = parseInt(e.target.value);
-        document.getElementById('grid3dSwarmCountVal').innerText = state.grid3dSwarmCount;
+
+    // Particle Swarm (standalone phenomenon)
+    document.getElementById('swarmToggle').addEventListener('change', (e) => {
+        state.isSwarmEnabled = e.target.checked;
+        document.getElementById('swarmSettings').style.display = e.target.checked ? 'flex' : 'none';
     });
+    document.getElementById('swarmCountSlider').addEventListener('input', (e) => {
+        state.swarmCount = parseInt(e.target.value);
+        document.getElementById('swarmCountVal').innerText = state.swarmCount;
+    });
+    document.getElementById('swarmGravitySlider').addEventListener('input', (e) => {
+        state.swarmGravity = parseInt(e.target.value);
+        document.getElementById('swarmGravityVal').innerText = state.swarmGravity;
+    });
+    document.getElementById('swarmHorizonSlider').addEventListener('input', (e) => {
+        state.swarmEventHorizon = parseFloat(e.target.value);
+        document.getElementById('swarmHorizonVal').innerText = state.swarmEventHorizon.toFixed(1);
+    });
+    document.getElementById('swarmTimeSlider').addEventListener('input', (e) => {
+        state.swarmTimeScale = parseFloat(e.target.value);
+        document.getElementById('swarmTimeVal').innerText = state.swarmTimeScale.toFixed(1);
+    });
+    document.getElementById('blackHoleModeToggle').addEventListener('change', (e) => { state.isBlackHoleMode = e.target.checked; });
 
     // Camera
     document.getElementById('orthoToggle').addEventListener('change', (e) => {

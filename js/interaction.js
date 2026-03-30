@@ -1,5 +1,23 @@
 import state from './state.js';
 
+// Camera orbit state (used when 3D grid is active)
+let cameraOrbitTheta = 0;       // horizontal angle
+let cameraOrbitPhi = Math.PI / 4; // vertical angle (start at 45°)
+let cameraOrbitRadius = 7.5;    // initial camera distance
+let cameraOrbitInitialized = false;
+
+export function resetCameraOrbit() {
+    cameraOrbitInitialized = false;
+}
+
+function initCameraOrbit() {
+    const pos = state.camera.position;
+    cameraOrbitRadius = pos.length();
+    cameraOrbitTheta = Math.atan2(pos.x, pos.z);
+    cameraOrbitPhi = Math.acos(Math.min(1, Math.max(-1, pos.y / cameraOrbitRadius)));
+    cameraOrbitInitialized = true;
+}
+
 function handleMove(clientX, clientY) {
     const mouse = new THREE.Vector2(
         (clientX / window.innerWidth) * 2 - 1,
@@ -27,7 +45,17 @@ export function setupInteraction() {
     window.addEventListener('wheel', (e) => {
         if (e.target.closest('#sidebar') || e.target.closest('.context-menu')) return;
         e.preventDefault();
-        if (state.camera.isPerspectiveCamera) {
+        if (state.is3dGridEnabled) {
+            // Orbit zoom: adjust radius and reposition camera
+            if (!cameraOrbitInitialized) initCameraOrbit();
+            cameraOrbitRadius = Math.max(2, Math.min(50, cameraOrbitRadius + e.deltaY * 0.01));
+            state.camera.position.set(
+                cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.sin(cameraOrbitTheta),
+                cameraOrbitRadius * Math.cos(cameraOrbitPhi),
+                cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.cos(cameraOrbitTheta)
+            );
+            state.camera.lookAt(state.polyGroup.position);
+        } else if (state.camera.isPerspectiveCamera) {
             state.perspCamera.position.z = Math.max(2, Math.min(50, state.perspCamera.position.z + e.deltaY * 0.01));
         } else {
             state.orthoCamera.zoom = Math.max(0.1, Math.min(10, state.orthoCamera.zoom - e.deltaY * 0.005));
@@ -139,6 +167,21 @@ export function setupInteraction() {
             state.polyGroup.position.x += dx * panSpeed;
             state.polyGroup.position.y -= dy * panSpeed;
             state.targetPosition.copy(state.polyGroup.position);
+            state.previousMouse.x = e.clientX;
+            state.previousMouse.y = e.clientY;
+        } else if (state.isDraggingObject && state.is3dGridEnabled) {
+            // Camera orbit mode: orbit camera around the object
+            if (!cameraOrbitInitialized) initCameraOrbit();
+            cameraOrbitTheta -= dx * 0.005;
+            cameraOrbitPhi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraOrbitPhi + dy * 0.005));
+
+            state.camera.position.set(
+                cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.sin(cameraOrbitTheta),
+                cameraOrbitRadius * Math.cos(cameraOrbitPhi),
+                cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.cos(cameraOrbitTheta)
+            );
+            state.camera.lookAt(state.polyGroup.position);
+
             state.previousMouse.x = e.clientX;
             state.previousMouse.y = e.clientY;
         } else if (state.isDraggingObject && !state.isDestroyed) {

@@ -1,17 +1,14 @@
 // 3D Volumetric Spacetime Grid Module
-// Gravity-warped voxel grid, particle swarm, probe sphere, and visual accessories
+// Gravity-warped voxel grid, probe sphere, and snow globe boundary
 import state from './state.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const UNIVERSE_SIZE = 24.0;
-const MAX_SWARM = 5000;
-const EMITTER_RELOCATE_INTERVAL = 15.0; // sim-seconds
 
 // ── Scratch vectors (reused per-frame, never allocate in loops) ────────────
 const _v = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _toMass = new THREE.Vector3();
-const _emitterPos = new THREE.Vector3(25, 0, 0);
 
 // ── Module-level references ────────────────────────────────────────────────
 let basePositions = null;   // Float32Array — immutable grid template
@@ -21,21 +18,11 @@ let gridGeo = null;
 let pointGeo = null;
 let vertexCount = 0;
 
-// Swarm arrays
-let swarmPositions = null;
-let swarmVelocities = null;
-let swarmColors = null;
-let swarmSizes = null;
-let swarmGeo = null;
-
 // Probe
 let probeBasePositions = null;
 let probeVelocity = new THREE.Vector3();
 
-// Emitter state
-let emitterTimer = 0;
-
-// Cloud texture (shared between points + swarm)
+// Cloud texture (for grid points)
 let cloudTexture = null;
 
 // Grid offset for relative-motion mode
@@ -53,26 +40,6 @@ function makeCloudTexture() {
     gradient.addColorStop(0, 'rgba(255,255,255,1)');
     gradient.addColorStop(0.4, 'rgba(255,255,255,0.6)');
     gradient.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, size, size);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.needsUpdate = true;
-    return tex;
-}
-
-function makeDiskTexture() {
-    const size = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    const half = size / 2;
-    const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.15, 'rgba(255,200,100,0.9)');
-    gradient.addColorStop(0.4, 'rgba(255,120,30,0.6)');
-    gradient.addColorStop(0.7, 'rgba(140,20,0,0.3)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
     const tex = new THREE.CanvasTexture(canvas);
@@ -201,119 +168,6 @@ function buildGrid3dInternal(density) {
     state.grid3dPointCloud.frustumCulled = false;
 }
 
-// ── Swarm construction ─────────────────────────────────────────────────────
-function buildSwarm() {
-    swarmPositions = new Float32Array(MAX_SWARM * 3);
-    swarmVelocities = new Float32Array(MAX_SWARM * 3);
-    swarmColors = new Float32Array(MAX_SWARM * 3);
-    swarmSizes = new Float32Array(MAX_SWARM);
-
-    if (!cloudTexture) cloudTexture = makeCloudTexture();
-
-    // Initialize particles
-    relocateEmitter();
-    for (let i = 0; i < MAX_SWARM; i++) {
-        spawnParticle(i);
-    }
-
-    swarmGeo = new THREE.BufferGeometry();
-
-    const posAttr = new THREE.BufferAttribute(swarmPositions, 3);
-    posAttr.setUsage(THREE.DynamicDrawUsage);
-    const colAttr = new THREE.BufferAttribute(swarmColors, 3);
-    colAttr.setUsage(THREE.DynamicDrawUsage);
-    const sizeAttr = new THREE.BufferAttribute(swarmSizes, 1);
-    sizeAttr.setUsage(THREE.DynamicDrawUsage);
-
-    swarmGeo.setAttribute('position', posAttr);
-    swarmGeo.setAttribute('customColor', colAttr);
-    swarmGeo.setAttribute('size', sizeAttr);
-
-    const swarmMat = new THREE.ShaderMaterial({
-        uniforms: {
-            pointTexture: { value: cloudTexture }
-        },
-        vertexShader: `
-            attribute float size;
-            attribute vec3 customColor;
-            varying vec3 vColor;
-            void main() {
-                vColor = customColor;
-                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                gl_PointSize = size * (300.0 / -mvPosition.z);
-                gl_Position = projectionMatrix * mvPosition;
-            }
-        `,
-        fragmentShader: `
-            uniform sampler2D pointTexture;
-            varying vec3 vColor;
-            void main() {
-                gl_FragColor = vec4(vColor, 1.0) * texture2D(pointTexture, gl_PointCoord);
-            }
-        `,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        transparent: true
-    });
-
-    state.grid3dSwarmMesh = new THREE.Points(swarmGeo, swarmMat);
-    state.grid3dSwarmMesh.frustumCulled = false;
-    swarmGeo.setDrawRange(0, state.grid3dSwarmCount);
-}
-
-function relocateEmitter() {
-    // Random point on sphere at radius 20-30
-    const radius = 20 + Math.random() * 10;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    _emitterPos.set(
-        radius * Math.sin(phi) * Math.cos(theta),
-        radius * Math.sin(phi) * Math.sin(theta),
-        radius * Math.cos(phi)
-    );
-    emitterTimer = 0;
-}
-
-function spawnParticle(i) {
-    const i3 = i * 3;
-    // Position: within radius 3.5 blob around emitter
-    const r = Math.random() * 3.5;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    swarmPositions[i3]     = _emitterPos.x + r * Math.sin(phi) * Math.cos(theta);
-    swarmPositions[i3 + 1] = _emitterPos.y + r * Math.sin(phi) * Math.sin(theta);
-    swarmPositions[i3 + 2] = _emitterPos.z + r * Math.cos(phi);
-
-    // Gentle drift toward mass center + tangential for spiral
-    const massPos = state.polyGroup ? state.polyGroup.position : _v.set(0, 0, 0);
-    _dir.set(
-        massPos.x - swarmPositions[i3],
-        massPos.y - swarmPositions[i3 + 1],
-        massPos.z - swarmPositions[i3 + 2]
-    ).normalize();
-
-    // Tangential component
-    _v.set(
-        -_dir.y + (Math.random() - 0.5) * 0.3,
-        _dir.x + (Math.random() - 0.5) * 0.3,
-        (Math.random() - 0.5) * 0.3
-    ).normalize().multiplyScalar(0.3);
-
-    swarmVelocities[i3]     = _dir.x * 0.5 + _v.x;
-    swarmVelocities[i3 + 1] = _dir.y * 0.5 + _v.y;
-    swarmVelocities[i3 + 2] = _dir.z * 0.5 + _v.z;
-
-    // Size: random 0.1 - 1.5
-    swarmSizes[i] = 0.1 + Math.random() * 1.4;
-
-    // Color: pink/magenta base with hue variance
-    const hue = 0.85 + (Math.random() - 0.5) * 0.15; // ~magenta with variance
-    const [cr, cg, cb] = hslToRgb(hue > 1 ? hue - 1 : hue, 0.9, 0.6 + Math.random() * 0.2);
-    swarmColors[i3]     = cr;
-    swarmColors[i3 + 1] = cg;
-    swarmColors[i3 + 2] = cb;
-}
-
 // ── Probe construction ─────────────────────────────────────────────────────
 function buildProbe() {
     const geo = new THREE.SphereGeometry(2, 24, 24);
@@ -340,34 +194,6 @@ function buildProbe() {
 
 // ── Accessory construction ─────────────────────────────────────────────────
 function buildAccessories() {
-    // Halo sphere
-    const haloGeo = new THREE.SphereGeometry(1.05, 32, 32);
-    const haloMat = new THREE.MeshBasicMaterial({
-        color: 0x00cccc,
-        transparent: true,
-        opacity: 0.3,
-        side: THREE.BackSide,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-    });
-    state.grid3dHaloMesh = new THREE.Mesh(haloGeo, haloMat);
-    state.grid3dHaloMesh.frustumCulled = false;
-
-    // Accretion disk
-    const diskGeo = new THREE.PlaneGeometry(12, 12);
-    const diskTex = makeDiskTexture();
-    const diskMat = new THREE.MeshBasicMaterial({
-        map: diskTex,
-        transparent: true,
-        opacity: 0.8,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-    });
-    state.grid3dDiskMesh = new THREE.Mesh(diskGeo, diskMat);
-    state.grid3dDiskMesh.rotation.x = Math.PI * 0.44; // ~80 degrees tilt
-    state.grid3dDiskMesh.frustumCulled = false;
-
     // Snow globe
     const globeGeo = new THREE.SphereGeometry(1, 64, 64);
     const globeMat = new THREE.MeshBasicMaterial({
@@ -388,31 +214,22 @@ export function createGrid3d() {
     // 1. Build the initial 3D grid
     buildGrid3dInternal(state.grid3dDensity);
 
-    // 2. Create particle swarm
-    buildSwarm();
-
-    // 3. Create probe sphere
+    // 2. Create probe sphere
     buildProbe();
 
-    // 4. Create accessories (halo, disk, globe)
+    // 3. Create accessories (globe)
     buildAccessories();
 
-    // 5. Add everything to scene
+    // 4. Add everything to scene
     state.scene.add(state.grid3dMesh);
     state.scene.add(state.grid3dPointCloud);
-    state.scene.add(state.grid3dSwarmMesh);
     state.scene.add(state.grid3dProbeMesh);
-    state.scene.add(state.grid3dHaloMesh);
-    state.scene.add(state.grid3dDiskMesh);
     state.scene.add(state.grid3dGlobeMesh);
 
-    // 6. Set all invisible initially
+    // 5. Set all invisible initially
     state.grid3dMesh.visible = false;
     state.grid3dPointCloud.visible = false;
-    state.grid3dSwarmMesh.visible = false;
     state.grid3dProbeMesh.visible = false;
-    state.grid3dHaloMesh.visible = false;
-    state.grid3dDiskMesh.visible = false;
     state.grid3dGlobeMesh.visible = false;
 }
 
@@ -448,9 +265,8 @@ export function animateGrid3d(dt) {
     // ── Visibility gate ────────────────────────────────────────────────
     if (!state.is3dGridEnabled) {
         const meshes = [
-            state.grid3dMesh, state.grid3dPointCloud, state.grid3dSwarmMesh,
-            state.grid3dProbeMesh, state.grid3dHaloMesh, state.grid3dDiskMesh,
-            state.grid3dGlobeMesh
+            state.grid3dMesh, state.grid3dPointCloud,
+            state.grid3dProbeMesh, state.grid3dGlobeMesh
         ];
         for (let i = 0; i < meshes.length; i++) {
             if (meshes[i]) meshes[i].visible = false;
@@ -461,7 +277,7 @@ export function animateGrid3d(dt) {
     const mass = state.grid3dMass;
     const eventHorizon = state.grid3dEventHorizon;
     const renderRadius = state.grid3dRenderRadius;
-    const isBlackHole = state.grid3dBlackHole;
+    const isBlackHole = state.isBlackHoleMode;
     const isSnowGlobe = state.grid3dSnowGlobe;
     const isWireframe = state.grid3dRenderMode === 'wireframe';
     const timeScale = state.grid3dTimeScale;
@@ -472,10 +288,7 @@ export function animateGrid3d(dt) {
     // ── Toggle mesh visibility ─────────────────────────────────────────
     if (state.grid3dMesh) state.grid3dMesh.visible = isWireframe;
     if (state.grid3dPointCloud) state.grid3dPointCloud.visible = !isWireframe;
-    if (state.grid3dSwarmMesh) state.grid3dSwarmMesh.visible = state.grid3dShowSwarm;
     if (state.grid3dProbeMesh) state.grid3dProbeMesh.visible = state.grid3dShowProbe;
-    if (state.grid3dHaloMesh) state.grid3dHaloMesh.visible = !isBlackHole;
-    if (state.grid3dDiskMesh) state.grid3dDiskMesh.visible = isBlackHole;
     if (state.grid3dGlobeMesh) state.grid3dGlobeMesh.visible = isSnowGlobe;
 
     // ── Relative motion offset ─────────────────────────────────────────
@@ -590,65 +403,6 @@ export function animateGrid3d(dt) {
         // pointGeo shares the same attributes, no separate update needed
     }
 
-    // ── Swarm physics ──────────────────────────────────────────────────
-    if (state.grid3dShowSwarm && swarmPositions) {
-        const scaledDt = dt * timeScale;
-
-        // Emitter relocation
-        emitterTimer += scaledDt;
-        if (emitterTimer >= EMITTER_RELOCATE_INTERVAL) {
-            relocateEmitter();
-        }
-
-        // Update draw range for active count
-        swarmGeo.setDrawRange(0, state.grid3dSwarmCount);
-
-        const count = Math.min(state.grid3dSwarmCount, MAX_SWARM);
-        const ehThreshold = eventHorizon * 0.8;
-
-        for (let i = 0; i < count; i++) {
-            const i3 = i * 3;
-
-            const px = swarmPositions[i3];
-            const py = swarmPositions[i3 + 1];
-            const pz = swarmPositions[i3 + 2];
-
-            // Direction to mass center
-            const dx = massPos.x - px;
-            const dy = massPos.y - py;
-            const dz = massPos.z - pz;
-            const distSq = dx * dx + dy * dy + dz * dz;
-            const dist = Math.sqrt(distSq);
-
-            // Gravity acceleration
-            const pull = (mass * 0.5) / (distSq + 1);
-            if (dist > 0.001) {
-                const invDist = 1 / dist;
-                const ax = dx * invDist * pull;
-                const ay = dy * invDist * pull;
-                const az = dz * invDist * pull;
-                swarmVelocities[i3]     += ax * scaledDt;
-                swarmVelocities[i3 + 1] += ay * scaledDt;
-                swarmVelocities[i3 + 2] += az * scaledDt;
-            }
-
-            // Update position
-            swarmPositions[i3]     += swarmVelocities[i3]     * scaledDt;
-            swarmPositions[i3 + 1] += swarmVelocities[i3 + 1] * scaledDt;
-            swarmPositions[i3 + 2] += swarmVelocities[i3 + 2] * scaledDt;
-
-            // Check absorption
-            if (dist < ehThreshold) {
-                state.grid3dAbsorbed++;
-                spawnParticle(i);
-            }
-        }
-
-        swarmGeo.attributes.position.needsUpdate = true;
-        swarmGeo.attributes.customColor.needsUpdate = true;
-        swarmGeo.attributes.size.needsUpdate = true;
-    }
-
     // ── Probe physics ──────────────────────────────────────────────────
     if (state.grid3dShowProbe && state.grid3dProbeMesh) {
         const probePos = state.grid3dProbeMesh.position;
@@ -732,21 +486,6 @@ export function animateGrid3d(dt) {
     }
 
     // ── Accessories ────────────────────────────────────────────────────
-
-    // Halo: scales with event horizon, positioned at mass
-    if (state.grid3dHaloMesh) {
-        state.grid3dHaloMesh.position.copy(massPos);
-        const haloScale = eventHorizon;
-        state.grid3dHaloMesh.scale.setScalar(haloScale);
-    }
-
-    // Accretion disk: spins, positioned at mass
-    if (state.grid3dDiskMesh) {
-        state.grid3dDiskMesh.position.copy(massPos);
-        state.grid3dDiskMesh.rotation.z += dt * timeScale * 0.3;
-        const diskScale = eventHorizon * 1.5;
-        state.grid3dDiskMesh.scale.setScalar(diskScale);
-    }
 
     // Snow globe: scales to render radius, positioned at mass
     if (state.grid3dGlobeMesh) {
