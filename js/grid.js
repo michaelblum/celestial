@@ -29,7 +29,7 @@ export function buildGrid() {
     geo.setAttribute('basePosition', new THREE.Float32BufferAttribute([...vertices], 3));
     geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vertices.length), 3));
 
-    const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3 });
+    const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.45 });
     state.gridHelper = new THREE.LineSegments(geo, mat);
     state.gridHelper.position.z = -8;
     state.scene.add(state.gridHelper);
