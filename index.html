@@ -649,6 +649,57 @@
                 </div>
 
                 <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="grid3dToggle"> 3D Spacetime Grid</label>
+                    <div id="grid3dSettings" style="display:none;">
+                        <div class="control-row" style="margin-top:5px;">
+                            <label style="font-size:0.6rem;">Render Mode</label>
+                            <select id="grid3dRenderMode" style="width:auto; padding:2px;">
+                                <option value="wireframe">Wireframe</option>
+                                <option value="points">Voxel Points</option>
+                            </select>
+                        </div>
+                        <div class="control-row" style="margin-top:5px;">
+                            <label style="font-size:0.6rem;">Grid Density</label>
+                            <div class="val-display"><span id="grid3dDensityVal">16</span></div>
+                        </div>
+                        <input type="range" id="grid3dDensitySlider" min="8" max="32" step="2" value="16">
+                        <div class="control-row" style="margin-top:5px;">
+                            <label style="font-size:0.6rem;">Render Radius</label>
+                            <div class="val-display"><span id="grid3dRadiusVal">Full</span></div>
+                        </div>
+                        <input type="range" id="grid3dRadiusSlider" min="3" max="30" step="1" value="30">
+                        <div class="control-row" style="margin-top:5px;">
+                            <label style="font-size:0.6rem;">Mass</label>
+                            <div class="val-display"><span id="grid3dMassVal">60</span></div>
+                        </div>
+                        <input type="range" id="grid3dMassSlider" min="0" max="300" step="1" value="60">
+                        <div class="control-row" style="margin-top:5px;">
+                            <label style="font-size:0.6rem;">Event Horizon</label>
+                            <div class="val-display"><span id="grid3dHorizonVal">2.0</span></div>
+                        </div>
+                        <input type="range" id="grid3dHorizonSlider" min="0.5" max="5" step="0.1" value="2.0">
+                        <div class="control-row" style="margin-top:5px;">
+                            <label style="font-size:0.6rem;">Time Scale</label>
+                            <div class="val-display"><span id="grid3dTimeVal">1.0</span></div>
+                        </div>
+                        <input type="range" id="grid3dTimeSlider" min="0" max="10" step="0.1" value="1.0">
+                        <label class="checkbox-label" style="margin-top:8px;"><input type="checkbox" id="grid3dBlackHoleToggle"> Black Hole Mode</label>
+                        <label class="checkbox-label"><input type="checkbox" id="grid3dSnowGlobeToggle"> Snow Globe</label>
+                        <label class="checkbox-label"><input type="checkbox" id="grid3dProbeToggle"> Show Probe</label>
+                        <label class="checkbox-label"><input type="checkbox" id="grid3dRelativeToggle"> Relative Motion</label>
+                        <label class="checkbox-label" style="margin-top:8px;"><input type="checkbox" id="grid3dSwarmToggle" checked> Particle Swarm</label>
+                        <div class="control-row" style="margin-top:5px;">
+                            <label style="font-size:0.6rem;">Swarm Count</label>
+                            <div class="val-display"><span id="grid3dSwarmCountVal">2000</span></div>
+                        </div>
+                        <input type="range" id="grid3dSwarmCountSlider" min="100" max="5000" step="100" value="2000">
+                        <div class="val-display" style="margin-top:8px; justify-content:center;">
+                            Absorbed: <span id="grid3dAbsorbedCount" style="color:#ffaa00; font-weight:bold; margin-left:4px;">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
                     <label class="checkbox-label"><input type="checkbox" id="orthoToggle"> Orthographic</label>
                     <div id="fovGroup" style="margin-top: 5px;">
                         <div class="control-row">

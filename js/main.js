@@ -12,6 +12,7 @@ import { setupUI, setupEditableLabels } from './ui.js';
 import { createLightning, animateLightning } from './lightning.js';
 import { createMagneticField, animateMagneticField } from './magnetic.js';
 import { createOmega, animateOmega } from './omega.js';
+import { createGrid3d, animateGrid3d } from './grid3d.js';
 
 function init() {
     initScene();
@@ -22,6 +23,7 @@ function init() {
     createLightning();
     createMagneticField();
     createOmega();
+    createGrid3d();
 
     updateGeometry(state.currentGeometryType);
     updateAllColors();
@@ -62,6 +64,7 @@ function animate() {
     // Module animations
     animatePathing(dt);
     animateGrid();
+    animateGrid3d(dt);
     animateParticles(dt);
     animatePhenomena(dt);
     animateAura(dt);

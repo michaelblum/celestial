@@ -178,11 +178,35 @@ const state = {
     quickSpinSpeed: 0,
     quickSpinEndTime: 0,
 
-    // Grid
+    // Grid (2D)
     isGridEnabled: true,
     isGridBending: false,
     gridMass: 0.0,
     gridDivs: 30,
+
+    // 3D Volumetric Grid
+    is3dGridEnabled: false,
+    grid3dRenderMode: 'wireframe',
+    grid3dDensity: 16,
+    grid3dRenderRadius: 30.0,
+    grid3dMass: 60,
+    grid3dEventHorizon: 2.0,
+    grid3dBlackHole: false,
+    grid3dSnowGlobe: false,
+    grid3dShowProbe: false,
+    grid3dShowSwarm: true,
+    grid3dSwarmCount: 2000,
+    grid3dTimeScale: 1.0,
+    grid3dRelativeMotion: false,
+    grid3dAbsorbed: 0,
+    // 3D Grid object refs (set during init)
+    grid3dMesh: null,
+    grid3dPointCloud: null,
+    grid3dSwarmMesh: null,
+    grid3dProbeMesh: null,
+    grid3dHaloMesh: null,
+    grid3dDiskMesh: null,
+    grid3dGlobeMesh: null,
 
     // Scale / Depth
     depth_range: { min: 0.25, max: 3.0 },

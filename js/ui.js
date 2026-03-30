@@ -6,6 +6,7 @@ import { updatePathVisual } from './pathing.js';
 import { applyPreset } from './presets.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateOmegaGeometry } from './geometry.js';
+import { rebuildGrid3d } from './grid3d.js';
 
 // --- Seeded PRNG (mulberry32) ---
 function mulberry32(seed) {
@@ -897,6 +898,46 @@ export function setupUI() {
     document.getElementById('gridMassSlider').addEventListener('input', (e) => {
         state.gridMass = parseFloat(e.target.value);
         document.getElementById('gridMassVal').innerText = state.gridMass.toFixed(1);
+    });
+
+    // 3D Volumetric Grid
+    document.getElementById('grid3dToggle').addEventListener('change', (e) => {
+        state.is3dGridEnabled = e.target.checked;
+        document.getElementById('grid3dSettings').style.display = e.target.checked ? 'block' : 'none';
+        // Hide 2D grid when 3D is active
+        if (e.target.checked && state.gridHelper) state.gridHelper.visible = false;
+        else if (!e.target.checked && state.isGridEnabled && state.gridHelper) state.gridHelper.visible = true;
+    });
+    document.getElementById('grid3dRenderMode').addEventListener('change', (e) => { state.grid3dRenderMode = e.target.value; });
+    document.getElementById('grid3dDensitySlider').addEventListener('input', (e) => {
+        state.grid3dDensity = parseInt(e.target.value);
+        document.getElementById('grid3dDensityVal').innerText = state.grid3dDensity;
+        rebuildGrid3d();
+    });
+    document.getElementById('grid3dRadiusSlider').addEventListener('input', (e) => {
+        state.grid3dRenderRadius = parseFloat(e.target.value);
+        document.getElementById('grid3dRadiusVal').innerText = state.grid3dRenderRadius >= 30 ? 'Full' : state.grid3dRenderRadius.toFixed(1);
+    });
+    document.getElementById('grid3dMassSlider').addEventListener('input', (e) => {
+        state.grid3dMass = parseInt(e.target.value);
+        document.getElementById('grid3dMassVal').innerText = state.grid3dMass;
+    });
+    document.getElementById('grid3dHorizonSlider').addEventListener('input', (e) => {
+        state.grid3dEventHorizon = parseFloat(e.target.value);
+        document.getElementById('grid3dHorizonVal').innerText = state.grid3dEventHorizon.toFixed(1);
+    });
+    document.getElementById('grid3dTimeSlider').addEventListener('input', (e) => {
+        state.grid3dTimeScale = parseFloat(e.target.value);
+        document.getElementById('grid3dTimeVal').innerText = state.grid3dTimeScale.toFixed(1);
+    });
+    document.getElementById('grid3dBlackHoleToggle').addEventListener('change', (e) => { state.grid3dBlackHole = e.target.checked; });
+    document.getElementById('grid3dSnowGlobeToggle').addEventListener('change', (e) => { state.grid3dSnowGlobe = e.target.checked; });
+    document.getElementById('grid3dProbeToggle').addEventListener('change', (e) => { state.grid3dShowProbe = e.target.checked; });
+    document.getElementById('grid3dRelativeToggle').addEventListener('change', (e) => { state.grid3dRelativeMotion = e.target.checked; });
+    document.getElementById('grid3dSwarmToggle').addEventListener('change', (e) => { state.grid3dShowSwarm = e.target.checked; });
+    document.getElementById('grid3dSwarmCountSlider').addEventListener('input', (e) => {
+        state.grid3dSwarmCount = parseInt(e.target.value);
+        document.getElementById('grid3dSwarmCountVal').innerText = state.grid3dSwarmCount;
     });
 
     // Camera

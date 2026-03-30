@@ -1,0 +1,760 @@
+// 3D Volumetric Spacetime Grid Module
+// Gravity-warped voxel grid, particle swarm, probe sphere, and visual accessories
+import state from './state.js';
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const UNIVERSE_SIZE = 24.0;
+const MAX_SWARM = 5000;
+const EMITTER_RELOCATE_INTERVAL = 15.0; // sim-seconds
+
+// ── Scratch vectors (reused per-frame, never allocate in loops) ────────────
+const _v = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+const _toMass = new THREE.Vector3();
+const _emitterPos = new THREE.Vector3(25, 0, 0);
+
+// ── Module-level references ────────────────────────────────────────────────
+let basePositions = null;   // Float32Array — immutable grid template
+let positions = null;       // Float32Array — warped each frame
+let colors = null;          // Float32Array — recolored each frame
+let gridGeo = null;
+let pointGeo = null;
+let vertexCount = 0;
+
+// Swarm arrays
+let swarmPositions = null;
+let swarmVelocities = null;
+let swarmColors = null;
+let swarmSizes = null;
+let swarmGeo = null;
+
+// Probe
+let probeBasePositions = null;
+let probeVelocity = new THREE.Vector3();
+
+// Emitter state
+let emitterTimer = 0;
+
+// Cloud texture (shared between points + swarm)
+let cloudTexture = null;
+
+// Grid offset for relative-motion mode
+const gridOffset = new THREE.Vector3();
+
+// ── Texture generation ─────────────────────────────────────────────────────
+function makeCloudTexture() {
+    const size = 32;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const half = size / 2;
+    const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+}
+
+function makeDiskTexture() {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const half = size / 2;
+    const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.15, 'rgba(255,200,100,0.9)');
+    gradient.addColorStop(0.4, 'rgba(255,120,30,0.6)');
+    gradient.addColorStop(0.7, 'rgba(140,20,0,0.3)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+}
+
+// ── HSL helper (avoids THREE.Color allocation in hot loop) ─────────────────
+function hslToRgb(h, s, l) {
+    let r, g, b;
+    if (s === 0) {
+        r = g = b = l;
+    } else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1 / 6) return p + (q - p) * 6 * t;
+            if (t < 1 / 2) return q;
+            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+            return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
+    }
+    return [r, g, b];
+}
+
+// ── Grid construction ──────────────────────────────────────────────────────
+function buildGrid3dInternal(density) {
+    const spacing = UNIVERSE_SIZE / density;
+    const halfSize = UNIVERSE_SIZE / 2;
+    vertexCount = density * density * density;
+
+    basePositions = new Float32Array(vertexCount * 3);
+    positions = new Float32Array(vertexCount * 3);
+    colors = new Float32Array(vertexCount * 3);
+
+    // Fill base positions
+    let idx = 0;
+    for (let ix = 0; ix < density; ix++) {
+        for (let iy = 0; iy < density; iy++) {
+            for (let iz = 0; iz < density; iz++) {
+                basePositions[idx]     = -halfSize + ix * spacing + spacing * 0.5;
+                basePositions[idx + 1] = -halfSize + iy * spacing + spacing * 0.5;
+                basePositions[idx + 2] = -halfSize + iz * spacing + spacing * 0.5;
+                idx += 3;
+            }
+        }
+    }
+    // Copy base to warped
+    positions.set(basePositions);
+    // Default color: dim blue
+    for (let i = 0; i < vertexCount * 3; i += 3) {
+        colors[i] = 0.15;
+        colors[i + 1] = 0.2;
+        colors[i + 2] = 0.6;
+    }
+
+    // Build index buffer for line segments (connect to X+1, Y+1, Z+1 neighbors)
+    const indices = [];
+    for (let ix = 0; ix < density; ix++) {
+        for (let iy = 0; iy < density; iy++) {
+            for (let iz = 0; iz < density; iz++) {
+                const current = ix * density * density + iy * density + iz;
+                // X+1 neighbor
+                if (ix < density - 1) {
+                    indices.push(current, (ix + 1) * density * density + iy * density + iz);
+                }
+                // Y+1 neighbor
+                if (iy < density - 1) {
+                    indices.push(current, ix * density * density + (iy + 1) * density + iz);
+                }
+                // Z+1 neighbor
+                if (iz < density - 1) {
+                    indices.push(current, ix * density * density + iy * density + (iz + 1));
+                }
+            }
+        }
+    }
+
+    // Shared buffer attributes
+    const posAttr = new THREE.BufferAttribute(positions, 3);
+    posAttr.setUsage(THREE.DynamicDrawUsage);
+    const colAttr = new THREE.BufferAttribute(colors, 3);
+    colAttr.setUsage(THREE.DynamicDrawUsage);
+
+    // Line segments geometry
+    gridGeo = new THREE.BufferGeometry();
+    gridGeo.setAttribute('position', posAttr);
+    gridGeo.setAttribute('color', colAttr);
+    gridGeo.setIndex(new THREE.BufferAttribute(
+        vertexCount > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), 1
+    ));
+
+    const lineMat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    state.grid3dMesh = new THREE.LineSegments(gridGeo, lineMat);
+    state.grid3dMesh.frustumCulled = false;
+
+    // Points geometry (shares same data)
+    pointGeo = new THREE.BufferGeometry();
+    pointGeo.setAttribute('position', posAttr);
+    pointGeo.setAttribute('color', colAttr);
+
+    if (!cloudTexture) cloudTexture = makeCloudTexture();
+
+    const pointMat = new THREE.PointsMaterial({
+        size: 0.2,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.9,
+        alphaTest: 0.05,
+        map: cloudTexture,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    state.grid3dPointCloud = new THREE.Points(pointGeo, pointMat);
+    state.grid3dPointCloud.frustumCulled = false;
+}
+
+// ── Swarm construction ─────────────────────────────────────────────────────
+function buildSwarm() {
+    swarmPositions = new Float32Array(MAX_SWARM * 3);
+    swarmVelocities = new Float32Array(MAX_SWARM * 3);
+    swarmColors = new Float32Array(MAX_SWARM * 3);
+    swarmSizes = new Float32Array(MAX_SWARM);
+
+    if (!cloudTexture) cloudTexture = makeCloudTexture();
+
+    // Initialize particles
+    relocateEmitter();
+    for (let i = 0; i < MAX_SWARM; i++) {
+        spawnParticle(i);
+    }
+
+    swarmGeo = new THREE.BufferGeometry();
+
+    const posAttr = new THREE.BufferAttribute(swarmPositions, 3);
+    posAttr.setUsage(THREE.DynamicDrawUsage);
+    const colAttr = new THREE.BufferAttribute(swarmColors, 3);
+    colAttr.setUsage(THREE.DynamicDrawUsage);
+    const sizeAttr = new THREE.BufferAttribute(swarmSizes, 1);
+    sizeAttr.setUsage(THREE.DynamicDrawUsage);
+
+    swarmGeo.setAttribute('position', posAttr);
+    swarmGeo.setAttribute('customColor', colAttr);
+    swarmGeo.setAttribute('size', sizeAttr);
+
+    const swarmMat = new THREE.ShaderMaterial({
+        uniforms: {
+            pointTexture: { value: cloudTexture }
+        },
+        vertexShader: `
+            attribute float size;
+            attribute vec3 customColor;
+            varying vec3 vColor;
+            void main() {
+                vColor = customColor;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = size * (300.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            uniform sampler2D pointTexture;
+            varying vec3 vColor;
+            void main() {
+                gl_FragColor = vec4(vColor, 1.0) * texture2D(pointTexture, gl_PointCoord);
+            }
+        `,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true
+    });
+
+    state.grid3dSwarmMesh = new THREE.Points(swarmGeo, swarmMat);
+    state.grid3dSwarmMesh.frustumCulled = false;
+    swarmGeo.setDrawRange(0, state.grid3dSwarmCount);
+}
+
+function relocateEmitter() {
+    // Random point on sphere at radius 20-30
+    const radius = 20 + Math.random() * 10;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    _emitterPos.set(
+        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.sin(phi) * Math.sin(theta),
+        radius * Math.cos(phi)
+    );
+    emitterTimer = 0;
+}
+
+function spawnParticle(i) {
+    const i3 = i * 3;
+    // Position: within radius 3.5 blob around emitter
+    const r = Math.random() * 3.5;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    swarmPositions[i3]     = _emitterPos.x + r * Math.sin(phi) * Math.cos(theta);
+    swarmPositions[i3 + 1] = _emitterPos.y + r * Math.sin(phi) * Math.sin(theta);
+    swarmPositions[i3 + 2] = _emitterPos.z + r * Math.cos(phi);
+
+    // Gentle drift toward mass center + tangential for spiral
+    const massPos = state.polyGroup ? state.polyGroup.position : _v.set(0, 0, 0);
+    _dir.set(
+        massPos.x - swarmPositions[i3],
+        massPos.y - swarmPositions[i3 + 1],
+        massPos.z - swarmPositions[i3 + 2]
+    ).normalize();
+
+    // Tangential component
+    _v.set(
+        -_dir.y + (Math.random() - 0.5) * 0.3,
+        _dir.x + (Math.random() - 0.5) * 0.3,
+        (Math.random() - 0.5) * 0.3
+    ).normalize().multiplyScalar(0.3);
+
+    swarmVelocities[i3]     = _dir.x * 0.5 + _v.x;
+    swarmVelocities[i3 + 1] = _dir.y * 0.5 + _v.y;
+    swarmVelocities[i3 + 2] = _dir.z * 0.5 + _v.z;
+
+    // Size: random 0.1 - 1.5
+    swarmSizes[i] = 0.1 + Math.random() * 1.4;
+
+    // Color: pink/magenta base with hue variance
+    const hue = 0.85 + (Math.random() - 0.5) * 0.15; // ~magenta with variance
+    const [cr, cg, cb] = hslToRgb(hue > 1 ? hue - 1 : hue, 0.9, 0.6 + Math.random() * 0.2);
+    swarmColors[i3]     = cr;
+    swarmColors[i3 + 1] = cg;
+    swarmColors[i3 + 2] = cb;
+}
+
+// ── Probe construction ─────────────────────────────────────────────────────
+function buildProbe() {
+    const geo = new THREE.SphereGeometry(2, 24, 24);
+    const mat = new THREE.MeshBasicMaterial({
+        color: 0x00ff66,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    state.grid3dProbeMesh = new THREE.Mesh(geo, mat);
+    state.grid3dProbeMesh.frustumCulled = false;
+
+    // Store original vertex positions
+    const posArr = geo.attributes.position.array;
+    probeBasePositions = new Float32Array(posArr.length);
+    probeBasePositions.set(posArr);
+
+    // Initial position: distance 25 from origin
+    state.grid3dProbeMesh.position.set(25, 0, 0);
+    probeVelocity.set(-0.3, 0.1, 0.05);
+}
+
+// ── Accessory construction ─────────────────────────────────────────────────
+function buildAccessories() {
+    // Halo sphere
+    const haloGeo = new THREE.SphereGeometry(1.05, 32, 32);
+    const haloMat = new THREE.MeshBasicMaterial({
+        color: 0x00cccc,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    state.grid3dHaloMesh = new THREE.Mesh(haloGeo, haloMat);
+    state.grid3dHaloMesh.frustumCulled = false;
+
+    // Accretion disk
+    const diskGeo = new THREE.PlaneGeometry(12, 12);
+    const diskTex = makeDiskTexture();
+    const diskMat = new THREE.MeshBasicMaterial({
+        map: diskTex,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    state.grid3dDiskMesh = new THREE.Mesh(diskGeo, diskMat);
+    state.grid3dDiskMesh.rotation.x = Math.PI * 0.44; // ~80 degrees tilt
+    state.grid3dDiskMesh.frustumCulled = false;
+
+    // Snow globe
+    const globeGeo = new THREE.SphereGeometry(1, 64, 64);
+    const globeMat = new THREE.MeshBasicMaterial({
+        color: 0x4488ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.15,
+        side: THREE.BackSide,
+        depthWrite: false
+    });
+    state.grid3dGlobeMesh = new THREE.Mesh(globeGeo, globeMat);
+    state.grid3dGlobeMesh.frustumCulled = false;
+}
+
+// ── Public API ──────────────────────────────────────────────────────────────
+
+export function createGrid3d() {
+    // 1. Build the initial 3D grid
+    buildGrid3dInternal(state.grid3dDensity);
+
+    // 2. Create particle swarm
+    buildSwarm();
+
+    // 3. Create probe sphere
+    buildProbe();
+
+    // 4. Create accessories (halo, disk, globe)
+    buildAccessories();
+
+    // 5. Add everything to scene
+    state.scene.add(state.grid3dMesh);
+    state.scene.add(state.grid3dPointCloud);
+    state.scene.add(state.grid3dSwarmMesh);
+    state.scene.add(state.grid3dProbeMesh);
+    state.scene.add(state.grid3dHaloMesh);
+    state.scene.add(state.grid3dDiskMesh);
+    state.scene.add(state.grid3dGlobeMesh);
+
+    // 6. Set all invisible initially
+    state.grid3dMesh.visible = false;
+    state.grid3dPointCloud.visible = false;
+    state.grid3dSwarmMesh.visible = false;
+    state.grid3dProbeMesh.visible = false;
+    state.grid3dHaloMesh.visible = false;
+    state.grid3dDiskMesh.visible = false;
+    state.grid3dGlobeMesh.visible = false;
+}
+
+export function rebuildGrid3d() {
+    // Remove old grid meshes from scene and dispose
+    if (state.grid3dMesh) {
+        state.scene.remove(state.grid3dMesh);
+        state.grid3dMesh.geometry.dispose();
+        state.grid3dMesh.material.dispose();
+        state.grid3dMesh = null;
+    }
+    if (state.grid3dPointCloud) {
+        state.scene.remove(state.grid3dPointCloud);
+        state.grid3dPointCloud.geometry.dispose();
+        state.grid3dPointCloud.material.dispose();
+        state.grid3dPointCloud = null;
+    }
+
+    // Rebuild with new density
+    buildGrid3dInternal(state.grid3dDensity);
+
+    // Re-add to scene
+    state.scene.add(state.grid3dMesh);
+    state.scene.add(state.grid3dPointCloud);
+
+    // Apply current visibility
+    const isWireframe = state.grid3dRenderMode === 'wireframe';
+    state.grid3dMesh.visible = state.is3dGridEnabled && isWireframe;
+    state.grid3dPointCloud.visible = state.is3dGridEnabled && !isWireframe;
+}
+
+export function animateGrid3d(dt) {
+    // ── Visibility gate ────────────────────────────────────────────────
+    if (!state.is3dGridEnabled) {
+        const meshes = [
+            state.grid3dMesh, state.grid3dPointCloud, state.grid3dSwarmMesh,
+            state.grid3dProbeMesh, state.grid3dHaloMesh, state.grid3dDiskMesh,
+            state.grid3dGlobeMesh
+        ];
+        for (let i = 0; i < meshes.length; i++) {
+            if (meshes[i]) meshes[i].visible = false;
+        }
+        return;
+    }
+
+    const mass = state.grid3dMass;
+    const eventHorizon = state.grid3dEventHorizon;
+    const renderRadius = state.grid3dRenderRadius;
+    const isBlackHole = state.grid3dBlackHole;
+    const isSnowGlobe = state.grid3dSnowGlobe;
+    const isWireframe = state.grid3dRenderMode === 'wireframe';
+    const timeScale = state.grid3dTimeScale;
+
+    // Mass center
+    const massPos = state.polyGroup.position;
+
+    // ── Toggle mesh visibility ─────────────────────────────────────────
+    if (state.grid3dMesh) state.grid3dMesh.visible = isWireframe;
+    if (state.grid3dPointCloud) state.grid3dPointCloud.visible = !isWireframe;
+    if (state.grid3dSwarmMesh) state.grid3dSwarmMesh.visible = state.grid3dShowSwarm;
+    if (state.grid3dProbeMesh) state.grid3dProbeMesh.visible = state.grid3dShowProbe;
+    if (state.grid3dHaloMesh) state.grid3dHaloMesh.visible = !isBlackHole;
+    if (state.grid3dDiskMesh) state.grid3dDiskMesh.visible = isBlackHole;
+    if (state.grid3dGlobeMesh) state.grid3dGlobeMesh.visible = isSnowGlobe;
+
+    // ── Relative motion offset ─────────────────────────────────────────
+    if (state.grid3dRelativeMotion) {
+        gridOffset.set(-massPos.x, -massPos.y, -massPos.z);
+    } else {
+        gridOffset.set(0, 0, 0);
+    }
+
+    // ── Warp grid vertices ─────────────────────────────────────────────
+    if (basePositions && positions && colors) {
+        const renderRadSq = renderRadius * renderRadius;
+
+        for (let i = 0; i < vertexCount; i++) {
+            const i3 = i * 3;
+
+            // Base position + offset for relative motion
+            const bx = basePositions[i3]     + gridOffset.x;
+            const by = basePositions[i3 + 1] + gridOffset.y;
+            const bz = basePositions[i3 + 2] + gridOffset.z;
+
+            // Direction to mass center
+            let dx, dy, dz;
+            if (state.grid3dRelativeMotion) {
+                // Mass is at origin in relative mode
+                dx = -bx;
+                dy = -by;
+                dz = -bz;
+            } else {
+                dx = massPos.x - bx;
+                dy = massPos.y - by;
+                dz = massPos.z - bz;
+            }
+
+            const distSq = dx * dx + dy * dy + dz * dz;
+            const dist = Math.sqrt(distSq);
+
+            // Calculate pull
+            let pull;
+            if (isBlackHole) {
+                pull = (mass / 2) / (Math.pow(dist, 1.5) + 1);
+            } else {
+                pull = (mass / 10) / (distSq + 1);
+            }
+
+            // Clamp
+            if (pull > dist - eventHorizon) {
+                pull = Math.max(0, dist - eventHorizon);
+            }
+
+            // Move vertex toward mass
+            let nx, ny, nz;
+            if (dist > 0.001) {
+                const invDist = 1 / dist;
+                nx = bx + dx * invDist * pull;
+                ny = by + dy * invDist * pull;
+                nz = bz + dz * invDist * pull;
+            } else {
+                nx = bx;
+                ny = by;
+                nz = bz;
+            }
+
+            positions[i3]     = nx;
+            positions[i3 + 1] = ny;
+            positions[i3 + 2] = nz;
+
+            // ── Color ──────────────────────────────────────────────────
+            const intensity = Math.min(pull / (dist + 0.5), 1.0);
+
+            let hue, sat, light;
+            if (isBlackHole) {
+                hue = 0.15 - intensity * 0.15; // orange -> red
+                sat = 1.0;
+                light = 0.1 + intensity * 0.6;
+                // Extra brightness near event horizon
+                if (dist < eventHorizon * 2) {
+                    light = Math.min(1.0, light + 0.3 * (1 - dist / (eventHorizon * 2)));
+                }
+            } else {
+                hue = 0.6 - intensity * 0.6; // blue -> red
+                sat = 1.0;
+                light = 0.08 + intensity * 0.45;
+            }
+
+            // ── Visibility fade ────────────────────────────────────────
+            let alpha = 1.0;
+            const distFromOrigin = Math.sqrt(
+                bx * bx + by * by + bz * bz
+            );
+            if (isSnowGlobe) {
+                // Hard cutoff
+                if (distFromOrigin > renderRadius) {
+                    alpha = 0.0;
+                }
+            } else {
+                // Soft fade at render radius
+                if (distFromOrigin > renderRadius * 0.7) {
+                    alpha = Math.max(0, 1.0 - (distFromOrigin - renderRadius * 0.7) / (renderRadius * 0.3));
+                }
+            }
+
+            const [cr, cg, cb] = hslToRgb(hue, sat, light);
+            colors[i3]     = cr * alpha;
+            colors[i3 + 1] = cg * alpha;
+            colors[i3 + 2] = cb * alpha;
+        }
+
+        // Mark attributes for GPU upload
+        gridGeo.attributes.position.needsUpdate = true;
+        gridGeo.attributes.color.needsUpdate = true;
+        // pointGeo shares the same attributes, no separate update needed
+    }
+
+    // ── Swarm physics ──────────────────────────────────────────────────
+    if (state.grid3dShowSwarm && swarmPositions) {
+        const scaledDt = dt * timeScale;
+
+        // Emitter relocation
+        emitterTimer += scaledDt;
+        if (emitterTimer >= EMITTER_RELOCATE_INTERVAL) {
+            relocateEmitter();
+        }
+
+        // Update draw range for active count
+        swarmGeo.setDrawRange(0, state.grid3dSwarmCount);
+
+        const count = Math.min(state.grid3dSwarmCount, MAX_SWARM);
+        const ehThreshold = eventHorizon * 0.8;
+
+        for (let i = 0; i < count; i++) {
+            const i3 = i * 3;
+
+            const px = swarmPositions[i3];
+            const py = swarmPositions[i3 + 1];
+            const pz = swarmPositions[i3 + 2];
+
+            // Direction to mass center
+            const dx = massPos.x - px;
+            const dy = massPos.y - py;
+            const dz = massPos.z - pz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+            const dist = Math.sqrt(distSq);
+
+            // Gravity acceleration
+            const pull = (mass * 0.5) / (distSq + 1);
+            if (dist > 0.001) {
+                const invDist = 1 / dist;
+                const ax = dx * invDist * pull;
+                const ay = dy * invDist * pull;
+                const az = dz * invDist * pull;
+                swarmVelocities[i3]     += ax * scaledDt;
+                swarmVelocities[i3 + 1] += ay * scaledDt;
+                swarmVelocities[i3 + 2] += az * scaledDt;
+            }
+
+            // Update position
+            swarmPositions[i3]     += swarmVelocities[i3]     * scaledDt;
+            swarmPositions[i3 + 1] += swarmVelocities[i3 + 1] * scaledDt;
+            swarmPositions[i3 + 2] += swarmVelocities[i3 + 2] * scaledDt;
+
+            // Check absorption
+            if (dist < ehThreshold) {
+                state.grid3dAbsorbed++;
+                spawnParticle(i);
+            }
+        }
+
+        swarmGeo.attributes.position.needsUpdate = true;
+        swarmGeo.attributes.customColor.needsUpdate = true;
+        swarmGeo.attributes.size.needsUpdate = true;
+    }
+
+    // ── Probe physics ──────────────────────────────────────────────────
+    if (state.grid3dShowProbe && state.grid3dProbeMesh) {
+        const probePos = state.grid3dProbeMesh.position;
+
+        // Drift toward mass
+        _toMass.set(
+            massPos.x - probePos.x,
+            massPos.y - probePos.y,
+            massPos.z - probePos.z
+        );
+        const probeDist = _toMass.length();
+
+        if (probeDist > 0.001) {
+            const probePull = (mass * 0.3) / (probeDist * probeDist + 1);
+            _toMass.normalize().multiplyScalar(probePull * dt * timeScale);
+            probeVelocity.add(_toMass);
+        }
+
+        probePos.add(_v.copy(probeVelocity).multiplyScalar(dt * timeScale));
+
+        // Absorbed? Respawn
+        const distToMass = probePos.distanceTo(massPos);
+        if (distToMass < eventHorizon * 0.8) {
+            // Respawn at distance 25, velocity pointing inward
+            const angle = Math.random() * Math.PI * 2;
+            const elevation = (Math.random() - 0.5) * Math.PI;
+            probePos.set(
+                massPos.x + 25 * Math.cos(elevation) * Math.cos(angle),
+                massPos.y + 25 * Math.sin(elevation),
+                massPos.z + 25 * Math.cos(elevation) * Math.sin(angle)
+            );
+            _dir.set(
+                massPos.x - probePos.x,
+                massPos.y - probePos.y,
+                massPos.z - probePos.z
+            ).normalize().multiplyScalar(0.5);
+            probeVelocity.copy(_dir);
+        }
+
+        // Warp probe vertices with gravity
+        const geo = state.grid3dProbeMesh.geometry;
+        const posArr = geo.attributes.position.array;
+        const count = posArr.length / 3;
+
+        for (let i = 0; i < count; i++) {
+            const i3 = i * 3;
+            // World position of this probe vertex
+            const wx = probeBasePositions[i3]     + probePos.x;
+            const wy = probeBasePositions[i3 + 1] + probePos.y;
+            const wz = probeBasePositions[i3 + 2] + probePos.z;
+
+            const dx = massPos.x - wx;
+            const dy = massPos.y - wy;
+            const dz = massPos.z - wz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+            const dist = Math.sqrt(distSq);
+
+            let pull;
+            if (isBlackHole) {
+                pull = (mass / 2) / (Math.pow(dist, 1.5) + 1);
+            } else {
+                pull = (mass / 10) / (distSq + 1);
+            }
+            if (pull > dist - eventHorizon) {
+                pull = Math.max(0, dist - eventHorizon);
+            }
+
+            if (dist > 0.001) {
+                const invDist = 1 / dist;
+                // Local offset (subtract probePos to keep in local space)
+                posArr[i3]     = probeBasePositions[i3]     + dx * invDist * pull;
+                posArr[i3 + 1] = probeBasePositions[i3 + 1] + dy * invDist * pull;
+                posArr[i3 + 2] = probeBasePositions[i3 + 2] + dz * invDist * pull;
+            } else {
+                posArr[i3]     = probeBasePositions[i3];
+                posArr[i3 + 1] = probeBasePositions[i3 + 1];
+                posArr[i3 + 2] = probeBasePositions[i3 + 2];
+            }
+        }
+        geo.attributes.position.needsUpdate = true;
+    }
+
+    // ── Accessories ────────────────────────────────────────────────────
+
+    // Halo: scales with event horizon, positioned at mass
+    if (state.grid3dHaloMesh) {
+        state.grid3dHaloMesh.position.copy(massPos);
+        const haloScale = eventHorizon;
+        state.grid3dHaloMesh.scale.setScalar(haloScale);
+    }
+
+    // Accretion disk: spins, positioned at mass
+    if (state.grid3dDiskMesh) {
+        state.grid3dDiskMesh.position.copy(massPos);
+        state.grid3dDiskMesh.rotation.z += dt * timeScale * 0.3;
+        const diskScale = eventHorizon * 1.5;
+        state.grid3dDiskMesh.scale.setScalar(diskScale);
+    }
+
+    // Snow globe: scales to render radius, positioned at mass
+    if (state.grid3dGlobeMesh) {
+        if (state.grid3dRelativeMotion) {
+            state.grid3dGlobeMesh.position.set(0, 0, 0);
+        } else {
+            state.grid3dGlobeMesh.position.copy(massPos);
+        }
+        state.grid3dGlobeMesh.scale.setScalar(renderRadius);
+    }
+}
