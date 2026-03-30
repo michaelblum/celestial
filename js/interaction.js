@@ -37,9 +37,104 @@ function handleMove(clientX, clientY) {
     }
 }
 
+// Sync sidebar values into the unified context menu
+function _syncContextMenu() {
+    const sync = (ctxId, srcId) => {
+        const ctx = document.getElementById(ctxId);
+        const src = document.getElementById(srcId);
+        if (!ctx || !src) return;
+        if (ctx.type === 'checkbox') ctx.checked = src.checked;
+        else ctx.value = src.value;
+    };
+
+    // Geometry tab
+    sync('ctx-shape', 'shapeSelect');
+    sync('ctx-color', 'masterColor1');
+    sync('ctx-opacity', 'opacitySlider');
+    sync('ctx-edge-opacity', 'edgeOpacitySlider');
+    sync('ctx-stellation', 'stellationSlider');
+    sync('ctx-omega-toggle', 'omegaToggle');
+    sync('ctx-omega-shape', 'omegaShapeSelect');
+    sync('ctx-omega-scale', 'omegaScaleSlider');
+    sync('ctx-omega-stellation', 'omegaStellationSlider');
+
+    // Appearance tab
+    sync('ctx-master1', 'masterColor1');
+    sync('ctx-master2', 'masterColor2');
+    sync('ctx-preset', 'presetSelect');
+    sync('ctx-face1', 'faceColor1');
+    sync('ctx-face2', 'faceColor2');
+    sync('ctx-edge1', 'edgeColor1');
+    sync('ctx-edge2', 'edgeColor2');
+    sync('ctx-aura1', 'auraColor1');
+    sync('ctx-aura2', 'auraColor2');
+
+    // Effects tab
+    sync('ctx-pulsar', 'pulsarToggle');
+    sync('ctx-accretion', 'accretionToggle');
+    sync('ctx-gamma', 'gammaToggle');
+    sync('ctx-neutrino', 'neutrinoToggle');
+    sync('ctx-lightning-toggle', 'lightningToggle');
+    sync('ctx-magnetic', 'magneticToggle');
+    sync('ctx-swarm', 'swarmToggle');
+    sync('ctx-blackhole', 'blackHoleModeToggle');
+    sync('ctx-reach', 'auraReachSlider');
+    sync('ctx-intensity', 'auraIntensitySlider');
+    sync('ctx-spin', 'idleSpinSlider');
+    sync('ctx-swarm-count', 'swarmCountSlider');
+    sync('ctx-swarm-gravity', 'swarmGravitySlider');
+    sync('ctx-swarm-horizon', 'swarmHorizonSlider');
+    sync('ctx-lightning-length', 'lightningLengthSlider');
+    sync('ctx-lightning-freq', 'lightningFreqSlider');
+    sync('ctx-lightning-bright', 'lightningBrightSlider');
+
+    // Environment tab
+    sync('ctx-grid', 'gridToggle');
+    sync('ctx-grid-bend', 'gridBendToggle');
+    sync('ctx-grid-mass', 'gridMassSlider');
+    sync('ctx-grid3d', 'grid3dToggle');
+    sync('ctx-grid3d-mode', 'grid3dRenderMode');
+    sync('ctx-grid3d-density', 'grid3dDensitySlider');
+    sync('ctx-grid3d-mass', 'grid3dMassSlider');
+    sync('ctx-grid3d-radius', 'grid3dRadiusSlider');
+    sync('ctx-grid3d-snowglobe', 'grid3dSnowGlobeToggle');
+    sync('ctx-grid3d-probe', 'grid3dProbeToggle');
+    sync('ctx-ortho', 'orthoToggle');
+    sync('ctx-fov', 'fovSlider');
+    sync('ctx-zdepth', 'zDepthSlider');
+}
+
 export function setupInteraction() {
     // Prevent default context menu
     window.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Unified context menu tab switching
+    document.querySelectorAll('.ctx-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const menu = document.getElementById('ctx-unified');
+            menu.querySelectorAll('.ctx-tab').forEach(t => t.classList.remove('active'));
+            menu.querySelectorAll('.ctx-panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            const panel = document.getElementById(tab.getAttribute('data-ctx-tab'));
+            if (panel) panel.classList.add('active');
+        });
+    });
+
+    // Close context menu on click outside or Escape
+    window.addEventListener('mousedown', (e) => {
+        const menu = document.getElementById('ctx-unified');
+        if (menu && menu.classList.contains('visible') && !menu.contains(e.target) && e.button !== 2) {
+            menu.classList.remove('visible');
+            state.isMenuOpen = false;
+        }
+    });
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const menu = document.getElementById('ctx-unified');
+            if (menu) menu.classList.remove('visible');
+            state.isMenuOpen = false;
+        }
+    });
 
     // Mouse Wheel Zoom
     window.addEventListener('wheel', (e) => {
@@ -91,25 +186,25 @@ export function setupInteraction() {
 
         if (e.button === 2) {
             state.isMenuOpen = true;
-            const menu = intersects ? document.getElementById('ctx-object') : document.getElementById('ctx-env');
+            const menu = document.getElementById('ctx-unified');
+            if (!menu) return;
 
-            if (intersects) {
-                document.getElementById('ctx-shape').value = document.getElementById('shapeSelect').value;
-                document.getElementById('ctx-color').value = document.getElementById('masterColor1').value;
-                document.getElementById('ctx-opacity').value = document.getElementById('opacitySlider').value;
-                document.getElementById('ctx-edge-opacity').value = document.getElementById('edgeOpacitySlider').value;
-                document.getElementById('ctx-reach').value = document.getElementById('auraReachSlider').value;
-                document.getElementById('ctx-intensity').value = document.getElementById('auraIntensitySlider').value;
-                document.getElementById('ctx-spin').value = document.getElementById('idleSpinSlider').value;
-            } else {
-                document.getElementById('ctx-grid').checked = document.getElementById('gridToggle').checked;
-                document.getElementById('ctx-grid-color').value = document.getElementById('gridColor1').value;
-                document.getElementById('ctx-grid-bend').checked = document.getElementById('gridBendToggle').checked;
-                document.getElementById('ctx-grid-mass').value = document.getElementById('gridMassSlider').value;
-                document.getElementById('ctx-ortho').checked = document.getElementById('orthoToggle').checked;
-                document.getElementById('ctx-fov').value = document.getElementById('fovSlider').value;
-            }
+            // Close any existing context menus
+            document.querySelectorAll('.context-menu').forEach(m => m.classList.remove('visible'));
 
+            // Select the correct tab based on click target
+            const targetTab = intersects ? 'ctx-geom' : 'ctx-environ';
+            menu.querySelectorAll('.ctx-tab').forEach(t => t.classList.remove('active'));
+            menu.querySelectorAll('.ctx-panel').forEach(p => p.classList.remove('active'));
+            const tab = menu.querySelector(`[data-ctx-tab="${targetTab}"]`);
+            const panel = document.getElementById(targetTab);
+            if (tab) tab.classList.add('active');
+            if (panel) panel.classList.add('active');
+
+            // Sync ALL context menu values from sidebar
+            _syncContextMenu();
+
+            // Position the menu
             menu.style.left = e.clientX + 'px';
             menu.style.top = e.clientY + 'px';
             menu.classList.add('visible');

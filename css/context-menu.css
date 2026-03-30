@@ -1,20 +1,175 @@
-/* Context Menus */
+/* Unified Context Menu */
 .context-menu {
     position: absolute;
     display: none;
     flex-direction: column;
-    gap: 8px;
     background: rgba(20, 10, 30, 0.95);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(209, 135, 255, 0.6);
     border-radius: 8px;
-    padding: 15px;
+    padding: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
     z-index: 100;
-    min-width: 180px;
+    min-width: 240px;
+    max-height: 400px;
+    overflow-y: auto;
     color: white;
 }
 .context-menu.visible { display: flex; }
-.context-menu h3 { margin: 0 0 5px 0; font-size: 0.9rem; color: #fff; border-bottom: 1px solid #bc13fe; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;}
-.context-menu label { font-size: 0.65rem; color: #d187ff; margin-bottom: -4px; }
-.context-menu select, .context-menu input[type="color"] { padding: 4px; height: 28px; }
+
+/* Tab row */
+.ctx-tabs {
+    display: flex;
+    gap: 4px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(188, 19, 254, 0.4);
+}
+.ctx-tab {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 6px;
+    background: transparent;
+    transition: background 0.15s;
+    stroke: currentColor;
+    color: rgba(209, 135, 255, 0.7);
+    fill: none;
+    stroke-width: 1.5;
+}
+.ctx-tab:hover {
+    background: rgba(188, 19, 254, 0.2);
+    color: #d187ff;
+}
+.ctx-tab.active {
+    background: #bc13fe;
+    color: #fff;
+}
+.ctx-tab svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Tab panels */
+.ctx-panel {
+    display: none;
+}
+.ctx-panel.active {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Panel headings */
+.context-menu h3 {
+    margin: 0 0 4px 0;
+    font-size: 0.9rem;
+    color: #fff;
+    border-bottom: 1px solid #bc13fe;
+    padding-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Labels */
+.context-menu label {
+    font-size: 0.65rem;
+    color: #d187ff;
+    margin-bottom: -4px;
+}
+
+/* Form controls */
+.context-menu select,
+.context-menu input[type="color"] {
+    padding: 4px;
+    height: 28px;
+}
+.context-menu select {
+    background: rgba(30, 15, 50, 0.9);
+    color: #fff;
+    border: 1px solid rgba(209, 135, 255, 0.4);
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+.context-menu input[type="range"] {
+    width: 100%;
+    accent-color: #bc13fe;
+}
+.context-menu input[type="color"] {
+    border: 1px solid rgba(209, 135, 255, 0.4);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+}
+
+/* Checkbox labels */
+.context-menu .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: #d187ff;
+    cursor: pointer;
+    margin-bottom: 0;
+}
+.context-menu .checkbox-label input[type="checkbox"] {
+    accent-color: #bc13fe;
+}
+
+/* Submenu trigger */
+.ctx-submenu-trigger {
+    position: relative;
+    cursor: pointer;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #d187ff;
+    transition: background 0.15s;
+}
+.ctx-submenu-trigger:hover {
+    background: rgba(188, 19, 254, 0.15);
+}
+
+/* Submenu panel */
+.ctx-submenu {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(20, 10, 30, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(209, 135, 255, 0.6);
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    min-width: 200px;
+    z-index: 101;
+}
+.ctx-submenu-trigger:hover > .ctx-submenu {
+    display: flex;
+}
+
+/* Scrollbar styling */
+.context-menu::-webkit-scrollbar {
+    width: 5px;
+}
+.context-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+.context-menu::-webkit-scrollbar-thumb {
+    background: rgba(188, 19, 254, 0.4);
+    border-radius: 3px;
+}
+.context-menu::-webkit-scrollbar-thumb:hover {
+    background: rgba(188, 19, 254, 0.6);
+}

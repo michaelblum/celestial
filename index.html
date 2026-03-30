@@ -14,45 +14,182 @@
     <!-- Hidden file input for load function -->
     <input type="file" id="file-loader" style="display:none;" accept=".json">
 
-    <!-- Context Menus -->
-    <div id="ctx-object" class="context-menu">
-        <h3>Object Properties</h3>
-        <label>Geometry</label>
-        <select id="ctx-shape">
-            <option value="4">Tetrahedron</option>
-            <option value="6">Hexahedron (Cube)</option>
-            <option value="8">Octahedron</option>
-            <option value="12">Dodecahedron</option>
-            <option value="20">Icosahedron</option>
-            <option value="90">Tetartoid (Pseudo)</option>
-            <option value="91">Torus Knot</option>
-            <option value="100">Sphere</option>
-        </select>
-        <label>Primary Color</label>
-        <input type="color" id="ctx-color">
-        <label>Face Opacity</label>
-        <input type="range" id="ctx-opacity" min="0" max="1" step="0.01">
-        <label>Edge Opacity</label>
-        <input type="range" id="ctx-edge-opacity" min="0" max="1" step="0.01">
-        <label>Aura Reach</label>
-        <input type="range" id="ctx-reach" min="0" max="3" step="0.01">
-        <label>Aura Intensity</label>
-        <input type="range" id="ctx-intensity" min="0" max="3" step="0.01">
-        <label>Base Spin Speed</label>
-        <input type="range" id="ctx-spin" min="0" max="0.1" step="0.001">
-    </div>
+    <!-- Unified Context Menu -->
+    <div id="ctx-unified" class="context-menu">
+        <!-- Tab row -->
+        <div class="ctx-tabs">
+            <div class="ctx-tab active" data-ctx-tab="ctx-geom" title="Geometry">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12"></rect><rect x="9" y="9" width="12" height="12"></rect><line x1="3" y1="3" x2="9" y2="9"></line><line x1="15" y1="3" x2="21" y2="9"></line><line x1="3" y1="15" x2="9" y2="21"></line><line x1="15" y1="15" x2="21" y2="21"></line></svg>
+            </div>
+            <div class="ctx-tab" data-ctx-tab="ctx-colors" title="Appearance">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 2v10l8.5-5.5"></path><path d="M12 12l-8.5 5.5"></path><path d="M12 12l-8.5-5.5"></path><path d="M12 12v10"></path><path d="M12 12l8.5 5.5"></path></svg>
+            </div>
+            <div class="ctx-tab" data-ctx-tab="ctx-effects" title="Effects">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+            <div class="ctx-tab" data-ctx-tab="ctx-environ" title="Environment">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+            </div>
+        </div>
 
-    <div id="ctx-env" class="context-menu">
-        <h3>Environment</h3>
-        <label class="checkbox-label" style="margin-top: 0;"><input type="checkbox" id="ctx-grid"> Show Grid</label>
-        <label>Primary Grid Color</label>
-        <input type="color" id="ctx-grid-color">
-        <label class="checkbox-label"><input type="checkbox" id="ctx-grid-bend"> Space-Time Grid</label>
-        <label>Grid Mass</label>
-        <input type="range" id="ctx-grid-mass" min="0" max="3" step="0.1">
-        <label class="checkbox-label"><input type="checkbox" id="ctx-ortho"> Orthographic</label>
-        <label>Perspective FOV</label>
-        <input type="range" id="ctx-fov" min="10" max="120" step="1">
+        <!-- Geometry panel -->
+        <div id="ctx-geom" class="ctx-panel active">
+            <h3>Alpha Shape</h3>
+            <label>Geometry</label>
+            <select id="ctx-shape">
+                <option value="4">Tetrahedron</option>
+                <option value="6">Hexahedron (Cube)</option>
+                <option value="8">Octahedron</option>
+                <option value="12">Dodecahedron</option>
+                <option value="20">Icosahedron</option>
+                <option value="90">Tetartoid (Pseudo)</option>
+                <option value="91">Torus Knot</option>
+                <option value="100">Sphere</option>
+            </select>
+            <label>Primary Color</label>
+            <input type="color" id="ctx-color">
+            <label>Face Opacity</label>
+            <input type="range" id="ctx-opacity" min="0" max="1" step="0.01">
+            <label>Edge Opacity</label>
+            <input type="range" id="ctx-edge-opacity" min="0" max="1" step="0.01">
+            <label>Stellation</label>
+            <input type="range" id="ctx-stellation" min="-1" max="2" step="0.05">
+
+            <div class="ctx-submenu-trigger">
+                <span>Omega Shape &#9656;</span>
+                <div class="ctx-submenu">
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-omega-toggle"> Enable</label>
+                    <label>Shape</label>
+                    <select id="ctx-omega-shape">
+                        <option value="4">Tetrahedron</option>
+                        <option value="6">Hexahedron (Cube)</option>
+                        <option value="8">Octahedron</option>
+                        <option value="12">Dodecahedron</option>
+                        <option value="20">Icosahedron</option>
+                        <option value="90">Tetartoid (Pseudo)</option>
+                        <option value="91">Torus Knot</option>
+                        <option value="100">Sphere</option>
+                    </select>
+                    <label>Scale</label>
+                    <input type="range" id="ctx-omega-scale" min="0.1" max="5" step="0.05">
+                    <label>Stellation</label>
+                    <input type="range" id="ctx-omega-stellation" min="-1" max="2" step="0.05">
+                </div>
+            </div>
+        </div>
+
+        <!-- Appearance panel -->
+        <div id="ctx-colors" class="ctx-panel">
+            <h3>Appearance</h3>
+            <label>Preset</label>
+            <select id="ctx-preset">
+                <option value="default">Default Theme</option>
+                <option value="blackhole">Black Hole</option>
+                <option value="crystal">Pure Crystal</option>
+                <option value="neon">Neon Ghost</option>
+            </select>
+            <label>Master Gradient</label>
+            <div style="display:flex; gap:4px;">
+                <input type="color" id="ctx-master1" style="flex:1; height:28px;">
+                <input type="color" id="ctx-master2" style="flex:1; height:28px;">
+            </div>
+            <div class="ctx-submenu-trigger">
+                <span>Component Colors &#9656;</span>
+                <div class="ctx-submenu">
+                    <label>Faces</label>
+                    <div style="display:flex; gap:4px;">
+                        <input type="color" id="ctx-face1" style="flex:1; height:24px;">
+                        <input type="color" id="ctx-face2" style="flex:1; height:24px;">
+                    </div>
+                    <label>Edges</label>
+                    <div style="display:flex; gap:4px;">
+                        <input type="color" id="ctx-edge1" style="flex:1; height:24px;">
+                        <input type="color" id="ctx-edge2" style="flex:1; height:24px;">
+                    </div>
+                    <label>Aura</label>
+                    <div style="display:flex; gap:4px;">
+                        <input type="color" id="ctx-aura1" style="flex:1; height:24px;">
+                        <input type="color" id="ctx-aura2" style="flex:1; height:24px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Effects panel -->
+        <div id="ctx-effects" class="ctx-panel">
+            <h3>Effects</h3>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-pulsar"> Pulsar Beams</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-accretion"> Accretion Disk</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-gamma"> Gamma Rays</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-neutrino"> Neutrino Jets</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-lightning-toggle"> Lightning Arcs</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-magnetic"> Magnetic Field</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-swarm"> Particle Swarm</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-blackhole"> Black Hole Mode</label>
+            <label>Aura Reach</label>
+            <input type="range" id="ctx-reach" min="0" max="3" step="0.01">
+            <label>Aura Intensity</label>
+            <input type="range" id="ctx-intensity" min="0" max="3" step="0.01">
+            <label>Base Spin Speed</label>
+            <input type="range" id="ctx-spin" min="0" max="0.1" step="0.001">
+            <div class="ctx-submenu-trigger">
+                <span>Swarm Settings &#9656;</span>
+                <div class="ctx-submenu">
+                    <label>Count</label>
+                    <input type="range" id="ctx-swarm-count" min="100" max="5000" step="100">
+                    <label>Gravity</label>
+                    <input type="range" id="ctx-swarm-gravity" min="0" max="300" step="1">
+                    <label>Event Horizon</label>
+                    <input type="range" id="ctx-swarm-horizon" min="0.5" max="5" step="0.1">
+                </div>
+            </div>
+            <div class="ctx-submenu-trigger">
+                <span>Lightning Settings &#9656;</span>
+                <div class="ctx-submenu">
+                    <label>Bolt Length</label>
+                    <input type="range" id="ctx-lightning-length" min="5" max="200" step="1">
+                    <label>Frequency</label>
+                    <input type="range" id="ctx-lightning-freq" min="0.1" max="5" step="0.1">
+                    <label>Brightness</label>
+                    <input type="range" id="ctx-lightning-bright" min="0.1" max="2" step="0.1">
+                </div>
+            </div>
+        </div>
+
+        <!-- Environment panel -->
+        <div id="ctx-environ" class="ctx-panel">
+            <h3>Environment</h3>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-grid"> Show 2D Grid</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-grid-bend"> Space-Time Bend</label>
+            <label>Grid Mass</label>
+            <input type="range" id="ctx-grid-mass" min="0" max="3" step="0.1">
+
+            <div class="ctx-submenu-trigger">
+                <span>3D Spacetime Grid &#9656;</span>
+                <div class="ctx-submenu">
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d"> Enable 3D Grid</label>
+                    <label>Render Mode</label>
+                    <select id="ctx-grid3d-mode">
+                        <option value="wireframe">Wireframe</option>
+                        <option value="points">Voxel Points</option>
+                    </select>
+                    <label>Density</label>
+                    <input type="range" id="ctx-grid3d-density" min="8" max="32" step="2">
+                    <label>Mass</label>
+                    <input type="range" id="ctx-grid3d-mass" min="0" max="300" step="1">
+                    <label>Render Radius</label>
+                    <input type="range" id="ctx-grid3d-radius" min="3" max="30" step="1">
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d-snowglobe"> Snow Globe</label>
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d-probe"> Show Probe</label>
+                </div>
+            </div>
+
+            <label class="checkbox-label" style="margin-top:8px;"><input type="checkbox" id="ctx-ortho"> Orthographic</label>
+            <label>Perspective FOV</label>
+            <input type="range" id="ctx-fov" min="10" max="120" step="1">
+            <label>Z-Depth Scale</label>
+            <input type="range" id="ctx-zdepth" min="0.25" max="3" step="0.01">
+        </div>
     </div>
 
     <div id="sidebar" class="expanded">
@@ -100,6 +237,11 @@
             <!-- Share Button (Link) -->
             <div class="nav-icon" id="btn-share" title="Copy Share Link" style="stroke:currentColor; margin-bottom: 15px;">
                 <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            </div>
+
+            <!-- Snapshot Button (Camera) -->
+            <div class="nav-icon" id="btn-snapshot" title="Take Snapshot" style="stroke:currentColor; margin-bottom: 15px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
             </div>
 
             <!-- Randomize Button (Die) -->

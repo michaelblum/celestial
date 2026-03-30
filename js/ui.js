@@ -225,7 +225,28 @@ function getConfig() {
         omegaInterDimensional: state.omegaInterDimensional,
         omegaGhostCount: state.omegaGhostCount,
         omegaGhostMode: state.omegaGhostMode,
-        omegaGhostDuration: state.omegaGhostDuration
+        omegaGhostDuration: state.omegaGhostDuration,
+        omegaIsMaskEnabled: state.omegaIsMaskEnabled,
+        omegaIsInteriorEdgesEnabled: state.omegaIsInteriorEdgesEnabled,
+        omegaIsSpecularEnabled: state.omegaIsSpecularEnabled,
+        // Swarm + Black Hole
+        swarm: state.isSwarmEnabled,
+        swarmCount: state.swarmCount,
+        swarmGravity: state.swarmGravity,
+        swarmEventHorizon: state.swarmEventHorizon,
+        swarmTimeScale: state.swarmTimeScale,
+        blackHoleMode: state.isBlackHoleMode,
+        // 3D Grid
+        grid3d: state.is3dGridEnabled,
+        grid3dRenderMode: state.grid3dRenderMode,
+        grid3dDensity: state.grid3dDensity,
+        grid3dRenderRadius: state.grid3dRenderRadius,
+        grid3dMass: state.grid3dMass,
+        grid3dEventHorizon: state.grid3dEventHorizon,
+        grid3dSnowGlobe: state.grid3dSnowGlobe,
+        grid3dShowProbe: state.grid3dShowProbe,
+        grid3dRelativeMotion: state.grid3dRelativeMotion,
+        grid3dTimeScale: state.grid3dTimeScale
     };
 }
 
@@ -331,6 +352,29 @@ function applyConfig(c) {
     if (c.omegaScale !== undefined) setUI('omegaScaleSlider', c.omegaScale, c.omegaScale.toFixed(2));
     if (c.omegaOpacity !== undefined) setUI('omegaOpacitySlider', c.omegaOpacity, c.omegaOpacity.toFixed(2));
     if (c.omegaEdgeOpacity !== undefined) setUI('omegaEdgeOpacitySlider', c.omegaEdgeOpacity, c.omegaEdgeOpacity.toFixed(2));
+    if (c.omegaIsMaskEnabled !== undefined) setUI('omegaMaskToggle', c.omegaIsMaskEnabled);
+    if (c.omegaIsInteriorEdgesEnabled !== undefined) setUI('omegaInteriorEdgesToggle', c.omegaIsInteriorEdgesEnabled);
+    if (c.omegaIsSpecularEnabled !== undefined) setUI('omegaSpecularToggle', c.omegaIsSpecularEnabled);
+
+    // Swarm + Black Hole
+    if (c.swarm !== undefined) setUI('swarmToggle', c.swarm);
+    if (c.swarmCount !== undefined) setUI('swarmCountSlider', c.swarmCount, c.swarmCount);
+    if (c.swarmGravity !== undefined) setUI('swarmGravitySlider', c.swarmGravity, c.swarmGravity);
+    if (c.swarmEventHorizon !== undefined) setUI('swarmHorizonSlider', c.swarmEventHorizon, c.swarmEventHorizon.toFixed(1));
+    if (c.swarmTimeScale !== undefined) setUI('swarmTimeSlider', c.swarmTimeScale, c.swarmTimeScale.toFixed(1));
+    if (c.blackHoleMode !== undefined) setUI('blackHoleModeToggle', c.blackHoleMode);
+
+    // 3D Grid
+    if (c.grid3d !== undefined) setUI('grid3dToggle', c.grid3d);
+    if (c.grid3dRenderMode !== undefined) setUI('grid3dRenderMode', c.grid3dRenderMode);
+    if (c.grid3dDensity !== undefined) setUI('grid3dDensitySlider', c.grid3dDensity, c.grid3dDensity);
+    if (c.grid3dRenderRadius !== undefined) setUI('grid3dRadiusSlider', c.grid3dRenderRadius, c.grid3dRenderRadius >= 30 ? 'Full' : c.grid3dRenderRadius.toFixed(1));
+    if (c.grid3dMass !== undefined) setUI('grid3dMassSlider', c.grid3dMass, c.grid3dMass);
+    if (c.grid3dEventHorizon !== undefined) setUI('grid3dHorizonSlider', c.grid3dEventHorizon, c.grid3dEventHorizon.toFixed(1));
+    if (c.grid3dSnowGlobe !== undefined) setUI('grid3dSnowGlobeToggle', c.grid3dSnowGlobe);
+    if (c.grid3dShowProbe !== undefined) setUI('grid3dProbeToggle', c.grid3dShowProbe);
+    if (c.grid3dRelativeMotion !== undefined) setUI('grid3dRelativeToggle', c.grid3dRelativeMotion);
+    if (c.grid3dTimeScale !== undefined) setUI('grid3dTimeSlider', c.grid3dTimeScale, c.grid3dTimeScale.toFixed(1));
 
     updateAllColors();
 }
@@ -504,6 +548,20 @@ export function setupUI() {
         });
     });
 
+    document.getElementById('btn-snapshot').addEventListener('click', () => {
+        // Render a fresh frame then capture
+        state.renderer.render(state.scene, state.camera);
+        const dataUrl = state.renderer.domElement.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'celestial_snapshot.png';
+        a.click();
+        // Brief visual feedback
+        const icon = document.getElementById('btn-snapshot');
+        icon.style.background = 'rgba(188, 19, 254, 0.4)';
+        setTimeout(() => { icon.style.background = ''; }, 600);
+    });
+
     document.getElementById('btn-save').addEventListener('click', () => {
         const config = getConfig();
         const jsonStr = JSON.stringify(config, null, 2);
@@ -553,42 +611,99 @@ export function setupUI() {
         document.getElementById(k + 'Color2').addEventListener('input', e => { state.colors[k][1] = e.target.value; updateAllColors(); });
     });
 
-    // Context menu proxies
+    // Unified context menu proxy inputs — safe version that skips missing elements
     const proxyInput = (ctxId, sidebarId) => {
-        document.getElementById(ctxId).addEventListener('input', (e) => {
+        const el = document.getElementById(ctxId);
+        if (!el) return;
+        el.addEventListener('input', (e) => {
             const sideEl = document.getElementById(sidebarId);
+            if (!sideEl) return;
             if (sideEl.type === 'checkbox') sideEl.checked = e.target.checked;
             else sideEl.value = e.target.value;
             sideEl.dispatchEvent(new Event('change'));
             sideEl.dispatchEvent(new Event('input'));
         });
     };
+
+    // Geometry tab
     proxyInput('ctx-shape', 'shapeSelect');
     proxyInput('ctx-opacity', 'opacitySlider');
     proxyInput('ctx-edge-opacity', 'edgeOpacitySlider');
+    proxyInput('ctx-stellation', 'stellationSlider');
+    proxyInput('ctx-omega-toggle', 'omegaToggle');
+    proxyInput('ctx-omega-shape', 'omegaShapeSelect');
+    proxyInput('ctx-omega-scale', 'omegaScaleSlider');
+    proxyInput('ctx-omega-stellation', 'omegaStellationSlider');
+
+    // Appearance tab
+    proxyInput('ctx-preset', 'presetSelect');
+    proxyInput('ctx-face1', 'faceColor1');
+    proxyInput('ctx-face2', 'faceColor2');
+    proxyInput('ctx-edge1', 'edgeColor1');
+    proxyInput('ctx-edge2', 'edgeColor2');
+    proxyInput('ctx-aura1', 'auraColor1');
+    proxyInput('ctx-aura2', 'auraColor2');
+
+    // Context menu master color proxy
+    const ctxColor = document.getElementById('ctx-color');
+    if (ctxColor) {
+        ctxColor.addEventListener('input', (e) => {
+            const v = e.target.value;
+            ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
+                const el = document.getElementById(k + 'Color1');
+                if (el) { el.value = v; state.colors[k][0] = v; }
+            });
+            updateAllColors();
+        });
+    }
+    const ctxMaster1 = document.getElementById('ctx-master1');
+    if (ctxMaster1) {
+        ctxMaster1.addEventListener('input', (e) => {
+            document.getElementById('masterColor1').value = e.target.value;
+            document.getElementById('masterColor1').dispatchEvent(new Event('input'));
+        });
+    }
+    const ctxMaster2 = document.getElementById('ctx-master2');
+    if (ctxMaster2) {
+        ctxMaster2.addEventListener('input', (e) => {
+            document.getElementById('masterColor2').value = e.target.value;
+            document.getElementById('masterColor2').dispatchEvent(new Event('input'));
+        });
+    }
+
+    // Effects tab
+    proxyInput('ctx-pulsar', 'pulsarToggle');
+    proxyInput('ctx-accretion', 'accretionToggle');
+    proxyInput('ctx-gamma', 'gammaToggle');
+    proxyInput('ctx-neutrino', 'neutrinoToggle');
+    proxyInput('ctx-lightning-toggle', 'lightningToggle');
+    proxyInput('ctx-magnetic', 'magneticToggle');
+    proxyInput('ctx-swarm', 'swarmToggle');
+    proxyInput('ctx-blackhole', 'blackHoleModeToggle');
     proxyInput('ctx-reach', 'auraReachSlider');
     proxyInput('ctx-intensity', 'auraIntensitySlider');
     proxyInput('ctx-spin', 'idleSpinSlider');
+    proxyInput('ctx-swarm-count', 'swarmCountSlider');
+    proxyInput('ctx-swarm-gravity', 'swarmGravitySlider');
+    proxyInput('ctx-swarm-horizon', 'swarmHorizonSlider');
+    proxyInput('ctx-lightning-length', 'lightningLengthSlider');
+    proxyInput('ctx-lightning-freq', 'lightningFreqSlider');
+    proxyInput('ctx-lightning-bright', 'lightningBrightSlider');
+
+    // Environment tab
     proxyInput('ctx-grid', 'gridToggle');
-    proxyInput('ctx-ortho', 'orthoToggle');
-    proxyInput('ctx-fov', 'fovSlider');
     proxyInput('ctx-grid-bend', 'gridBendToggle');
     proxyInput('ctx-grid-mass', 'gridMassSlider');
-
-    // Context menu color proxies to gradient primary
-    document.getElementById('ctx-color').addEventListener('input', (e) => {
-        const v = e.target.value;
-        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
-            document.getElementById(k + 'Color1').value = v;
-            state.colors[k][0] = v;
-        });
-        updateAllColors();
-    });
-    document.getElementById('ctx-grid-color').addEventListener('input', (e) => {
-        document.getElementById('gridColor1').value = e.target.value;
-        state.colors.grid[0] = e.target.value;
-        updateAllColors();
-    });
+    proxyInput('ctx-grid3d', 'grid3dToggle');
+    proxyInput('ctx-grid3d-mode', 'grid3dRenderMode');
+    proxyInput('ctx-grid3d-density', 'grid3dDensitySlider');
+    proxyInput('ctx-grid3d-mass', 'grid3dMassSlider');
+    proxyInput('ctx-grid3d-radius', 'grid3dRadiusSlider');
+    proxyInput('ctx-grid3d-snowglobe', 'grid3dSnowGlobeToggle');
+    proxyInput('ctx-grid3d-probe', 'grid3dProbeToggle');
+    proxyInput('ctx-ortho', 'orthoToggle');
+    proxyInput('ctx-fov', 'fovSlider');
+    proxyInput('ctx-zdepth', 'zDepthSlider');
 
     // Preset select
     document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));
