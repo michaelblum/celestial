@@ -241,8 +241,6 @@ function getConfig() {
         grid3dRenderMode: state.grid3dRenderMode,
         grid3dDensity: state.grid3dDensity,
         grid3dRenderRadius: state.grid3dRenderRadius,
-        grid3dMass: state.grid3dMass,
-        grid3dEventHorizon: state.grid3dEventHorizon,
         grid3dSnowGlobe: state.grid3dSnowGlobe,
         grid3dShowProbe: state.grid3dShowProbe,
         grid3dRelativeMotion: state.grid3dRelativeMotion,
@@ -369,8 +367,7 @@ function applyConfig(c) {
     if (c.grid3dRenderMode !== undefined) setUI('grid3dRenderMode', c.grid3dRenderMode);
     if (c.grid3dDensity !== undefined) setUI('grid3dDensitySlider', c.grid3dDensity, c.grid3dDensity);
     if (c.grid3dRenderRadius !== undefined) setUI('grid3dRadiusSlider', c.grid3dRenderRadius, c.grid3dRenderRadius >= 30 ? 'Full' : c.grid3dRenderRadius.toFixed(1));
-    if (c.grid3dMass !== undefined) setUI('grid3dMassSlider', c.grid3dMass, c.grid3dMass);
-    if (c.grid3dEventHorizon !== undefined) setUI('grid3dHorizonSlider', c.grid3dEventHorizon, c.grid3dEventHorizon.toFixed(1));
+    // grid3dMass and grid3dEventHorizon removed — uses swarmGravity and z_depth instead
     if (c.grid3dSnowGlobe !== undefined) setUI('grid3dSnowGlobeToggle', c.grid3dSnowGlobe);
     if (c.grid3dShowProbe !== undefined) setUI('grid3dProbeToggle', c.grid3dShowProbe);
     if (c.grid3dRelativeMotion !== undefined) setUI('grid3dRelativeToggle', c.grid3dRelativeMotion);
@@ -697,7 +694,7 @@ export function setupUI() {
     proxyInput('ctx-grid3d', 'grid3dToggle');
     proxyInput('ctx-grid3d-mode', 'grid3dRenderMode');
     proxyInput('ctx-grid3d-density', 'grid3dDensitySlider');
-    proxyInput('ctx-grid3d-mass', 'grid3dMassSlider');
+    // grid3d mass/horizon proxies removed — uses swarmGravity and z_depth
     proxyInput('ctx-grid3d-radius', 'grid3dRadiusSlider');
     proxyInput('ctx-grid3d-snowglobe', 'grid3dSnowGlobeToggle');
     proxyInput('ctx-grid3d-probe', 'grid3dProbeToggle');
@@ -1034,14 +1031,6 @@ export function setupUI() {
     document.getElementById('grid3dRadiusSlider').addEventListener('input', (e) => {
         state.grid3dRenderRadius = parseFloat(e.target.value);
         document.getElementById('grid3dRadiusVal').innerText = state.grid3dRenderRadius >= 30 ? 'Full' : state.grid3dRenderRadius.toFixed(1);
-    });
-    document.getElementById('grid3dMassSlider').addEventListener('input', (e) => {
-        state.grid3dMass = parseInt(e.target.value);
-        document.getElementById('grid3dMassVal').innerText = state.grid3dMass;
-    });
-    document.getElementById('grid3dHorizonSlider').addEventListener('input', (e) => {
-        state.grid3dEventHorizon = parseFloat(e.target.value);
-        document.getElementById('grid3dHorizonVal').innerText = state.grid3dEventHorizon.toFixed(1);
     });
     document.getElementById('grid3dTimeSlider').addEventListener('input', (e) => {
         state.grid3dTimeScale = parseFloat(e.target.value);

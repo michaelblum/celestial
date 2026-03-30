@@ -274,8 +274,8 @@ export function animateGrid3d(dt) {
         return;
     }
 
-    const mass = state.grid3dMass;
-    const eventHorizon = state.grid3dEventHorizon;
+    const mass = state.swarmGravity;
+    const eventHorizon = state.z_depth * state.novaScale;
     const renderRadius = state.grid3dRenderRadius;
     const isBlackHole = state.isBlackHoleMode;
     const isSnowGlobe = state.grid3dSnowGlobe;

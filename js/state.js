@@ -203,8 +203,7 @@ const state = {
     grid3dRenderMode: 'wireframe',
     grid3dDensity: 16,
     grid3dRenderRadius: 30.0,
-    grid3dMass: 60,
-    grid3dEventHorizon: 2.0,
+    // grid3dMass and grid3dEventHorizon removed — uses swarmGravity and z_depth
     grid3dSnowGlobe: false,
     grid3dShowProbe: false,
     grid3dTimeScale: 1.0,
