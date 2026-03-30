@@ -159,15 +159,16 @@
         <!-- Environment panel -->
         <div id="ctx-environ" class="ctx-panel">
             <h3>Environment</h3>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-grid"> Show 2D Grid</label>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-grid-bend"> Space-Time Bend</label>
-            <label>Grid Mass</label>
-            <input type="range" id="ctx-grid-mass" min="0" max="3" step="0.1">
+            <label>Grid Mode</label>
+            <select id="ctx-grid-mode">
+                <option value="flat">2D Flat</option>
+                <option value="3d">3D Volumetric</option>
+                <option value="off">Off</option>
+            </select>
 
             <div class="ctx-submenu-trigger">
-                <span>3D Spacetime Grid &#9656;</span>
+                <span>Grid Settings &#9656;</span>
                 <div class="ctx-submenu">
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d"> Enable 3D Grid</label>
                     <label>Render Mode</label>
                     <select id="ctx-grid3d-mode">
                         <option value="wireframe">Wireframe</option>
@@ -795,33 +796,14 @@
                 <h2>Environment</h2>
 
                 <div class="control-group">
-                    <label class="checkbox-label"><input type="checkbox" id="gridToggle" checked> Show Background Grid</label>
-                    <div id="gridSettings">
-                        <div class="control-row" style="margin-top: 5px;">
-                            <label style="font-size:0.6rem;">Grid Colors</label>
-                            <div class="color-picker-group">
-                                <input type="color" id="gridColor1" value="#442266"><input type="color" id="gridColor2" value="#110022">
-                            </div>
-                        </div>
-                        <div class="control-row" style="margin-top: 10px;">
-                            <label>Granularity</label>
-                            <div class="val-display"><span id="gridDivsVal">30</span></div>
-                        </div>
-                        <input type="range" id="gridDivsSlider" min="5" max="100" step="1" value="30">
-
-                        <label class="checkbox-label" style="margin-top: 10px;"><input type="checkbox" id="gridBendToggle"> Space-Time Grid</label>
-                        <div class="control-row" style="margin-top: 5px;">
-                            <label>Mass</label>
-                            <div class="val-display"><span id="gridMassVal">0.0</span></div>
-                        </div>
-                        <input type="range" id="gridMassSlider" min="0" max="3" step="0.1" value="0.0">
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <label class="checkbox-label"><input type="checkbox" id="grid3dToggle"> 3D Spacetime Grid</label>
-                    <div id="grid3dSettings" style="display:none;">
-                        <div class="control-row" style="margin-top:5px;">
+                    <label>Spacetime Grid</label>
+                    <select id="gridModeSelect" style="margin-top:4px;">
+                        <option value="flat" selected>2D Flat</option>
+                        <option value="3d">3D Volumetric</option>
+                        <option value="off">Off</option>
+                    </select>
+                    <div id="gridSettings" style="margin-top:8px;">
+                        <div class="control-row">
                             <label style="font-size:0.6rem;">Render Mode</label>
                             <select id="grid3dRenderMode" style="width:auto; padding:2px;">
                                 <option value="wireframe">Wireframe</option>

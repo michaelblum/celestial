@@ -26,7 +26,7 @@ export function updatePathVisual() {
 
 export function animatePathing(dt) {
     // In 3D grid mode, the object stays at origin — no spinning, no pathing, no momentum
-    if (state.is3dGridEnabled) {
+    if (state.gridMode === '3d') {
         // Auto-move: sinusoidal drift like the 3D grid demo
         if (state.isPathEnabled) {
             state.grid3dTime = (state.grid3dTime || 0) + dt * state.grid3dTimeScale;

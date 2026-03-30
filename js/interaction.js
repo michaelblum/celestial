@@ -89,10 +89,7 @@ function _syncContextMenu() {
     sync('ctx-lightning-bright', 'lightningBrightSlider');
 
     // Environment tab
-    sync('ctx-grid', 'gridToggle');
-    sync('ctx-grid-bend', 'gridBendToggle');
-    sync('ctx-grid-mass', 'gridMassSlider');
-    sync('ctx-grid3d', 'grid3dToggle');
+    sync('ctx-grid-mode', 'gridModeSelect');
     sync('ctx-grid3d-mode', 'grid3dRenderMode');
     sync('ctx-grid3d-density', 'grid3dDensitySlider');
     sync('ctx-grid3d-mass', 'grid3dMassSlider');
@@ -140,7 +137,7 @@ export function setupInteraction() {
     window.addEventListener('wheel', (e) => {
         if (e.target.closest('#sidebar') || e.target.closest('.context-menu')) return;
         e.preventDefault();
-        if (state.is3dGridEnabled) {
+        if (state.gridMode === '3d') {
             // Orbit zoom: adjust radius and reposition camera
             if (!cameraOrbitInitialized) initCameraOrbit();
             cameraOrbitRadius = Math.max(3, Math.min(80, cameraOrbitRadius + e.deltaY * 0.02));
@@ -216,7 +213,7 @@ export function setupInteraction() {
             }, 0);
 
         } else if (e.button === 0) {
-            if (state.is3dGridEnabled) {
+            if (state.gridMode === '3d') {
                 // 3D grid mode: ALL left-click = camera orbit. No object interaction.
                 state.isDraggingObject = true;
                 state.previousMouse.x = e.clientX;
@@ -270,7 +267,7 @@ export function setupInteraction() {
             state.targetPosition.copy(state.polyGroup.position);
             state.previousMouse.x = e.clientX;
             state.previousMouse.y = e.clientY;
-        } else if (state.isDraggingObject && state.is3dGridEnabled) {
+        } else if (state.isDraggingObject && state.gridMode === '3d') {
             // Camera orbit mode: orbit camera around the object
             if (!cameraOrbitInitialized) initCameraOrbit();
             cameraOrbitTheta -= dx * 0.005;
@@ -313,7 +310,7 @@ export function setupInteraction() {
             if (state.isDraggingObject) {
                 state.isDraggingObject = false;
                 // No drag momentum in 3D grid mode (camera orbit doesn't fling the object)
-                if (!state.is3dGridEnabled) {
+                if (!state.gridMode === '3d') {
                     let speed = Math.sqrt(state.dragVelocity.x ** 2 + state.dragVelocity.y ** 2);
                     if (speed > 0.05) {
                         state.dragMomentumAxis.set(state.dragVelocity.y, state.dragVelocity.x, 0).normalize();

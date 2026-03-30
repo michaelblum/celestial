@@ -178,11 +178,8 @@ const state = {
     quickSpinSpeed: 0,
     quickSpinEndTime: 0,
 
-    // Grid (2D)
-    isGridEnabled: true,
-    isGridBending: false,
-    gridMass: 0.0,
-    gridDivs: 30,
+    // Grid (unified — off / flat / 3d)
+    gridMode: 'flat',
 
     // Particle Swarm (standalone phenomenon)
     isSwarmEnabled: false,
@@ -198,8 +195,7 @@ const state = {
     blackHoleDiskMesh: null,
     blackHoleHaloMesh: null,
 
-    // 3D Volumetric Grid
-    is3dGridEnabled: false,
+    // Grid 3D settings (shared by flat and 3d modes)
     grid3dRenderMode: 'wireframe',
     grid3dDensity: 16,
     grid3dRenderRadius: 30.0,

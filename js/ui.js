@@ -1,7 +1,7 @@
 import state from './state.js';
 import { updateGeometry } from './geometry.js';
 import { updateAllColors } from './colors.js';
-import { buildGrid, updateGridColors } from './grid.js';
+// grid.js removed — unified into grid3d.js
 import { updatePathVisual } from './pathing.js';
 import { applyPreset } from './presets.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
@@ -186,10 +186,7 @@ function getConfig() {
         accretion: state.isAccretionEnabled,
         gamma: state.isGammaEnabled,
         neutrinos: state.isNeutrinosEnabled,
-        grid: state.isGridEnabled,
-        gridDivs: state.gridDivs,
-        gridBend: state.isGridBending,
-        gridMass: state.gridMass,
+        // Old 2D grid fields removed — unified into gridMode
         ortho: document.getElementById('orthoToggle').checked,
         fov: state.perspCamera.fov,
         rangeMin: state.depth_range.min,
@@ -237,7 +234,7 @@ function getConfig() {
         swarmTimeScale: state.swarmTimeScale,
         blackHoleMode: state.isBlackHoleMode,
         // 3D Grid
-        grid3d: state.is3dGridEnabled,
+        gridMode: state.gridMode,
         grid3dRenderMode: state.grid3dRenderMode,
         grid3dDensity: state.grid3dDensity,
         grid3dRenderRadius: state.grid3dRenderRadius,
@@ -298,10 +295,7 @@ function applyConfig(c) {
     if (c.accretion !== undefined) setUI('accretionToggle', c.accretion);
     if (c.gamma !== undefined) setUI('gammaToggle', c.gamma);
     if (c.neutrinos !== undefined) setUI('neutrinoToggle', c.neutrinos);
-    if (c.grid !== undefined) setUI('gridToggle', c.grid);
-    if (c.gridDivs !== undefined) setUI('gridDivsSlider', c.gridDivs, c.gridDivs);
-    if (c.gridBend !== undefined) setUI('gridBendToggle', c.gridBend);
-    if (c.gridMass !== undefined) setUI('gridMassSlider', c.gridMass, c.gridMass.toFixed(1));
+    if (c.gridMode !== undefined) setUI('gridModeSelect', c.gridMode);
     if (c.ortho !== undefined) setUI('orthoToggle', c.ortho);
     if (c.fov !== undefined) setUI('fovSlider', c.fov, c.fov);
     if (c.rangeMin !== undefined) setUI('rangeMin', c.rangeMin, c.rangeMin.toFixed(2));
@@ -363,7 +357,7 @@ function applyConfig(c) {
     if (c.blackHoleMode !== undefined) setUI('blackHoleModeToggle', c.blackHoleMode);
 
     // 3D Grid
-    if (c.grid3d !== undefined) setUI('grid3dToggle', c.grid3d);
+    // grid3dToggle removed — unified into gridMode
     if (c.grid3dRenderMode !== undefined) setUI('grid3dRenderMode', c.grid3dRenderMode);
     if (c.grid3dDensity !== undefined) setUI('grid3dDensitySlider', c.grid3dDensity, c.grid3dDensity);
     if (c.grid3dRenderRadius !== undefined) setUI('grid3dRadiusSlider', c.grid3dRenderRadius, c.grid3dRenderRadius >= 30 ? 'Full' : c.grid3dRenderRadius.toFixed(1));
@@ -413,7 +407,7 @@ function randomizeAll(seed) {
     let aInt = (rng() * 3).toFixed(2); setUI('auraIntensitySlider', aInt, aInt);
     let spin = (rng() * 0.025).toFixed(3); setUI('idleSpinSlider', spin, spin);
     let pulse = (rng() * 0.019 + 0.001).toFixed(3); setUI('pulseRateSlider', pulse, pulse);
-    let mass = (rng() * 3).toFixed(1); setUI('gridMassSlider', mass, mass);
+    // Old gridMass randomization removed — unified grid
 
     setUI('pathToggle', rng() > 0.5);
     setUI('centeredViewToggle', rng() > 0.5);
@@ -451,8 +445,7 @@ function randomizeAll(seed) {
     setUI('maskToggle', rng() > 0.5);
     setUI('interiorEdgesToggle', rng() > 0.5);
     setUI('specularToggle', rng() > 0.5);
-    setUI('gridToggle', rng() > 0.5);
-    setUI('gridBendToggle', rng() > 0.2);
+    setUI('gridModeSelect', rng() > 0.5 ? '3d' : 'flat');
 
     if (state.camera.isPerspectiveCamera) {
         state.perspCamera.position.z = rng() * 20 + 5;
@@ -688,9 +681,7 @@ export function setupUI() {
     proxyInput('ctx-lightning-bright', 'lightningBrightSlider');
 
     // Environment tab
-    proxyInput('ctx-grid', 'gridToggle');
-    proxyInput('ctx-grid-bend', 'gridBendToggle');
-    proxyInput('ctx-grid-mass', 'gridMassSlider');
+    proxyInput('ctx-grid-mode', 'gridModeSelect');
     proxyInput('ctx-grid3d', 'grid3dToggle');
     proxyInput('ctx-grid3d-mode', 'grid3dRenderMode');
     proxyInput('ctx-grid3d-density', 'grid3dDensitySlider');
@@ -996,31 +987,14 @@ export function setupUI() {
         document.getElementById('trailLengthVal').innerText = state.trailLength;
     });
 
-    // Grid
-    document.getElementById('gridToggle').addEventListener('change', (e) => {
-        state.isGridEnabled = e.target.checked;
-        document.getElementById('gridSettings').style.display = state.isGridEnabled ? 'block' : 'none';
-        buildGrid();
-    });
-    document.getElementById('gridDivsSlider').addEventListener('input', (e) => {
-        state.gridDivs = parseInt(e.target.value);
-        document.getElementById('gridDivsVal').innerText = state.gridDivs;
-        buildGrid();
-    });
-    document.getElementById('gridBendToggle').addEventListener('change', (e) => { state.isGridBending = e.target.checked; });
-    document.getElementById('gridMassSlider').addEventListener('input', (e) => {
-        state.gridMass = parseFloat(e.target.value);
-        document.getElementById('gridMassVal').innerText = state.gridMass.toFixed(1);
-    });
-
-    // 3D Volumetric Grid
-    document.getElementById('grid3dToggle').addEventListener('change', (e) => {
-        state.is3dGridEnabled = e.target.checked;
-        if (!e.target.checked) resetCameraOrbit();
-        document.getElementById('grid3dSettings').style.display = e.target.checked ? 'block' : 'none';
-        // Hide 2D grid when 3D is active
-        if (e.target.checked && state.gridHelper) state.gridHelper.visible = false;
-        else if (!e.target.checked && state.isGridEnabled && state.gridHelper) state.gridHelper.visible = true;
+    // Unified Grid Mode
+    document.getElementById('gridModeSelect').addEventListener('change', (e) => {
+        state.gridMode = e.target.value;
+        document.getElementById('gridSettings').style.display = state.gridMode !== 'off' ? 'block' : 'none';
+        // Hide old 2D grid (no longer used)
+        if (state.gridHelper) state.gridHelper.visible = false;
+        if (state.gridMode === 'off') resetCameraOrbit();
+        rebuildGrid3d();
     });
     document.getElementById('grid3dRenderMode').addEventListener('change', (e) => { state.grid3dRenderMode = e.target.value; });
     document.getElementById('grid3dDensitySlider').addEventListener('input', (e) => {
@@ -1127,8 +1101,7 @@ export function setupEditableLabels() {
     makeEditable('auraReachVal', 0, 3, true, (val) => { document.getElementById('auraReachSlider').value = val; state.auraReach = val; });
     makeEditable('auraIntensityVal', 0, 3, true, (val) => { document.getElementById('auraIntensitySlider').value = val; state.auraIntensity = val; });
     makeEditable('pulseRateVal', 0.001, 0.02, true, (val) => { document.getElementById('pulseRateSlider').value = val; state.auraPulseRate = val; });
-    makeEditable('gridDivsVal', 5, 100, false, (val) => { document.getElementById('gridDivsSlider').value = val; state.gridDivs = val; buildGrid(); });
-    makeEditable('gridMassVal', 0, 3, true, (val) => { document.getElementById('gridMassSlider').value = val; state.gridMass = val; });
+    // Old 2D grid editables removed — unified into grid3d
     makeEditable('fovVal', 10, 120, false, (val) => { document.getElementById('fovSlider').value = val; updateFOV(val); });
     makeEditable('rangeMinVal', 0.25, () => state.depth_range.max, true, (val) => { document.getElementById('rangeMin').value = val; state.depth_range.min = val; handleRangeChange(); });
     makeEditable('rangeMaxVal', () => state.depth_range.min, 3.00, true, (val) => { document.getElementById('rangeMax').value = val; state.depth_range.max = val; handleRangeChange(); });

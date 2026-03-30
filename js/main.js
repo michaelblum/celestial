@@ -5,7 +5,7 @@ import { updateAllColors } from './colors.js';
 import { createAuraObjects, animateAura } from './aura.js';
 import { createPhenomena, animatePhenomena } from './phenomena.js';
 import { createParticleObjects, animateParticles, animateTrails, fireExplosion, fireSuperNova } from './particles.js';
-import { buildGrid, animateGrid } from './grid.js';
+// grid.js removed — unified into grid3d.js
 import { setupInteraction } from './interaction.js';
 import { animatePathing } from './pathing.js';
 import { setupUI, setupEditableLabels } from './ui.js';
@@ -17,7 +17,7 @@ import { createSwarm, animateSwarm } from './swarm.js';
 
 function init() {
     initScene();
-    buildGrid();
+    // Old 2D grid removed — unified into grid3d
     createAuraObjects();
     createParticleObjects();
     createPhenomena();
@@ -65,7 +65,7 @@ function animate() {
 
     // Module animations
     animatePathing(dt);
-    animateGrid();
+    // Old animateGrid() removed — unified into grid3d
     animateGrid3d(dt);
     animateSwarm(dt);
     animateParticles(dt);

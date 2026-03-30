@@ -72,22 +72,34 @@ function hslToRgb(h, s, l) {
 
 // ── Grid construction ──────────────────────────────────────────────────────
 function buildGrid3dInternal(density) {
+    const isFlat = state.gridMode === 'flat';
     const spacing = UNIVERSE_SIZE / density;
     const halfSize = UNIVERSE_SIZE / 2;
-    vertexCount = density * density * density;
+    const yLayers = isFlat ? 1 : density;
+    vertexCount = density * yLayers * density;
 
     basePositions = new Float32Array(vertexCount * 3);
     positions = new Float32Array(vertexCount * 3);
     colors = new Float32Array(vertexCount * 3);
 
     // Fill base positions
+    // Flat mode: XY plane at z=-8 (backdrop like old 2D grid), larger scale
+    const flatZ = -8;
+    const flatScale = isFlat ? 4.0 : 1.0; // Flat grid is 4x larger to fill backdrop
     let idx = 0;
     for (let ix = 0; ix < density; ix++) {
-        for (let iy = 0; iy < density; iy++) {
+        for (let iy = 0; iy < yLayers; iy++) {
             for (let iz = 0; iz < density; iz++) {
-                basePositions[idx]     = -halfSize + ix * spacing + spacing * 0.5;
-                basePositions[idx + 1] = -halfSize + iy * spacing + spacing * 0.5;
-                basePositions[idx + 2] = -halfSize + iz * spacing + spacing * 0.5;
+                if (isFlat) {
+                    // XY plane at z=flatZ
+                    basePositions[idx]     = (-halfSize + ix * spacing + spacing * 0.5) * flatScale;
+                    basePositions[idx + 1] = (-halfSize + iz * spacing + spacing * 0.5) * flatScale;
+                    basePositions[idx + 2] = flatZ;
+                } else {
+                    basePositions[idx]     = -halfSize + ix * spacing + spacing * 0.5;
+                    basePositions[idx + 1] = -halfSize + iy * spacing + spacing * 0.5;
+                    basePositions[idx + 2] = -halfSize + iz * spacing + spacing * 0.5;
+                }
                 idx += 3;
             }
         }
@@ -101,23 +113,23 @@ function buildGrid3dInternal(density) {
         colors[i + 2] = 0.6;
     }
 
-    // Build index buffer for line segments (connect to X+1, Y+1, Z+1 neighbors)
+    // Build index buffer for line segments
     const indices = [];
     for (let ix = 0; ix < density; ix++) {
-        for (let iy = 0; iy < density; iy++) {
+        for (let iy = 0; iy < yLayers; iy++) {
             for (let iz = 0; iz < density; iz++) {
-                const current = ix * density * density + iy * density + iz;
+                const current = ix * yLayers * density + iy * density + iz;
                 // X+1 neighbor
                 if (ix < density - 1) {
-                    indices.push(current, (ix + 1) * density * density + iy * density + iz);
+                    indices.push(current, (ix + 1) * yLayers * density + iy * density + iz);
                 }
-                // Y+1 neighbor
-                if (iy < density - 1) {
-                    indices.push(current, ix * density * density + (iy + 1) * density + iz);
+                // Y+1 neighbor (only in 3D mode)
+                if (!isFlat && iy < yLayers - 1) {
+                    indices.push(current, ix * yLayers * density + (iy + 1) * density + iz);
                 }
                 // Z+1 neighbor
                 if (iz < density - 1) {
-                    indices.push(current, ix * density * density + iy * density + (iz + 1));
+                    indices.push(current, ix * yLayers * density + iy * density + (iz + 1));
                 }
             }
         }
@@ -257,13 +269,13 @@ export function rebuildGrid3d() {
 
     // Apply current visibility
     const isWireframe = state.grid3dRenderMode === 'wireframe';
-    state.grid3dMesh.visible = state.is3dGridEnabled && isWireframe;
-    state.grid3dPointCloud.visible = state.is3dGridEnabled && !isWireframe;
+    state.grid3dMesh.visible = state.gridMode !== 'off' && isWireframe;
+    state.grid3dPointCloud.visible = state.gridMode !== 'off' && !isWireframe;
 }
 
 export function animateGrid3d(dt) {
     // ── Visibility gate ────────────────────────────────────────────────
-    if (!state.is3dGridEnabled) {
+    if (state.gridMode === 'off') {
         const meshes = [
             state.grid3dMesh, state.grid3dPointCloud,
             state.grid3dProbeMesh, state.grid3dGlobeMesh
