@@ -374,20 +374,18 @@ export function animateGrid3d(dt) {
                 light = 0.08 + intensity * 0.45;
             }
 
-            // ── Visibility fade ────────────────────────────────────────
+            // ── Visibility fade (distance from mass, not origin) ─────
             let alpha = 1.0;
-            const distFromOrigin = Math.sqrt(
-                bx * bx + by * by + bz * bz
-            );
+            const distFromMass = dist;
             if (isSnowGlobe) {
                 // Hard cutoff
-                if (distFromOrigin > renderRadius) {
+                if (distFromMass > renderRadius) {
                     alpha = 0.0;
                 }
             } else {
                 // Soft fade at render radius
-                if (distFromOrigin > renderRadius * 0.7) {
-                    alpha = Math.max(0, 1.0 - (distFromOrigin - renderRadius * 0.7) / (renderRadius * 0.3));
+                if (distFromMass > renderRadius * 0.7) {
+                    alpha = Math.max(0, 1.0 - (distFromMass - renderRadius * 0.7) / (renderRadius * 0.3));
                 }
             }
 
