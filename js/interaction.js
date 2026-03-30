@@ -121,7 +121,12 @@ export function setupInteraction() {
             }, 0);
 
         } else if (e.button === 0) {
-            if (e.shiftKey) {
+            if (state.is3dGridEnabled) {
+                // 3D grid mode: ALL left-click = camera orbit. No object interaction.
+                state.isDraggingObject = true;
+                state.previousMouse.x = e.clientX;
+                state.previousMouse.y = e.clientY;
+            } else if (e.shiftKey) {
                 if (intersects) {
                     state.isPanningObject = true;
                 } else {
@@ -130,14 +135,7 @@ export function setupInteraction() {
                 state.previousMouse.x = e.clientX;
                 state.previousMouse.y = e.clientY;
             } else {
-                if (state.is3dGridEnabled) {
-                    // In 3D grid mode, all left-drag orbits the camera
-                    state.isDraggingObject = true;
-                    state.previousMouse.x = e.clientX;
-                    state.previousMouse.y = e.clientY;
-                    state.dragVelocity = { x: 0, y: 0 };
-                    state.dragMomentumSpeed = 0;
-                } else if (intersects) {
+                if (intersects) {
                     state.isDraggingObject = true;
                     state.previousMouse.x = e.clientX;
                     state.previousMouse.y = e.clientY;

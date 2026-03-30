@@ -25,6 +25,23 @@ export function updatePathVisual() {
 }
 
 export function animatePathing(dt) {
+    // In 3D grid mode, the object stays at origin — no spinning, no pathing, no momentum
+    if (state.is3dGridEnabled) {
+        // Auto-move: sinusoidal drift like the 3D grid demo
+        if (state.isPathEnabled) {
+            state.grid3dTime = (state.grid3dTime || 0) + dt * state.grid3dTimeScale;
+            const t = state.grid3dTime;
+            state.polyGroup.position.set(
+                Math.sin(t) * 6,
+                Math.sin(t * 1.5) * 3,
+                Math.cos(t * 0.8) * 6
+            );
+        }
+        // Keep camera looking at origin
+        state.camera.lookAt(0, 0, 0);
+        return;
+    }
+
     const isMotionPaused = state.isPaused || state.isMenuOpen || state.isDraggingObject || state.isPanningObject || state.isPanningCamera;
 
     // Camera tracking

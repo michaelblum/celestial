@@ -209,6 +209,7 @@ const state = {
     grid3dShowProbe: false,
     grid3dTimeScale: 1.0,
     grid3dRelativeMotion: false,
+    grid3dTime: 0,
     // 3D Grid object refs (set during init)
     grid3dMesh: null,
     grid3dPointCloud: null,
