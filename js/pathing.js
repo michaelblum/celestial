@@ -1,5 +1,8 @@
 import state from './state.js';
 
+// Fixed spin axis — avoids gimbal lock from Euler accumulation
+const _spinAxis = new THREE.Vector3(0.5, 1.0, 0).normalize();
+
 export function updatePathVisual() {
     if (state.pathLine) {
         state.scene.remove(state.pathLine);
@@ -94,8 +97,7 @@ export function animatePathing(dt) {
             if (!state.isPathEnabled) state.moveRotationSpeed *= 0.96;
         }
 
-        state.polyGroup.rotation.x += activeRotationSpeed;
-        state.polyGroup.rotation.y += activeRotationSpeed;
+        state.polyGroup.rotateOnWorldAxis(_spinAxis, activeRotationSpeed);
     }
 
     // Residual momentum
@@ -103,4 +105,7 @@ export function animatePathing(dt) {
         state.polyGroup.rotateOnWorldAxis(state.dragMomentumAxis, state.dragMomentumSpeed);
         state.dragMomentumSpeed *= 0.95;
     }
+
+    // Normalize quaternion to prevent floating-point drift
+    state.polyGroup.quaternion.normalize();
 }

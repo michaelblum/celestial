@@ -55,6 +55,10 @@ const state = {
         accretion: ['#bc13fe', '#4a2b6e'],
         gamma: ['#ffffff', '#00ffff'],
         neutrino: ['#bc13fe', '#4a2b6e'],
+        lightning: ['#ffffff', '#00ffff'],
+        magnetic: ['#bc13fe', '#4a2b6e'],
+        omegaFace: ['#4a2b6e', '#1a0b2e'],
+        omegaEdge: ['#bc13fe', '#4a2b6e'],
         grid: ['#442266', '#110022']
     },
 
@@ -81,6 +85,70 @@ const state = {
     isAccretionEnabled: false,
     isGammaEnabled: false,
     isNeutrinosEnabled: false,
+
+    // Multi-instance counts
+    pulsarRayCount: 1,
+    accretionDiskCount: 1,
+    gammaRayCount: 1,
+    neutrinoJetCount: 1,
+
+    // Shared geometry refs (for multi-instance cloning)
+    pulsarGeo: null,
+    gammaGeo: null,
+
+    // Turbulence system
+    globalTime: 0,
+    turbState: {
+        p: { val: 0, spd: 1.0, mod: 'uniform' },
+        a: { val: 0, spd: 1.0, mod: 'uniform' },
+        g: { val: 0, spd: 1.0, mod: 'uniform' },
+        n: { val: 0, spd: 1.0, mod: 'uniform' }
+    },
+
+    // Lightning Arcs
+    isLightningEnabled: false,
+    lightningOriginCenter: true,
+    lightningSolidBlock: false,
+    lightningBoltLength: 100,
+    lightningFrequency: 2.0,
+    lightningDuration: 0.8,
+    lightningBranching: 0.08,
+    lightningBrightness: 1.0,
+    lightningTimer: 0,
+    lightningStrikes: [],
+
+    // Magnetic Field
+    isMagneticEnabled: false,
+    magneticTentacleSpeed: 1.0,
+    magneticTentacleCount: 10,
+    magneticWander: 3.0,
+    magneticTentacleGroup: null,
+    magneticTentacles: [],
+
+    // Omega Shape
+    isOmegaEnabled: false,
+    omegaGroup: null,
+    omegaCoreMesh: null,
+    omegaWireframeMesh: null,
+    omegaDepthMesh: null,
+    omegaGeometryType: 6,
+    omegaStellationFactor: 0.0,
+    omegaOpacity: 0.15,
+    omegaEdgeOpacity: 0.8,
+    omegaScale: 1.5,
+    omegaIsMaskEnabled: true,
+    omegaIsInteriorEdgesEnabled: true,
+    omegaIsSpecularEnabled: false,
+    omegaCounterSpin: false,
+    omegaLockPosition: false,
+    omegaInterDimensional: false,
+    omegaGhostCount: 10,
+    omegaGhostMode: 'fade',
+    omegaGhostDuration: 2.0,
+    omegaGhosts: [],
+    omegaGhostMeshPool: [],
+    omegaLagFactor: 0.05,
+    omegaGhostTimer: 0,
 
     // Voxel flash
     voxelFlashTimer: 0,
@@ -160,7 +228,10 @@ const state = {
     segmentProgress: 0,
 
     // Force aura visible flag (used during charge)
-    forceAuraVisible: false
+    forceAuraVisible: false,
+
+    // Charge beam sequence state (saved/restored during supernova charge)
+    chargeSequence: null
 };
 
 export default state;

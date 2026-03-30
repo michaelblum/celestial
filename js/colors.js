@@ -1,4 +1,7 @@
 import state from './state.js';
+import { updateLightningColors } from './lightning.js';
+import { updateMagneticColors } from './magnetic.js';
+import { updateOmegaColors } from './omega.js';
 
 export function hexToRgba(hex, alpha) {
     let c;
@@ -179,4 +182,9 @@ export function updateAllColors() {
         drawAccretionTexture(canv, ctx, state.colors.accretion[0], state.colors.accretion[1]));
     updateMaterialTexture(state.neutrinoMat, (canv, ctx) =>
         drawAuraTexture(canv, ctx, state.colors.neutrino[0], state.colors.neutrino[1], true));
+
+    // Lightning, magnetic, omega colors
+    updateLightningColors();
+    updateMagneticColors();
+    updateOmegaColors();
 }

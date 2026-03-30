@@ -4,6 +4,20 @@ import { updateAllColors } from './colors.js';
 import { buildGrid, updateGridColors } from './grid.js';
 import { updatePathVisual } from './pathing.js';
 import { applyPreset } from './presets.js';
+import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
+import { updateOmegaGeometry } from './geometry.js';
+
+// --- Seeded PRNG (mulberry32) ---
+function mulberry32(seed) {
+    return function() {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+
+let _currentSeed = null;
 
 function makeEditable(id, getMin, getMax, isFloat, onChange) {
     const el = document.getElementById(id);
@@ -179,7 +193,37 @@ function getConfig() {
         rangeMin: state.depth_range.min,
         rangeMax: state.depth_range.max,
         zDepth: state.z_depth,
-        steps: state.steps
+        steps: state.steps,
+        pulsarCount: state.pulsarRayCount,
+        accretionCount: state.accretionDiskCount,
+        gammaCount: state.gammaRayCount,
+        neutrinoCount: state.neutrinoJetCount,
+        turbState: JSON.parse(JSON.stringify(state.turbState)),
+        lightning: state.isLightningEnabled,
+        lightningOriginCenter: state.lightningOriginCenter,
+        lightningSolidBlock: state.lightningSolidBlock,
+        // (lightningShowShell removed)
+        lightningBoltLength: state.lightningBoltLength,
+        lightningFrequency: state.lightningFrequency,
+        lightningDuration: state.lightningDuration,
+        lightningBranching: state.lightningBranching,
+        lightningBrightness: state.lightningBrightness,
+        magnetic: state.isMagneticEnabled,
+        magneticTentacleCount: state.magneticTentacleCount,
+        magneticTentacleSpeed: state.magneticTentacleSpeed,
+        magneticWander: state.magneticWander,
+        omega: state.isOmegaEnabled,
+        omegaGeometryType: state.omegaGeometryType,
+        omegaStellationFactor: state.omegaStellationFactor,
+        omegaScale: state.omegaScale,
+        omegaOpacity: state.omegaOpacity,
+        omegaEdgeOpacity: state.omegaEdgeOpacity,
+        omegaCounterSpin: state.omegaCounterSpin,
+        omegaLockPosition: state.omegaLockPosition,
+        omegaInterDimensional: state.omegaInterDimensional,
+        omegaGhostCount: state.omegaGhostCount,
+        omegaGhostMode: state.omegaGhostMode,
+        omegaGhostDuration: state.omegaGhostDuration
     };
 }
 
@@ -244,10 +288,62 @@ function applyConfig(c) {
     if (c.zDepth !== undefined) setUI('zDepthSlider', c.zDepth, c.zDepth.toFixed(2));
     if (c.steps !== undefined) { state.steps = c.steps; updateStepsUI(); }
 
+    // Restore multi-instance counts
+    if (c.pulsarCount !== undefined) { state.pulsarRayCount = c.pulsarCount; setUI('pulsarCount', c.pulsarCount); updatePulsars(c.pulsarCount); }
+    if (c.accretionCount !== undefined) { state.accretionDiskCount = c.accretionCount; setUI('accretionCount', c.accretionCount); updateAccretion(c.accretionCount); }
+    if (c.gammaCount !== undefined) { state.gammaRayCount = c.gammaCount; setUI('gammaCount', c.gammaCount); updateGammaRays(c.gammaCount); }
+    if (c.neutrinoCount !== undefined) { state.neutrinoJetCount = c.neutrinoCount; setUI('neutrinoCount', c.neutrinoCount); updateNeutrinos(c.neutrinoCount); }
+
+    // Restore turbulence state
+    if (c.turbState) {
+        ['p', 'a', 'g', 'n'].forEach(k => {
+            if (c.turbState[k]) {
+                state.turbState[k] = { ...state.turbState[k], ...c.turbState[k] };
+                setUI(`${k}TurbSlider`, state.turbState[k].val, state.turbState[k].val.toFixed(2));
+                setUI(`${k}TurbSpdSlider`, state.turbState[k].spd, state.turbState[k].spd.toFixed(1));
+                document.getElementById(`${k}TurbMod`).value = state.turbState[k].mod;
+            }
+        });
+    }
+
+    // Restore lightning state
+    if (c.lightning !== undefined) setUI('lightningToggle', c.lightning);
+    if (c.lightningOriginCenter !== undefined) setUI('lightningOriginCenter', c.lightningOriginCenter);
+    if (c.lightningSolidBlock !== undefined) setUI('lightningSolidBlock', c.lightningSolidBlock);
+    // (lightningShowShell removed)
+    if (c.lightningBoltLength !== undefined) setUI('lightningLengthSlider', c.lightningBoltLength, c.lightningBoltLength);
+    if (c.lightningFrequency !== undefined) setUI('lightningFreqSlider', c.lightningFrequency, c.lightningFrequency.toFixed(1));
+    if (c.lightningDuration !== undefined) setUI('lightningDurSlider', c.lightningDuration, c.lightningDuration.toFixed(1));
+    if (c.lightningBranching !== undefined) setUI('lightningBranchSlider', c.lightningBranching, c.lightningBranching.toFixed(2));
+    if (c.lightningBrightness !== undefined) setUI('lightningBrightSlider', c.lightningBrightness, c.lightningBrightness.toFixed(1));
+    // Magnetic field
+    if (c.magnetic !== undefined) setUI('magneticToggle', c.magnetic);
+    if (c.magneticTentacleCount !== undefined) setUI('magneticCountSlider', c.magneticTentacleCount, c.magneticTentacleCount);
+    if (c.magneticTentacleSpeed !== undefined) setUI('magneticSpeedSlider', c.magneticTentacleSpeed, c.magneticTentacleSpeed.toFixed(1));
+    if (c.magneticWander !== undefined) setUI('magneticWanderSlider', c.magneticWander, c.magneticWander.toFixed(1));
+
+    // Omega
+    if (c.omega !== undefined) setUI('omegaToggle', c.omega);
+    if (c.omegaGeometryType !== undefined) setUI('omegaShapeSelect', c.omegaGeometryType);
+    if (c.omegaStellationFactor !== undefined) setUI('omegaStellationSlider', c.omegaStellationFactor, c.omegaStellationFactor.toFixed(2));
+    if (c.omegaScale !== undefined) setUI('omegaScaleSlider', c.omegaScale, c.omegaScale.toFixed(2));
+    if (c.omegaOpacity !== undefined) setUI('omegaOpacitySlider', c.omegaOpacity, c.omegaOpacity.toFixed(2));
+    if (c.omegaEdgeOpacity !== undefined) setUI('omegaEdgeOpacitySlider', c.omegaEdgeOpacity, c.omegaEdgeOpacity.toFixed(2));
+
     updateAllColors();
 }
 
-function randomizeAll() {
+function randomizeAll(seed) {
+    // Seeded PRNG: same seed = same result
+    if (seed === undefined) seed = Math.floor(Math.random() * 999999);
+    _currentSeed = seed;
+    const rng = mulberry32(seed);
+
+    // Update URL with seed (without reload)
+    const url = new URL(window.location);
+    url.searchParams.set('seed', seed);
+    window.history.replaceState({}, '', url);
+
     const setUI = (id, val, strVal) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -265,45 +361,66 @@ function randomizeAll() {
     };
 
     const shapes = [4, 6, 8, 12, 20, 90, 91, 100];
-    setUI('shapeSelect', shapes[Math.floor(Math.random() * shapes.length)]);
+    setUI('shapeSelect', shapes[Math.floor(rng() * shapes.length)]);
 
-    let stellation = (Math.random() * 3 - 1).toFixed(2); setUI('stellationSlider', stellation, stellation);
-    let opacity = Math.random().toFixed(2); setUI('opacitySlider', opacity, opacity);
-    let edgeOpacity = (Math.random() * 0.8 + 0.2).toFixed(2); setUI('edgeOpacitySlider', edgeOpacity, edgeOpacity);
-    let aReach = (Math.random() * 3).toFixed(2); setUI('auraReachSlider', aReach, aReach);
-    let aInt = (Math.random() * 3).toFixed(2); setUI('auraIntensitySlider', aInt, aInt);
-    let spin = (Math.random() * 0.025).toFixed(3); setUI('idleSpinSlider', spin, spin);
-    let pulse = (Math.random() * 0.019 + 0.001).toFixed(3); setUI('pulseRateSlider', pulse, pulse);
-    let mass = (Math.random() * 3).toFixed(1); setUI('gridMassSlider', mass, mass);
+    let stellation = (rng() * 3 - 1).toFixed(2); setUI('stellationSlider', stellation, stellation);
+    let opacity = rng().toFixed(2); setUI('opacitySlider', opacity, opacity);
+    let edgeOpacity = (rng() * 0.8 + 0.2).toFixed(2); setUI('edgeOpacitySlider', edgeOpacity, edgeOpacity);
+    let aReach = (rng() * 3).toFixed(2); setUI('auraReachSlider', aReach, aReach);
+    let aInt = (rng() * 3).toFixed(2); setUI('auraIntensitySlider', aInt, aInt);
+    let spin = (rng() * 0.025).toFixed(3); setUI('idleSpinSlider', spin, spin);
+    let pulse = (rng() * 0.019 + 0.001).toFixed(3); setUI('pulseRateSlider', pulse, pulse);
+    let mass = (rng() * 3).toFixed(1); setUI('gridMassSlider', mass, mass);
 
-    setUI('pathToggle', Math.random() > 0.5);
-    setUI('centeredViewToggle', Math.random() > 0.5);
-    setUI('pathTypeSelect', Math.random() > 0.5 ? 'curve' : 'direct');
-    setUI('trailToggle', Math.random() > 0.5);
-    setUI('pulsarToggle', Math.random() > 0.7);
-    setUI('accretionToggle', Math.random() > 0.7);
-    setUI('gammaToggle', Math.random() > 0.7);
-    setUI('neutrinoToggle', Math.random() > 0.7);
+    setUI('pathToggle', rng() > 0.5);
+    setUI('centeredViewToggle', rng() > 0.5);
+    setUI('pathTypeSelect', rng() > 0.5 ? 'curve' : 'direct');
+    setUI('trailToggle', rng() > 0.5);
+    setUI('pulsarToggle', rng() > 0.7);
+    setUI('accretionToggle', rng() > 0.7);
+    setUI('gammaToggle', rng() > 0.7);
+    setUI('neutrinoToggle', rng() > 0.7);
+    setUI('lightningToggle', rng() > 0.7);
+    setUI('magneticToggle', rng() > 0.7);
+    setUI('omegaToggle', rng() > 0.5);
 
-    let tailLen = Math.floor(Math.random() * 190 + 10); setUI('trailLengthSlider', tailLen, tailLen);
-    let spd = (Math.random() * 9.9 + 0.1).toFixed(1); setUI('speedSlider', spd, spd);
+    // Randomize counts (reset to 1)
+    ['pulsarCount', 'accretionCount', 'gammaCount', 'neutrinoCount'].forEach(id => setUI(id, 1));
+    state.pulsarRayCount = 1; state.accretionDiskCount = 1; state.gammaRayCount = 1; state.neutrinoJetCount = 1;
+    updatePulsars(1); updateGammaRays(1); updateAccretion(1); updateNeutrinos(1);
 
-    setUI('maskToggle', Math.random() > 0.5);
-    setUI('interiorEdgesToggle', Math.random() > 0.5);
-    setUI('specularToggle', Math.random() > 0.5);
-    setUI('gridToggle', Math.random() > 0.5);
-    setUI('gridBendToggle', Math.random() > 0.2);
+    // Randomize turbulence
+    ['p', 'a', 'g', 'n'].forEach(k => {
+        let tVal = (rng() * 0.5).toFixed(2);
+        let tSpd = (rng() * 4 + 0.5).toFixed(1);
+        let tMod = ['uniform', 'staggered', 'random'][Math.floor(rng() * 3)];
+        setUI(`${k}TurbSlider`, tVal, tVal);
+        setUI(`${k}TurbSpdSlider`, tSpd, tSpd);
+        document.getElementById(`${k}TurbMod`).value = tMod;
+        state.turbState[k].val = parseFloat(tVal);
+        state.turbState[k].spd = parseFloat(tSpd);
+        state.turbState[k].mod = tMod;
+    });
+
+    let tailLen = Math.floor(rng() * 190 + 10); setUI('trailLengthSlider', tailLen, tailLen);
+    let spd = (rng() * 9.9 + 0.1).toFixed(1); setUI('speedSlider', spd, spd);
+
+    setUI('maskToggle', rng() > 0.5);
+    setUI('interiorEdgesToggle', rng() > 0.5);
+    setUI('specularToggle', rng() > 0.5);
+    setUI('gridToggle', rng() > 0.5);
+    setUI('gridBendToggle', rng() > 0.2);
 
     if (state.camera.isPerspectiveCamera) {
-        state.perspCamera.position.z = Math.random() * 20 + 5;
+        state.perspCamera.position.z = rng() * 20 + 5;
     } else {
-        state.orthoCamera.zoom = Math.random() * 4 + 0.5;
+        state.orthoCamera.zoom = rng() * 4 + 0.5;
         state.orthoCamera.updateProjectionMatrix();
     }
 
-    if (Math.random() > 0.5) {
-        let c1 = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-        let c2 = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+    if (rng() > 0.5) {
+        let c1 = '#' + Math.floor(rng() * 16777215).toString(16).padStart(6, '0');
+        let c2 = '#' + Math.floor(rng() * 16777215).toString(16).padStart(6, '0');
         setUI('masterColor1', c1);
         setUI('masterColor2', c2);
     }
@@ -362,21 +479,32 @@ export function setupUI() {
     });
 
     // Action Buttons
-    document.getElementById('btn-randomize').addEventListener('click', randomizeAll);
+    document.getElementById('btn-randomize').addEventListener('click', () => randomizeAll());
+
+    document.getElementById('btn-share').addEventListener('click', () => {
+        const config = getConfig();
+        const shareUrl = new URL(window.location.origin + window.location.pathname);
+        shareUrl.searchParams.set('config', btoa(JSON.stringify(config)));
+        navigator.clipboard.writeText(shareUrl.toString()).then(() => {
+            // Brief visual feedback
+            const icon = document.getElementById('btn-share');
+            icon.style.background = 'rgba(188, 19, 254, 0.4)';
+            setTimeout(() => { icon.style.background = ''; }, 600);
+        }).catch(() => {
+            // Fallback for older browsers
+            const ta = document.createElement('textarea');
+            ta.value = shareUrl.toString();
+            ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+        });
+    });
 
     document.getElementById('btn-save').addEventListener('click', () => {
         const config = getConfig();
         const jsonStr = JSON.stringify(config, null, 2);
-        const textArea = document.createElement("textarea");
-        textArea.value = jsonStr;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-999999px";
-        textArea.style.top = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.focus(); textArea.select();
-        try { document.execCommand('copy'); } catch (err) { console.error("Clipboard fallback failed", err); }
-        document.body.removeChild(textArea);
-
         const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -402,7 +530,7 @@ export function setupUI() {
     // Master Gradient color pickers
     document.getElementById('masterColor1').addEventListener('input', (e) => {
         const v = e.target.value;
-        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino'].forEach(k => {
+        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
             document.getElementById(k + 'Color1').value = v;
             state.colors[k][0] = v;
         });
@@ -410,7 +538,7 @@ export function setupUI() {
     });
     document.getElementById('masterColor2').addEventListener('input', (e) => {
         const v = e.target.value;
-        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino'].forEach(k => {
+        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
             document.getElementById(k + 'Color2').value = v;
             state.colors[k][1] = v;
         });
@@ -418,7 +546,7 @@ export function setupUI() {
     });
 
     // Component gradient pickers
-    ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino'].forEach(k => {
+    ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
         document.getElementById(k + 'Color1').addEventListener('input', e => { state.colors[k][0] = e.target.value; updateAllColors(); });
         document.getElementById(k + 'Color2').addEventListener('input', e => { state.colors[k][1] = e.target.value; updateAllColors(); });
     });
@@ -448,7 +576,7 @@ export function setupUI() {
     // Context menu color proxies to gradient primary
     document.getElementById('ctx-color').addEventListener('input', (e) => {
         const v = e.target.value;
-        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino'].forEach(k => {
+        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
             document.getElementById(k + 'Color1').value = v;
             state.colors[k][0] = v;
         });
@@ -493,23 +621,175 @@ export function setupUI() {
     });
     document.getElementById('specularToggle').addEventListener('change', (e) => { state.isSpecularEnabled = e.target.checked; updateOpacity(state.currentOpacity); });
 
-    // Phenomena toggles
-    document.getElementById('pulsarToggle').addEventListener('change', (e) => {
-        state.isPulsarEnabled = e.target.checked;
-        if (state.pulsarGroup) state.pulsarGroup.visible = state.isPulsarEnabled;
+    // Phenomena toggles with inline settings
+    const phenomenonConfig = [
+        { toggleId: 'pulsarToggle', settingsId: 'pulsarSettings', countId: 'pulsarCount',
+          stateKey: 'isPulsarEnabled', groupKey: 'pulsarGroup', countKey: 'pulsarRayCount',
+          turbKey: 'p', updateFn: updatePulsars },
+        { toggleId: 'accretionToggle', settingsId: 'accretionSettings', countId: 'accretionCount',
+          stateKey: 'isAccretionEnabled', groupKey: 'accretionGroup', countKey: 'accretionDiskCount',
+          turbKey: 'a', updateFn: updateAccretion },
+        { toggleId: 'gammaToggle', settingsId: 'gammaSettings', countId: 'gammaCount',
+          stateKey: 'isGammaEnabled', groupKey: 'gammaRaysGroup', countKey: 'gammaRayCount',
+          turbKey: 'g', updateFn: updateGammaRays },
+        { toggleId: 'neutrinoToggle', settingsId: 'neutrinoSettings', countId: 'neutrinoCount',
+          stateKey: 'isNeutrinosEnabled', groupKey: 'neutrinoGroup', countKey: 'neutrinoJetCount',
+          turbKey: 'n', updateFn: updateNeutrinos }
+    ];
+
+    phenomenonConfig.forEach(cfg => {
+        // Toggle on/off + expand settings
+        document.getElementById(cfg.toggleId).addEventListener('change', (e) => {
+            state[cfg.stateKey] = e.target.checked;
+            if (state[cfg.groupKey]) state[cfg.groupKey].visible = state[cfg.stateKey];
+            document.getElementById(cfg.settingsId).style.display = e.target.checked ? 'flex' : 'none';
+        });
+
+        // Count input
+        document.getElementById(cfg.countId).addEventListener('input', (e) => {
+            let val = parseInt(e.target.value);
+            if (isNaN(val)) return;
+            if (val < 1) val = 1; if (val > 150) val = 150; e.target.value = val;
+            state[cfg.countKey] = val;
+            cfg.updateFn(val);
+        });
+
+        // Turbulence amount slider
+        const k = cfg.turbKey;
+        document.getElementById(`${k}TurbSlider`).addEventListener('input', (e) => {
+            state.turbState[k].val = parseFloat(e.target.value);
+            document.getElementById(`${k}TurbVal`).innerText = parseFloat(e.target.value).toFixed(2);
+        });
+
+        // Turbulence speed slider
+        document.getElementById(`${k}TurbSpdSlider`).addEventListener('input', (e) => {
+            state.turbState[k].spd = parseFloat(e.target.value);
+            document.getElementById(`${k}TurbSpdVal`).innerText = parseFloat(e.target.value).toFixed(1);
+        });
+
+        // Phase mode dropdown
+        document.getElementById(`${k}TurbMod`).addEventListener('change', (e) => {
+            state.turbState[k].mod = e.target.value;
+        });
     });
-    document.getElementById('accretionToggle').addEventListener('change', (e) => {
-        state.isAccretionEnabled = e.target.checked;
-        if (state.accretionGroup) state.accretionGroup.visible = state.isAccretionEnabled;
+
+    // Lightning Arcs
+    document.getElementById('lightningToggle').addEventListener('change', (e) => {
+        state.isLightningEnabled = e.target.checked;
+        document.getElementById('lightningSettings').style.display = e.target.checked ? 'flex' : 'none';
     });
-    document.getElementById('gammaToggle').addEventListener('change', (e) => {
-        state.isGammaEnabled = e.target.checked;
-        if (state.gammaRaysGroup) state.gammaRaysGroup.visible = state.isGammaEnabled;
+    document.getElementById('lightningOriginCenter').addEventListener('change', (e) => { state.lightningOriginCenter = e.target.checked; });
+    document.getElementById('lightningSolidBlock').addEventListener('change', (e) => { state.lightningSolidBlock = e.target.checked; });
+    document.getElementById('lightningLengthSlider').addEventListener('input', (e) => {
+        state.lightningBoltLength = parseInt(e.target.value);
+        document.getElementById('lightningLengthVal').innerText = state.lightningBoltLength;
     });
-    document.getElementById('neutrinoToggle').addEventListener('change', (e) => {
-        state.isNeutrinosEnabled = e.target.checked;
-        if (state.neutrinoGroup) state.neutrinoGroup.visible = state.isNeutrinosEnabled;
+    document.getElementById('lightningFreqSlider').addEventListener('input', (e) => {
+        state.lightningFrequency = parseFloat(e.target.value);
+        document.getElementById('lightningFreqVal').innerText = state.lightningFrequency.toFixed(1);
     });
+    document.getElementById('lightningDurSlider').addEventListener('input', (e) => {
+        state.lightningDuration = parseFloat(e.target.value);
+        document.getElementById('lightningDurVal').innerText = state.lightningDuration.toFixed(1);
+    });
+    document.getElementById('lightningBranchSlider').addEventListener('input', (e) => {
+        state.lightningBranching = parseFloat(e.target.value);
+        document.getElementById('lightningBranchVal').innerText = state.lightningBranching.toFixed(2);
+    });
+    document.getElementById('lightningBrightSlider').addEventListener('input', (e) => {
+        state.lightningBrightness = parseFloat(e.target.value);
+        document.getElementById('lightningBrightVal').innerText = state.lightningBrightness.toFixed(1);
+    });
+    // Magnetic Field
+    document.getElementById('magneticToggle').addEventListener('change', (e) => {
+        state.isMagneticEnabled = e.target.checked;
+        document.getElementById('magneticSettings').style.display = e.target.checked ? 'flex' : 'none';
+    });
+    document.getElementById('magneticCountSlider').addEventListener('input', (e) => {
+        state.magneticTentacleCount = parseInt(e.target.value);
+        document.getElementById('magneticCountVal').innerText = state.magneticTentacleCount;
+    });
+    document.getElementById('magneticSpeedSlider').addEventListener('input', (e) => {
+        state.magneticTentacleSpeed = parseFloat(e.target.value);
+        document.getElementById('magneticSpeedVal').innerText = state.magneticTentacleSpeed.toFixed(1);
+    });
+    document.getElementById('magneticWanderSlider').addEventListener('input', (e) => {
+        state.magneticWander = parseFloat(e.target.value);
+        document.getElementById('magneticWanderVal').innerText = state.magneticWander.toFixed(1);
+    });
+
+    // Omega Shape
+    document.getElementById('omegaToggle').addEventListener('change', (e) => {
+        state.isOmegaEnabled = e.target.checked;
+        document.getElementById('omegaSettings').style.display = e.target.checked ? 'block' : 'none';
+    });
+    document.getElementById('omegaShapeSelect').addEventListener('change', (e) => {
+        state.omegaGeometryType = parseInt(e.target.value);
+        updateOmegaGeometry(state.omegaGeometryType);
+    });
+    document.getElementById('omegaStellationSlider').addEventListener('input', (e) => {
+        state.omegaStellationFactor = parseFloat(e.target.value);
+        document.getElementById('omegaStellationVal').innerText = state.omegaStellationFactor.toFixed(2);
+        updateOmegaGeometry(state.omegaGeometryType);
+    });
+    document.getElementById('omegaScaleSlider').addEventListener('input', (e) => {
+        state.omegaScale = parseFloat(e.target.value);
+        document.getElementById('omegaScaleVal').innerText = state.omegaScale.toFixed(2);
+    });
+    document.getElementById('omegaOpacitySlider').addEventListener('input', (e) => {
+        state.omegaOpacity = parseFloat(e.target.value);
+        document.getElementById('omegaOpacityVal').innerText = state.omegaOpacity.toFixed(2);
+        if (state.omegaCoreMesh) {
+            state.omegaCoreMesh.material.opacity = state.omegaOpacity;
+            state.omegaCoreMesh.material.transparent = state.omegaOpacity < 0.99;
+            state.omegaCoreMesh.material.needsUpdate = true;
+        }
+    });
+    document.getElementById('omegaEdgeOpacitySlider').addEventListener('input', (e) => {
+        state.omegaEdgeOpacity = parseFloat(e.target.value);
+        document.getElementById('omegaEdgeOpacityVal').innerText = state.omegaEdgeOpacity.toFixed(2);
+        if (state.omegaWireframeMesh) {
+            state.omegaWireframeMesh.material.opacity = state.omegaEdgeOpacity;
+            state.omegaWireframeMesh.material.needsUpdate = true;
+        }
+    });
+    document.getElementById('omegaMaskToggle').addEventListener('change', (e) => {
+        state.omegaIsMaskEnabled = e.target.checked;
+        if (state.omegaCoreMesh) state.omegaCoreMesh.visible = !e.target.checked;
+    });
+    document.getElementById('omegaInteriorEdgesToggle').addEventListener('change', (e) => {
+        state.omegaIsInteriorEdgesEnabled = e.target.checked;
+        if (state.omegaDepthMesh) state.omegaDepthMesh.visible = !e.target.checked;
+    });
+    document.getElementById('omegaSpecularToggle').addEventListener('change', (e) => {
+        state.omegaIsSpecularEnabled = e.target.checked;
+        if (state.omegaCoreMesh) {
+            state.omegaCoreMesh.material.specular = e.target.checked ? new THREE.Color(0x333333) : new THREE.Color(0x000000);
+            state.omegaCoreMesh.material.shininess = e.target.checked ? 80 : 0;
+            state.omegaCoreMesh.material.needsUpdate = true;
+        }
+    });
+    // Omega colors
+    document.getElementById('omegaFaceColor1').addEventListener('input', (e) => { state.colors.omegaFace[0] = e.target.value; updateAllColors(); });
+    document.getElementById('omegaFaceColor2').addEventListener('input', (e) => { state.colors.omegaFace[1] = e.target.value; updateAllColors(); });
+    document.getElementById('omegaEdgeColor1').addEventListener('input', (e) => { state.colors.omegaEdge[0] = e.target.value; updateAllColors(); });
+    document.getElementById('omegaEdgeColor2').addEventListener('input', (e) => { state.colors.omegaEdge[1] = e.target.value; updateAllColors(); });
+    // Omega motion
+    document.getElementById('omegaCounterSpin').addEventListener('change', (e) => { state.omegaCounterSpin = e.target.checked; });
+    document.getElementById('omegaLockPosition').addEventListener('change', (e) => { state.omegaLockPosition = e.target.checked; });
+    document.getElementById('omegaInterDimensional').addEventListener('change', (e) => {
+        state.omegaInterDimensional = e.target.checked;
+        document.getElementById('omegaGhostSettings').style.display = e.target.checked ? 'block' : 'none';
+    });
+    document.getElementById('omegaGhostCountSlider').addEventListener('input', (e) => {
+        state.omegaGhostCount = parseInt(e.target.value);
+        document.getElementById('omegaGhostCountVal').innerText = state.omegaGhostCount;
+    });
+    document.getElementById('omegaGhostDurSlider').addEventListener('input', (e) => {
+        state.omegaGhostDuration = parseFloat(e.target.value);
+        document.getElementById('omegaGhostDurVal').innerText = state.omegaGhostDuration.toFixed(1);
+    });
+    document.getElementById('omegaGhostMode').addEventListener('change', (e) => { state.omegaGhostMode = e.target.value; });
 
     // Spin
     document.getElementById('idleSpinSlider').addEventListener('input', (e) => {
@@ -661,6 +941,18 @@ export function setupUI() {
     // Initial UI state
     updateDualSliderUI();
     updateStepsUI();
+
+    // --- URL query string handling ---
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('seed')) {
+        const seed = parseInt(params.get('seed'));
+        if (!isNaN(seed)) setTimeout(() => randomizeAll(seed), 100);
+    } else if (params.has('config')) {
+        try {
+            const json = atob(params.get('config'));
+            setTimeout(() => applyConfig(JSON.parse(json)), 100);
+        } catch (e) { console.warn('Invalid config param', e); }
+    }
 }
 
 export function setupEditableLabels() {
@@ -679,4 +971,10 @@ export function setupEditableLabels() {
     makeEditable('zDepthVal', () => state.depth_range.min, () => state.depth_range.max, true, (val) => { document.getElementById('zDepthSlider').value = val; state.z_depth = val; state.scale_anim_active = false; state.active_step = -1; updateStepsUI(); });
     makeEditable('speedVal', 0.1, 10.0, true, (val) => { document.getElementById('speedSlider').value = val; state.pathSpeed = val; });
     makeEditable('trailLengthVal', 10, 200, false, (val) => { document.getElementById('trailLengthSlider').value = val; state.trailLength = val; });
+
+    // Turbulence editable labels
+    ['p', 'a', 'g', 'n'].forEach(k => {
+        makeEditable(`${k}TurbVal`, 0, 1, true, (val) => { document.getElementById(`${k}TurbSlider`).value = val; state.turbState[k].val = val; });
+        makeEditable(`${k}TurbSpdVal`, 0.1, 10, true, (val) => { document.getElementById(`${k}TurbSpdSlider`).value = val; state.turbState[k].spd = val; });
+    });
 }

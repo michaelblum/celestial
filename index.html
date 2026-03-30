@@ -97,6 +97,11 @@
                 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             </div>
 
+            <!-- Share Button (Link) -->
+            <div class="nav-icon" id="btn-share" title="Copy Share Link" style="stroke:currentColor; margin-bottom: 15px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            </div>
+
             <!-- Randomize Button (Die) -->
             <div class="nav-icon" id="btn-randomize" title="Randomize Parameters" style="stroke:currentColor; margin-bottom: 20px;">
                 <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -121,7 +126,7 @@
 
             <!-- Geometry Panel -->
             <div id="panel-geom" class="panel active">
-                <h2>Geometry</h2>
+                <h2>Alpha Shape</h2>
                 <div class="control-group">
                     <label>Base Shape</label>
                     <select id="shapeSelect">
@@ -164,6 +169,103 @@
                     <label class="checkbox-label"><input type="checkbox" id="maskToggle" checked> Hollow Core View</label>
                     <label class="checkbox-label"><input type="checkbox" id="interiorEdgesToggle" checked> Show Interior Edges</label>
                     <label class="checkbox-label"><input type="checkbox" id="specularToggle" checked> Specular Highlights</label>
+                </div>
+
+                <h2>Omega Shape</h2>
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="omegaToggle"> Enable Omega</label>
+                    <div id="omegaSettings" style="display:none;">
+                        <div class="control-group" style="margin-top:8px;">
+                            <label>Base Shape</label>
+                            <select id="omegaShapeSelect">
+                                <option value="4">Tetrahedron</option>
+                                <option value="6" selected>Hexahedron (Cube)</option>
+                                <option value="8">Octahedron</option>
+                                <option value="12">Dodecahedron</option>
+                                <option value="20">Icosahedron</option>
+                                <option value="90">Tetartoid (Pseudo)</option>
+                                <option value="91">Torus Knot</option>
+                                <option value="100">Sphere</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <div class="control-row">
+                                <label>Stellation</label>
+                                <div class="val-display"><span id="omegaStellationVal">0.00</span></div>
+                            </div>
+                            <input type="range" id="omegaStellationSlider" min="-1" max="2" step="0.05" value="0">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-row">
+                                <label>Scale</label>
+                                <div class="val-display"><span id="omegaScaleVal">1.50</span></div>
+                            </div>
+                            <input type="range" id="omegaScaleSlider" min="0.1" max="5.0" step="0.05" value="1.5">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-row">
+                                <label>Face Opacity</label>
+                                <div class="val-display"><span id="omegaOpacityVal">0.15</span></div>
+                            </div>
+                            <input type="range" id="omegaOpacitySlider" min="0" max="1" step="0.01" value="0.15">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-row">
+                                <label>Edge Opacity</label>
+                                <div class="val-display"><span id="omegaEdgeOpacityVal">0.80</span></div>
+                            </div>
+                            <input type="range" id="omegaEdgeOpacitySlider" min="0" max="1" step="0.01" value="0.80">
+                        </div>
+                        <div class="control-group">
+                            <label class="checkbox-label"><input type="checkbox" id="omegaMaskToggle" checked> Hollow Core View</label>
+                            <label class="checkbox-label"><input type="checkbox" id="omegaInteriorEdgesToggle" checked> Show Interior Edges</label>
+                            <label class="checkbox-label"><input type="checkbox" id="omegaSpecularToggle"> Specular Highlights</label>
+                        </div>
+                        <div class="control-group">
+                            <label>Omega Colors</label>
+                            <div class="control-row" style="margin-top:5px;">
+                                <label style="font-size:0.6rem;">Faces</label>
+                                <div class="color-picker-group">
+                                    <input type="color" id="omegaFaceColor1" value="#4a2b6e"><input type="color" id="omegaFaceColor2" value="#1a0b2e">
+                                </div>
+                            </div>
+                            <div class="control-row" style="margin-top:5px;">
+                                <label style="font-size:0.6rem;">Edges</label>
+                                <div class="color-picker-group">
+                                    <input type="color" id="omegaEdgeColor1" value="#bc13fe"><input type="color" id="omegaEdgeColor2" value="#4a2b6e">
+                                </div>
+                            </div>
+                        </div>
+
+                        <h2 style="font-size:0.9rem;">Omega Motion</h2>
+                        <div class="control-group">
+                            <label class="checkbox-label"><input type="checkbox" id="omegaCounterSpin"> Counter Spin</label>
+                            <label class="checkbox-label"><input type="checkbox" id="omegaLockPosition"> Lock Position</label>
+                            <label class="checkbox-label"><input type="checkbox" id="omegaInterDimensional"> Inter-dimensional</label>
+                        </div>
+                        <div class="control-group" id="omegaGhostSettings" style="display:none;">
+                            <div class="control-row">
+                                <label style="font-size:0.6rem;">Ghost Count</label>
+                                <div class="val-display"><span id="omegaGhostCountVal">10</span></div>
+                            </div>
+                            <input type="range" id="omegaGhostCountSlider" min="3" max="30" step="1" value="10">
+                            <div class="control-row">
+                                <label style="font-size:0.6rem;">Ghost Duration</label>
+                                <div class="val-display"><span id="omegaGhostDurVal">2.0</span>s</div>
+                            </div>
+                            <input type="range" id="omegaGhostDurSlider" min="0.5" max="5.0" step="0.1" value="2.0">
+                            <div class="control-row">
+                                <label style="font-size:0.6rem;">Ghost Mode</label>
+                                <select id="omegaGhostMode" style="width:auto; padding:2px;">
+                                    <option value="fade">Fade</option>
+                                    <option value="shrink">Shrink</option>
+                                    <option value="edgeScatter">Edge Scatter</option>
+                                    <option value="vertexDissolve">Vertex Dissolve</option>
+                                    <option value="scaleWarp">Scale Warp</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -237,6 +339,18 @@
                             <input type="color" id="neutrinoColor1" value="#bc13fe"><input type="color" id="neutrinoColor2" value="#4a2b6e">
                         </div>
                     </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Lightning</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="lightningColor1" value="#ffffff"><input type="color" id="lightningColor2" value="#00ffff">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Magnetic</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="magneticColor1" value="#bc13fe"><input type="color" id="magneticColor2" value="#4a2b6e">
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -245,9 +359,178 @@
                 <h2>Cosmic Phenomena</h2>
                 <div class="control-group">
                     <label class="checkbox-label"><input type="checkbox" id="pulsarToggle"> Pulsar Beams</label>
+                    <div class="phenomenon-settings" id="pulsarSettings" style="display:none;">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Count</label>
+                            <input type="number" id="pulsarCount" value="1" min="1" max="150" class="edit-input" style="width:50px;">
+                        </div>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Turbulence</label>
+                            <div class="val-display"><span id="pTurbVal">0.00</span></div>
+                        </div>
+                        <input type="range" id="pTurbSlider" min="0" max="1" step="0.01" value="0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Turb Speed</label>
+                            <div class="val-display"><span id="pTurbSpdVal">1.0</span></div>
+                        </div>
+                        <input type="range" id="pTurbSpdSlider" min="0.1" max="10" step="0.1" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Phase Mode</label>
+                            <select id="pTurbMod" style="width:auto; padding:2px;">
+                                <option value="uniform">Uniform</option>
+                                <option value="staggered">Staggered</option>
+                                <option value="random">Random</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
                     <label class="checkbox-label"><input type="checkbox" id="accretionToggle"> Accretion Disk</label>
+                    <div class="phenomenon-settings" id="accretionSettings" style="display:none;">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Count</label>
+                            <input type="number" id="accretionCount" value="1" min="1" max="150" class="edit-input" style="width:50px;">
+                        </div>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Turbulence</label>
+                            <div class="val-display"><span id="aTurbVal">0.00</span></div>
+                        </div>
+                        <input type="range" id="aTurbSlider" min="0" max="1" step="0.01" value="0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Turb Speed</label>
+                            <div class="val-display"><span id="aTurbSpdVal">1.0</span></div>
+                        </div>
+                        <input type="range" id="aTurbSpdSlider" min="0.1" max="10" step="0.1" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Phase Mode</label>
+                            <select id="aTurbMod" style="width:auto; padding:2px;">
+                                <option value="uniform">Uniform</option>
+                                <option value="staggered">Staggered</option>
+                                <option value="random">Random</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
                     <label class="checkbox-label"><input type="checkbox" id="gammaToggle"> Gamma Rays</label>
+                    <div class="phenomenon-settings" id="gammaSettings" style="display:none;">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Count</label>
+                            <input type="number" id="gammaCount" value="1" min="1" max="150" class="edit-input" style="width:50px;">
+                        </div>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Turbulence</label>
+                            <div class="val-display"><span id="gTurbVal">0.00</span></div>
+                        </div>
+                        <input type="range" id="gTurbSlider" min="0" max="1" step="0.01" value="0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Turb Speed</label>
+                            <div class="val-display"><span id="gTurbSpdVal">1.0</span></div>
+                        </div>
+                        <input type="range" id="gTurbSpdSlider" min="0.1" max="10" step="0.1" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Phase Mode</label>
+                            <select id="gTurbMod" style="width:auto; padding:2px;">
+                                <option value="uniform">Uniform</option>
+                                <option value="staggered">Staggered</option>
+                                <option value="random">Random</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
                     <label class="checkbox-label"><input type="checkbox" id="neutrinoToggle"> Neutrino Jets</label>
+                    <div class="phenomenon-settings" id="neutrinoSettings" style="display:none;">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Count</label>
+                            <input type="number" id="neutrinoCount" value="1" min="1" max="150" class="edit-input" style="width:50px;">
+                        </div>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Turbulence</label>
+                            <div class="val-display"><span id="nTurbVal">0.00</span></div>
+                        </div>
+                        <input type="range" id="nTurbSlider" min="0" max="1" step="0.01" value="0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Turb Speed</label>
+                            <div class="val-display"><span id="nTurbSpdVal">1.0</span></div>
+                        </div>
+                        <input type="range" id="nTurbSpdSlider" min="0.1" max="10" step="0.1" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Phase Mode</label>
+                            <select id="nTurbMod" style="width:auto; padding:2px;">
+                                <option value="uniform">Uniform</option>
+                                <option value="staggered">Staggered</option>
+                                <option value="random">Random</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="lightningToggle"> Lightning Arcs</label>
+                    <div class="phenomenon-settings" id="lightningSettings" style="display:none;">
+                        <div class="control-row">
+                            <label class="checkbox-label" style="font-size:0.6rem; margin:0;">
+                                <input type="checkbox" id="lightningOriginCenter" checked style="width:auto;">
+                                Origin at Center
+                            </label>
+                        </div>
+                        <div class="control-row">
+                            <label class="checkbox-label" style="font-size:0.6rem; margin:0;">
+                                <input type="checkbox" id="lightningSolidBlock" style="width:auto;">
+                                Block at Surface
+                            </label>
+                        </div>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Bolt Length</label>
+                            <div class="val-display"><span id="lightningLengthVal">100</span></div>
+                        </div>
+                        <input type="range" id="lightningLengthSlider" min="5" max="200" step="1" value="100">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Frequency</label>
+                            <div class="val-display"><span id="lightningFreqVal">2.0</span></div>
+                        </div>
+                        <input type="range" id="lightningFreqSlider" min="0.1" max="5.0" step="0.1" value="2.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Duration</label>
+                            <div class="val-display"><span id="lightningDurVal">0.8</span>s</div>
+                        </div>
+                        <input type="range" id="lightningDurSlider" min="0.1" max="2.0" step="0.1" value="0.8">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Branching</label>
+                            <div class="val-display"><span id="lightningBranchVal">0.08</span></div>
+                        </div>
+                        <input type="range" id="lightningBranchSlider" min="0" max="0.3" step="0.01" value="0.08">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Brightness</label>
+                            <div class="val-display"><span id="lightningBrightVal">1.0</span></div>
+                        </div>
+                        <input type="range" id="lightningBrightSlider" min="0.1" max="2.0" step="0.1" value="1.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="magneticToggle"> Magnetic Field</label>
+                    <div class="phenomenon-settings" id="magneticSettings" style="display:none;">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Line Count</label>
+                            <div class="val-display"><span id="magneticCountVal">10</span></div>
+                        </div>
+                        <input type="range" id="magneticCountSlider" min="1" max="20" step="1" value="10">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Speed</label>
+                            <div class="val-display"><span id="magneticSpeedVal">1.0</span></div>
+                        </div>
+                        <input type="range" id="magneticSpeedSlider" min="0.1" max="3.0" step="0.1" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Wander</label>
+                            <div class="val-display"><span id="magneticWanderVal">3.0</span></div>
+                        </div>
+                        <input type="range" id="magneticWanderSlider" min="1" max="10" step="0.5" value="3.0">
+                    </div>
                 </div>
 
                 <h2>Animation & Path</h2>

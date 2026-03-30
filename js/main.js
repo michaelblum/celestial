@@ -9,6 +9,9 @@ import { buildGrid, animateGrid } from './grid.js';
 import { setupInteraction } from './interaction.js';
 import { animatePathing } from './pathing.js';
 import { setupUI, setupEditableLabels } from './ui.js';
+import { createLightning, animateLightning } from './lightning.js';
+import { createMagneticField, animateMagneticField } from './magnetic.js';
+import { createOmega, animateOmega } from './omega.js';
 
 function init() {
     initScene();
@@ -16,6 +19,9 @@ function init() {
     createAuraObjects();
     createParticleObjects();
     createPhenomena();
+    createLightning();
+    createMagneticField();
+    createOmega();
 
     updateGeometry(state.currentGeometryType);
     updateAllColors();
@@ -32,6 +38,9 @@ function init() {
 function animate() {
     requestAnimationFrame(animate);
     const dt = 0.016;
+
+    // Advance global turbulence clock
+    state.globalTime += dt;
 
     // Nova scale calculation
     if (state.collapseTime > 0 && state.wasFullCharge) {
@@ -56,6 +65,9 @@ function animate() {
     animateParticles(dt);
     animatePhenomena(dt);
     animateAura(dt);
+    animateLightning(dt);
+    animateMagneticField(dt);
+    animateOmega(dt);
     animateTrails(dt);
 
     // Check for deferred fire signals from aura collapse
