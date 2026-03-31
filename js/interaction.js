@@ -434,7 +434,7 @@ export function setupInteraction() {
     // ── Close context menu on click outside or Escape ────────────────────
     window.addEventListener('mousedown', (e) => {
         const anchor = document.getElementById('ctx-unified');
-        if (anchor && anchor.classList.contains('visible') && !anchor.contains(e.target) && e.button !== 2) {
+        if (anchor && anchor.classList.contains('visible') && !anchor.contains(e.target) && !e.target.closest('.cascade-dropdown') && e.button !== 2) {
             anchor.classList.remove('visible');
             state.isMenuOpen = false;
         }
@@ -554,7 +554,7 @@ export function setupInteraction() {
 
     // ── Mouse Down ───────────────────────────────────────────────────────
     window.addEventListener('mousedown', (e) => {
-        const isUI = e.target.closest('#sidebar') || e.target.closest('.ctx-anchor');
+        const isUI = e.target.closest('#sidebar') || e.target.closest('.ctx-anchor') || e.target.closest('.cascade-dropdown');
         if (isUI) return;
 
         const anchor = document.getElementById('ctx-unified');

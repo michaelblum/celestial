@@ -111,6 +111,10 @@ export class CascadeSelect {
         this._dropdown.className = 'cascade-dropdown';
         this._buildMenu(this._items, this._dropdown);
 
+        // Prevent clicks from falling through to canvas
+        this._dropdown.addEventListener('mousedown', (e) => e.stopPropagation());
+        this._dropdown.addEventListener('pointerdown', (e) => e.stopPropagation());
+
         // Append to body to escape overflow clipping
         document.body.appendChild(this._dropdown);
 
