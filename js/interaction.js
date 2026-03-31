@@ -427,6 +427,42 @@ export function setupInteraction() {
         }
     });
 
+    // ── Draggable context menu via tab bar ──
+    (function() {
+        const tabs = document.querySelector('#ctx-root .ctx-tabs');
+        const anchor = document.getElementById('ctx-unified');
+        if (!tabs || !anchor) return;
+
+        let isDragging = false;
+        let startX, startY, origLeft, origTop;
+
+        tabs.addEventListener('mousedown', (e) => {
+            // Only drag on the tab bar background, not on tab buttons themselves
+            if (e.target.closest('.ctx-tab')) return;
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            origLeft = parseInt(anchor.style.left) || 0;
+            origTop = parseInt(anchor.style.top) || 0;
+            tabs.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            anchor.style.left = (origLeft + dx) + 'px';
+            anchor.style.top = (origTop + dy) + 'px';
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            tabs.style.cursor = '';
+        });
+    })();
+
     // ── Mouse Wheel — modifier-key functions ─────────────────────────────
     // Plain scroll   = Zoom (camera z / orbit radius)
     // SHIFT          = Z-Depth Scale (resize object)

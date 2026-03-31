@@ -81,6 +81,7 @@
     padding-bottom: 8px;
     margin-bottom: 8px;
     border-bottom: 1px solid rgba(188, 19, 254, 0.4);
+    cursor: grab;
 }
 .ctx-tab {
     width: 32px;
