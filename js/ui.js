@@ -9,6 +9,18 @@ import { updateOmegaGeometry } from './geometry.js';
 import { rebuildGrid3d } from './grid3d.js';
 import { resetCameraOrbit, transitionToFlatView } from './interaction.js';
 
+export const EFFECTS = [
+    { id: 'pulsar',    emoji: '\uD83D\uDCA0', label: 'Pulsar',     sidebarId: 'pulsarToggle' },
+    { id: 'accretion', emoji: '\uD83C\uDF00', label: 'Accretion',  sidebarId: 'accretionToggle' },
+    { id: 'gamma',     emoji: '\u2622\uFE0F',  label: 'Gamma',      sidebarId: 'gammaToggle' },
+    { id: 'neutrino',  emoji: '\uD83D\uDD35', label: 'Neutrino',   sidebarId: 'neutrinoToggle' },
+    { id: 'lightning', emoji: '\u26A1',        label: 'Lightning',  sidebarId: 'lightningToggle',  subMenuId: 'ctx-sub-lightning' },
+    { id: 'magnetic',  emoji: '\uD83E\uDDF2', label: 'Magnetic',   sidebarId: 'magneticToggle',   subMenuId: 'ctx-sub-magnetic' },
+    { id: 'swarm',     emoji: '\u2728',        label: 'Swarm',      sidebarId: 'swarmToggle',      subMenuId: 'ctx-sub-swarm' },
+    { id: 'blackhole', emoji: '\u26AB',        label: 'Black Hole', sidebarId: 'blackHoleModeToggle' },
+    { id: 'aura',      emoji: '\uD83D\uDD2E', label: 'Aura',       sidebarId: 'auraToggle',       subMenuId: 'ctx-sub-aura' },
+];
+
 // --- Seeded PRNG (mulberry32) ---
 function mulberry32(seed) {
     return function() {
@@ -462,6 +474,46 @@ function randomizeAll(seed) {
     }
 }
 
+function buildFxGrid() {
+    const grid = document.getElementById('fxGrid');
+    if (!grid) return;
+
+    EFFECTS.forEach(fx => {
+        const tile = document.createElement('div');
+        tile.className = 'fx-tile';
+        tile.dataset.effect = fx.id;
+
+        const emoji = document.createElement('span');
+        emoji.className = 'fx-tile-emoji';
+        emoji.textContent = fx.emoji;
+        tile.appendChild(emoji);
+
+        const label = document.createElement('span');
+        label.className = 'fx-tile-label';
+        label.textContent = fx.label;
+        tile.appendChild(label);
+
+        if (fx.subMenuId) {
+            const gear = document.createElement('span');
+            gear.className = 'fx-tile-gear';
+            gear.textContent = '\u2699';
+            tile.appendChild(gear);
+        }
+
+        // Click tile (not gear) = toggle effect via sidebar checkbox
+        tile.addEventListener('click', (e) => {
+            if (e.target.classList.contains('fx-tile-gear')) return;
+            const sideEl = document.getElementById(fx.sidebarId);
+            if (!sideEl) return;
+            sideEl.checked = !sideEl.checked;
+            sideEl.dispatchEvent(new Event('change'));
+            sideEl.dispatchEvent(new Event('input'));
+        });
+
+        grid.appendChild(tile);
+    });
+}
+
 export function setupUI() {
     // Sidebar Navigation
     const navIcons = document.querySelectorAll('.nav-icon[data-target]');
@@ -690,16 +742,10 @@ export function setupUI() {
         });
     }
 
+    // Build FX tile grid
+    buildFxGrid();
+
     // FX tab
-    proxyInput('ctx-pulsar', 'pulsarToggle');
-    proxyInput('ctx-accretion', 'accretionToggle');
-    proxyInput('ctx-gamma', 'gammaToggle');
-    proxyInput('ctx-neutrino', 'neutrinoToggle');
-    proxyInput('ctx-lightning-toggle', 'lightningToggle');
-    proxyInput('ctx-magnetic', 'magneticToggle');
-    proxyInput('ctx-swarm', 'swarmToggle');
-    proxyInput('ctx-blackhole', 'blackHoleModeToggle');
-    proxyInput('ctx-aura-toggle', 'auraToggle');
     proxyInput('ctx-reach', 'auraReachSlider');
     proxyInput('ctx-intensity', 'auraIntensitySlider');
     proxyInput('ctx-spin', 'idleSpinSlider');
