@@ -832,7 +832,7 @@
 
             <!-- Animation Panel -->
             <div id="panel-anim" class="panel">
-                <h2>Cosmic Phenomena</h2>
+                <h2>Effects</h2>
                 <div class="control-group">
                     <label class="checkbox-label"><input type="checkbox" id="pulsarToggle"> Pulsar Beams</label>
                     <div class="phenomenon-settings" id="pulsarSettings" style="display:none;">
@@ -1191,35 +1191,10 @@
 
                 <div class="control-group">
                     <div class="control-row">
-                        <label>Scale Bounds</label>
-                        <div class="val-display">[<span id="rangeMinVal">0.25</span> - <span id="rangeMaxVal">3.00</span>]</div>
-                    </div>
-                    <div class="dual-slider-container">
-                        <div class="dual-slider-track"></div>
-                        <div class="dual-slider-fill" id="dualSliderFill"></div>
-                        <input type="range" id="rangeMin" min="0.25" max="3" value="0.25" step="0.01">
-                        <input type="range" id="rangeMax" min="0.25" max="3" value="3.0" step="0.01">
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <div class="control-row">
                         <label>Z-Depth Scale</label>
                         <div class="val-display"><span id="zDepthVal">1.10</span></div>
                     </div>
                     <input type="range" id="zDepthSlider" min="0.25" max="3" step="0.01" value="1.1">
-                </div>
-
-                <div class="control-group">
-                    <div class="control-row">
-                        <label>Depth Stops</label>
-                        <div class="val-display"><span id="stepsVal">3</span> Steps</div>
-                    </div>
-                    <div class="stepper-ui">
-                        <button class="bookend" id="btn-step-minus">-</button>
-                        <div id="step-buttons-container"></div>
-                        <button class="bookend" id="btn-step-plus">+</button>
-                    </div>
                 </div>
             </div>
         </div>

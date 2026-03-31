@@ -106,61 +106,6 @@ function updateFOV(val) {
     state.perspCamera.updateProjectionMatrix();
 }
 
-function handleRangeChange() {
-    updateDualSliderUI();
-    document.getElementById('rangeMinVal').innerText = state.depth_range.min.toFixed(2);
-    document.getElementById('rangeMaxVal').innerText = state.depth_range.max.toFixed(2);
-    const zSlider = document.getElementById('zDepthSlider');
-    zSlider.min = state.depth_range.min;
-    zSlider.max = state.depth_range.max;
-    if (state.z_depth < state.depth_range.min) triggerScaleAnimation(state.depth_range.min, -1);
-    if (state.z_depth > state.depth_range.max) triggerScaleAnimation(state.depth_range.max, -1);
-    updateStepsUI();
-}
-
-function updateDualSliderUI() {
-    const minInput = document.getElementById('rangeMin');
-    const maxInput = document.getElementById('rangeMax');
-    const fill = document.getElementById('dualSliderFill');
-    const totalRange = parseFloat(minInput.max) - parseFloat(minInput.min);
-    const percentMin = ((state.depth_range.min - parseFloat(minInput.min)) / totalRange) * 100;
-    const percentMax = ((state.depth_range.max - parseFloat(minInput.min)) / totalRange) * 100;
-    fill.style.left = percentMin + '%';
-    fill.style.width = (percentMax - percentMin) + '%';
-}
-
-function getDepthStops() {
-    let stops = [];
-    for (let i = 0; i < state.steps; i++) {
-        let t = i / (state.steps - 1);
-        stops.push(state.depth_range.min + t * (state.depth_range.max - state.depth_range.min));
-    }
-    return stops;
-}
-
-function triggerScaleAnimation(target_scale, step_index) {
-    if (Math.abs(state.z_depth - target_scale) < 0.001) return;
-    state.active_step = step_index;
-    state.target_z_depth = target_scale;
-    state.scale_anim_start_val = state.z_depth;
-    state.scale_anim_start_time = performance.now();
-    state.scale_anim_active = true;
-}
-
-export function updateStepsUI() {
-    document.getElementById('stepsVal').innerText = state.steps;
-    const container = document.getElementById('step-buttons-container');
-    container.innerHTML = '';
-    const stops = getDepthStops();
-    for (let i = 0; i < state.steps; i++) {
-        const btn = document.createElement('button');
-        btn.className = `step-stop ${i === state.active_step ? 'active' : ''}`;
-        btn.innerText = `S${i + 1}`;
-        btn.title = `Scale: ${stops[i].toFixed(2)}`;
-        btn.onclick = () => { state.active_step = i; updateStepsUI(); triggerScaleAnimation(stops[i], i); };
-        container.appendChild(btn);
-    }
-}
 
 function getConfig() {
     return {
@@ -191,10 +136,7 @@ function getConfig() {
         // Old 2D grid fields removed — unified into gridMode
         ortho: document.getElementById('orthoToggle').checked,
         fov: state.perspCamera.fov,
-        rangeMin: state.depth_range.min,
-        rangeMax: state.depth_range.max,
         zDepth: state.z_depth,
-        steps: state.steps,
         pulsarCount: state.pulsarRayCount,
         accretionCount: state.accretionDiskCount,
         gammaCount: state.gammaRayCount,
@@ -317,10 +259,7 @@ function applyConfig(c) {
     if (c.gridMode !== undefined) setUI('gridModeSelect', c.gridMode);
     if (c.ortho !== undefined) setUI('orthoToggle', c.ortho);
     if (c.fov !== undefined) setUI('fovSlider', c.fov, c.fov);
-    if (c.rangeMin !== undefined) setUI('rangeMin', c.rangeMin, c.rangeMin.toFixed(2));
-    if (c.rangeMax !== undefined) setUI('rangeMax', c.rangeMax, c.rangeMax.toFixed(2));
     if (c.zDepth !== undefined) setUI('zDepthSlider', c.zDepth, c.zDepth.toFixed(2));
-    if (c.steps !== undefined) { state.steps = c.steps; updateStepsUI(); }
 
     // Restore multi-instance counts
     if (c.pulsarCount !== undefined) { state.pulsarRayCount = c.pulsarCount; setUI('pulsarCount', c.pulsarCount); updatePulsars(c.pulsarCount); }
@@ -1345,36 +1284,11 @@ export function setupUI() {
         updateFOV(val);
     });
 
-    // Scale bounds
-    const rangeMinInput = document.getElementById('rangeMin');
-    const rangeMaxInput = document.getElementById('rangeMax');
-    rangeMinInput.addEventListener('input', (e) => {
-        let minVal = parseFloat(e.target.value);
-        let maxVal = parseFloat(rangeMaxInput.value);
-        if (minVal > maxVal) { minVal = maxVal; e.target.value = minVal; }
-        state.depth_range.min = minVal;
-        handleRangeChange();
-    });
-    rangeMaxInput.addEventListener('input', (e) => {
-        let maxVal = parseFloat(e.target.value);
-        let minVal = parseFloat(rangeMinInput.value);
-        if (maxVal < minVal) { maxVal = minVal; e.target.value = maxVal; }
-        state.depth_range.max = maxVal;
-        handleRangeChange();
-    });
+    // Z-Depth scale
     document.getElementById('zDepthSlider').addEventListener('input', (e) => {
-        state.scale_anim_active = false;
         state.z_depth = parseFloat(e.target.value);
         document.getElementById('zDepthVal').innerText = state.z_depth.toFixed(2);
-        state.active_step = -1;
-        updateStepsUI();
     });
-    document.getElementById('btn-step-minus').addEventListener('click', () => { if (state.steps > 2) { state.steps--; updateStepsUI(); } });
-    document.getElementById('btn-step-plus').addEventListener('click', () => { if (state.steps < 5) { state.steps++; updateStepsUI(); } });
-
-    // Initial UI state
-    updateDualSliderUI();
-    updateStepsUI();
 
     // --- URL query string handling ---
     const params = new URLSearchParams(window.location.search);
@@ -1399,9 +1313,7 @@ export function setupEditableLabels() {
     makeEditable('pulseRateVal', 0.001, 0.02, true, (val) => { document.getElementById('pulseRateSlider').value = val; state.auraPulseRate = val; });
     // Old 2D grid editables removed — unified into grid3d
     makeEditable('fovVal', 10, 120, false, (val) => { document.getElementById('fovSlider').value = val; updateFOV(val); });
-    makeEditable('rangeMinVal', 0.25, () => state.depth_range.max, true, (val) => { document.getElementById('rangeMin').value = val; state.depth_range.min = val; handleRangeChange(); });
-    makeEditable('rangeMaxVal', () => state.depth_range.min, 3.00, true, (val) => { document.getElementById('rangeMax').value = val; state.depth_range.max = val; handleRangeChange(); });
-    makeEditable('zDepthVal', () => state.depth_range.min, () => state.depth_range.max, true, (val) => { document.getElementById('zDepthSlider').value = val; state.z_depth = val; state.scale_anim_active = false; state.active_step = -1; updateStepsUI(); });
+    makeEditable('zDepthVal', 0.25, 3.0, true, (val) => { document.getElementById('zDepthSlider').value = val; state.z_depth = val; });
     makeEditable('speedVal', 0.1, 10.0, true, (val) => { document.getElementById('speedSlider').value = val; state.pathSpeed = val; });
     makeEditable('trailLengthVal', 10, 200, false, (val) => { document.getElementById('trailLengthSlider').value = val; state.trailLength = val; });
 

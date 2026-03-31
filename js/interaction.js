@@ -518,7 +518,7 @@ export function setupInteraction() {
 
         // ── SHIFT: Z-Depth ──
         if (e.shiftKey) {
-            state.z_depth = Math.max(state.depth_range.min, Math.min(state.depth_range.max, state.z_depth - delta * 0.002));
+            state.z_depth = Math.max(0.25, Math.min(3.0, state.z_depth - delta * 0.002));
             const sl = document.getElementById('zDepthSlider');
             const val = document.getElementById('zDepthVal');
             if (sl) sl.value = state.z_depth;
