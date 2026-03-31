@@ -697,6 +697,9 @@ export function setupUI() {
     proxyInput('ctx-omega-counterspin', 'omegaCounterSpin');
     proxyInput('ctx-omega-lock', 'omegaLockPosition');
     proxyInput('ctx-omega-interdim', 'omegaInterDimensional');
+    proxyInput('ctx-omega-tet-a', 'tetASlider');
+    proxyInput('ctx-omega-tet-b', 'tetBSlider');
+    proxyInput('ctx-omega-tet-c', 'tetCSlider');
 
     // Show/hide tetartoid settings in context menu when shape changes
     const ctxShape = document.getElementById('ctx-shape');
@@ -704,6 +707,14 @@ export function setupUI() {
         ctxShape.addEventListener('change', () => {
             const isTet = parseInt(ctxShape.value) === 90;
             const el = document.getElementById('ctx-tetartoid-settings');
+            if (el) el.style.display = isTet ? '' : 'none';
+        });
+    }
+    const ctxOmegaShape = document.getElementById('ctx-omega-shape');
+    if (ctxOmegaShape) {
+        ctxOmegaShape.addEventListener('change', () => {
+            const isTet = parseInt(ctxOmegaShape.value) === 90;
+            const el = document.getElementById('ctx-omega-tetartoid-settings');
             if (el) el.style.display = isTet ? '' : 'none';
         });
     }

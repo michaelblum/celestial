@@ -246,6 +246,14 @@ function _syncContextMenu() {
     s('ctx-omega-counterspin', 'omegaCounterSpin');
     s('ctx-omega-lock', 'omegaLockPosition');
     s('ctx-omega-interdim', 'omegaInterDimensional');
+    s('ctx-omega-tet-a', 'tetASlider');
+    s('ctx-omega-tet-b', 'tetBSlider');
+    s('ctx-omega-tet-c', 'tetCSlider');
+    const ctxOmegaTetSettings = document.getElementById('ctx-omega-tetartoid-settings');
+    if (ctxOmegaTetSettings) {
+        const isTet = parseInt(document.getElementById('omegaShapeSelect')?.value) === 90;
+        ctxOmegaTetSettings.style.display = isTet ? '' : 'none';
+    }
 
     // Look tab
     s('ctx-master1', 'masterColor1');
