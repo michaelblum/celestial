@@ -90,17 +90,17 @@ float runePattern2D(vec2 p, float scale) {
   float ring1 = abs(dist - 0.15);
   float ring2 = abs(dist - 0.3);
   float rings = min(ring1, ring2);
-  float ringGlow = smoothstep(0.02, 0.0, rings) * step(dist, 0.42);
+  float ringGlow = (1.0 - smoothstep(0.0, 0.02, rings)) * step(dist, 0.42);
 
   // Radial spokes (4 or 6 based on cell hash)
   float angle = atan(uv.y, uv.x);
   float spokes = mix(4.0, 6.0, step(0.7, h));
   float spoke = abs(sin(angle * spokes));
-  float spokeGlow = smoothstep(0.06, 0.0, spoke) * step(0.08, dist) * step(dist, 0.35);
+  float spokeGlow = (1.0 - smoothstep(0.0, 0.06, spoke)) * step(0.08, dist) * step(dist, 0.35);
 
   // Cross-lines in some cells
   float cross = min(abs(uv.x), abs(uv.y));
-  float crossGlow = smoothstep(0.015, 0.0, cross) * step(0.65, h) * step(dist, 0.4);
+  float crossGlow = (1.0 - smoothstep(0.0, 0.015, cross)) * step(0.65, h) * step(dist, 0.4);
 
   return max(max(ringGlow, spokeGlow * 0.6), crossGlow * 0.5) * active;
 }
@@ -234,9 +234,9 @@ void main() {
     vec2 gX = abs(fract(P.yz * scale) - 0.5);
     vec2 gY = abs(fract(P.xz * scale) - 0.5);
     vec2 gZ = abs(fract(P.xy * scale) - 0.5);
-    float gridX = smoothstep(lw, 0.0, min(gX.x, gX.y));
-    float gridY = smoothstep(lw, 0.0, min(gY.x, gY.y));
-    float gridZ = smoothstep(lw, 0.0, min(gZ.x, gZ.y));
+    float gridX = 1.0 - smoothstep(0.0, lw, min(gX.x, gX.y));
+    float gridY = 1.0 - smoothstep(0.0, lw, min(gY.x, gY.y));
+    float gridZ = 1.0 - smoothstep(0.0, lw, min(gZ.x, gZ.y));
     float coarseGrid = gridX * bw.x + gridY * bw.y + gridZ * bw.z;
 
     // Fine grid at 4× density
@@ -245,9 +245,9 @@ void main() {
     vec2 fgX = abs(fract(P.yz * fs) - 0.5);
     vec2 fgY = abs(fract(P.xz * fs) - 0.5);
     vec2 fgZ = abs(fract(P.xy * fs) - 0.5);
-    float fineGrid = smoothstep(fw, 0.0, min(fgX.x, fgX.y)) * bw.x
-                   + smoothstep(fw, 0.0, min(fgY.x, fgY.y)) * bw.y
-                   + smoothstep(fw, 0.0, min(fgZ.x, fgZ.y)) * bw.z;
+    float fineGrid = (1.0 - smoothstep(0.0, fw, min(fgX.x, fgX.y))) * bw.x
+                   + (1.0 - smoothstep(0.0, fw, min(fgY.x, fgY.y))) * bw.y
+                   + (1.0 - smoothstep(0.0, fw, min(fgZ.x, fgZ.y))) * bw.z;
 
     float grid = max(coarseGrid, fineGrid * 0.35);
 

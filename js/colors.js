@@ -189,4 +189,9 @@ export function updateAllColors() {
     updateLightningColors();
     updateMagneticColors();
     updateOmegaColors();
+
+    // Skin color ramps (omega not covered by updateFaceVertexColors guard)
+    if (state.omegaSkin !== 'none' && state.omegaSkinMaterial) {
+        updateSkinColorRamp(true);
+    }
 }

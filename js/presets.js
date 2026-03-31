@@ -65,6 +65,7 @@ const PRESET_CONFIGS = {
         interiorEdgesToggle: false, specularToggle: false,
         opacitySlider: 1.0, edgeOpacitySlider: 0.0,
         auraToggle: false,
+        gridModeSelect: '3d', grid3dGravitySlider: 200, grid3dDensitySlider: 24,
         pulsarToggle: true, accretionToggle: true, gammaToggle: true, neutrinoToggle: true,
         faceColor1: '#000000', faceColor2: '#000000',
         edgeColor1: '#000000', edgeColor2: '#000000',
@@ -289,8 +290,15 @@ export function applyPreset(presetKey) {
     setUI('magneticToggle', false);
     setUI('omegaToggle', false);
 
+    // Keys that set state directly (no corresponding DOM element)
+    const STATE_DIRECT = { auraSpike: 'auraSpike' };
+
     // Apply all config entries
     for (const [key, val] of Object.entries(config)) {
-        setUI(key, val);
+        if (STATE_DIRECT[key]) {
+            state[STATE_DIRECT[key]] = val;
+        } else {
+            setUI(key, val);
+        }
     }
 }

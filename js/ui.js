@@ -80,8 +80,10 @@ function updateOpacity(val) {
             state.skinMaterial.uniforms.uOpacity.value = state.currentOpacity;
             state.skinMaterial.uniforms.uSpecular.value = state.isSpecularEnabled ? 1.0 : 0.0;
             state.skinMaterial.transparent = !isSolid;
-            state.skinMaterial.depthWrite = isSolid;
-            state.skinMaterial.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
+            state.skinMaterial.depthWrite = state.currentSkin === 'portal' ? false : isSolid;
+            if (state.currentSkin !== 'portal') {
+                state.skinMaterial.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
+            }
         } else {
             // MeshPhongMaterial — direct property updates
             state.coreMesh.material.opacity = state.currentOpacity;
