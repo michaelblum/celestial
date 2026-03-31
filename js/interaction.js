@@ -1,4 +1,5 @@
 import state from './state.js';
+import { EFFECTS } from './fx-registry.js';
 
 // Camera orbit state (used when 3D grid is active)
 let cameraOrbitTheta = 0;       // horizontal angle
@@ -150,7 +151,7 @@ function _applyStackTransforms() {
     if (active) active.style.zIndex = 10 + n;
 }
 
-function _openSub(subId) {
+export function _openSub(subId) {
     const anchor = document.getElementById('ctx-unified');
     const sub = document.getElementById(subId);
     if (!anchor || !sub) return;
@@ -267,16 +268,12 @@ function _syncContextMenu() {
     s('ctx-grid-c1', 'gridColor1');
     s('ctx-grid-c2', 'gridColor2');
 
-    // FX tab
-    s('ctx-pulsar', 'pulsarToggle');
-    s('ctx-accretion', 'accretionToggle');
-    s('ctx-gamma', 'gammaToggle');
-    s('ctx-neutrino', 'neutrinoToggle');
-    s('ctx-lightning-toggle', 'lightningToggle');
-    s('ctx-magnetic', 'magneticToggle');
-    s('ctx-swarm', 'swarmToggle');
-    s('ctx-blackhole', 'blackHoleModeToggle');
-    s('ctx-aura-toggle', 'auraToggle');
+    // FX tab — sync tile active states
+    EFFECTS.forEach(fx => {
+        const tile = document.querySelector(`[data-effect="${fx.id}"]`);
+        const src = document.getElementById(fx.sidebarId);
+        if (tile && src) tile.classList.toggle('active', src.checked);
+    });
     s('ctx-reach', 'auraReachSlider');
     s('ctx-intensity', 'auraIntensitySlider');
     s('ctx-spin', 'idleSpinSlider');
