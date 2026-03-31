@@ -815,11 +815,26 @@ export function setupUI() {
     document.getElementById('shapeSelect').addEventListener('change', (e) => {
         state.currentGeometryType = parseInt(e.target.value);
         updateGeometry(state.currentGeometryType);
+        const tetSettings = document.getElementById('tetartoidSettings');
+        if (tetSettings) tetSettings.style.display = (state.currentGeometryType === 90) ? '' : 'none';
     });
     document.getElementById('stellationSlider').addEventListener('input', (e) => {
         state.stellationFactor = parseFloat(e.target.value);
         document.getElementById('stellationVal').innerText = state.stellationFactor.toFixed(2);
         updateGeometry(state.currentGeometryType);
+    });
+
+    // Tetartoid parameter sliders
+    ['A', 'B', 'C'].forEach(p => {
+        const slider = document.getElementById(`tet${p}Slider`);
+        const valSpan = document.getElementById(`tet${p}Val`);
+        if (!slider) return;
+        slider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            state[`tetartoid${p}`] = val;
+            if (valSpan) valSpan.textContent = val.toFixed(2);
+            if (state.currentGeometryType === 90) updateGeometry(90);
+        });
     });
 
     // Opacity
