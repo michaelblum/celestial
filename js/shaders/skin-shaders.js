@@ -42,10 +42,39 @@ varying vec3 vNormal;
 varying vec3 vWorldPosition;
 varying vec2 vUv;
 
-// Returns 0 at cell boundary, 1 in cell interior — avoids swapped-edge smoothstep UB
-float gridSeam(float u, float gap) {
-  float fr = fract(u);
-  return min(smoothstep(0.0, gap, fr), 1.0 - smoothstep(1.0 - gap, 1.0, fr));
+// ── Tech skin helper functions ──
+
+// Fast 2D hash for per-cell variation (cheaper than snoise)
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+// Inset panel frame: 1 on the border band, 0 inside/outside
+float rectFrame(vec2 uv, float w) {
+  vec2 a = step(vec2(w), uv) * step(vec2(w), 1.0 - uv);
+  vec2 b = step(vec2(w * 2.0), uv) * step(vec2(w * 2.0), 1.0 - uv);
+  return clamp((a.x * a.y) - (b.x * b.y), 0.0, 1.0);
+}
+
+// Two-level panel pattern: coarse frames + inner subdivision + split lines
+float panelPattern2D(vec2 p, float scale, float lineW) {
+  vec2 uv = fract(p * scale);
+  float outer = rectFrame(uv, lineW);
+  float inner = rectFrame(fract(uv * 2.0 + 0.17), lineW * 0.75);
+  float split = step(0.96, uv.x) + step(0.96, uv.y);
+  return clamp(max(outer, inner * 0.65) + split * 0.45, 0.0, 1.0);
+}
+
+// Emissive micro-lights: tiny bright spots in random cells
+float cityLights2D(vec2 p, float scale, float bias) {
+  vec2 cell = floor(p * scale);
+  vec2 uv = fract(p * scale);
+  float h = hash21(cell);
+  float win = step(bias, h);
+  float tiny = step(0.42, uv.x) * step(uv.x, 0.58) * step(0.35, uv.y) * step(uv.y, 0.70);
+  return win * tiny;
 }
 
 void main() {
@@ -111,66 +140,54 @@ void main() {
 
   // ── Tech (type 6): metallic sci-fi panel surface ──
   if (skinType == 6) {
-    // Triplanar blend weights — panels stick to the object surface (not world space)
+    // Triplanar blend weights — panels stick to object surface
     vec3 bw = abs(vNormal);
     bw = pow(bw, vec3(4.0));
     bw /= (bw.x + bw.y + bw.z + 0.001);
 
-    // Coarse panel grid at object-space coordinates
-    float ps = noiseScale * 2.5;
-    vec2 uvX = vPosition.yz * ps;
-    vec2 uvY = vPosition.xz * ps;
-    vec2 uvZ = vPosition.xy * ps;
+    vec3 P = vPosition;
+    float ps = noiseScale * 8.0;   // panel density
+    float lw = 0.045;              // panel line width
 
-    // Seam mask: 0 at cell edge, 1 in panel interior
-    float gap = 0.06;
-    float sX = min(gridSeam(uvX.x, gap), gridSeam(uvX.y, gap));
-    float sY = min(gridSeam(uvY.x, gap), gridSeam(uvY.y, gap));
-    float sZ = min(gridSeam(uvZ.x, gap), gridSeam(uvZ.y, gap));
-    float seamMask = sX * bw.x + sY * bw.y + sZ * bw.z;
+    // Triplanar panel pattern (nested frames + sub-panels + split lines)
+    float px = panelPattern2D(P.yz, ps, lw);
+    float py = panelPattern2D(P.xz, ps, lw);
+    float pz = panelPattern2D(P.xy, ps, lw);
+    float panels = px * bw.x + py * bw.y + pz * bw.z;
 
-    // Per-cell tone variation via cell-coordinate hash
-    float pvX = snoise(vec3(floor(uvX.x), floor(uvX.y), 0.5) * 0.6) * 0.5 + 0.5;
-    float pvY = snoise(vec3(floor(uvY.x), floor(uvY.y), 1.5) * 0.6) * 0.5 + 0.5;
-    float pvZ = snoise(vec3(floor(uvZ.x), floor(uvZ.y), 2.5) * 0.6) * 0.5 + 0.5;
-    float panelVar = pvX * bw.x + pvY * bw.y + pvZ * bw.z;
+    // Triplanar city lights (tiny emissive windows in random cells)
+    float lx = cityLights2D(P.yz, ps * 0.75, 0.82);
+    float ly = cityLights2D(P.xz, ps * 0.75, 0.82);
+    float lz = cityLights2D(P.xy, ps * 0.75, 0.82);
+    float lights = lx * bw.x + ly * bw.y + lz * bw.z;
 
-    // Base metallic color from ramp, nearly black at seams
-    vec3 panelColor = texture2D(colorRamp, vec2(panelVar, 0.5)).rgb;
-    vec3 color = mix(panelColor * 0.15, panelColor, seamMask);
+    // Large-scale tonal variation (zones of lighter/darker panels)
+    float macro = 0.5 + 0.5 * sin(P.x * 1.7 + P.y * 1.1 + P.z * 1.3);
 
-    // Fine sub-panel lines at 5× density
-    float fs = ps * 5.0;
-    vec2 fuvX = vPosition.yz * fs;
-    vec2 fuvY = vPosition.xz * fs;
-    vec2 fuvZ = vPosition.xy * fs;
+    // Sample color ramp at key positions for the palette
+    vec3 baseA = texture2D(colorRamp, vec2(0.0, 0.5)).rgb;     // darkest tone
+    vec3 baseB = texture2D(colorRamp, vec2(0.3, 0.5)).rgb;     // mid-dark
+    vec3 panelCol = texture2D(colorRamp, vec2(0.6, 0.5)).rgb;  // panel highlight
+    vec3 lightCol = texture2D(colorRamp, vec2(1.0, 0.5)).rgb;  // emissive window color
+    vec3 accentCol = texture2D(colorRamp, vec2(0.8, 0.5)).rgb; // Fresnel accent
 
-    float fg = 0.1;
-    float fX = min(gridSeam(fuvX.x, fg), gridSeam(fuvX.y, fg));
-    float fY = min(gridSeam(fuvY.x, fg), gridSeam(fuvY.y, fg));
-    float fZ = min(gridSeam(fuvZ.x, fg), gridSeam(fuvZ.y, fg));
-    float fineMask = fX * bw.x + fY * bw.y + fZ * bw.z;
+    // Build surface color: dark base → brighter at panel frames
+    vec3 base = mix(baseA, baseB, macro * 0.35 + panels * 0.25);
+    base = mix(base, panelCol, panels * 0.55);
 
-    color = mix(color * 0.7, color, fineMask);
+    // Emissive micro-windows
+    vec3 emissive = lightCol * lights * 1.5;
 
-    // Emissive circuit traces — glowing lines in randomly-selected fine cells
-    float trX = snoise(vec3(floor(fuvX.x), floor(fuvX.y), 3.5) * 0.45);
-    float trY = snoise(vec3(floor(fuvY.x), floor(fuvY.y), 3.5) * 0.45);
-    float trZ = snoise(vec3(floor(fuvZ.x), floor(fuvZ.y), 3.5) * 0.45);
-    float traceCell = trX * bw.x + trY * bw.y + trZ * bw.z;
-    // Traces appear in the fine lines of cells above threshold
-    float traceLine = (1.0 - fineMask) * step(0.6, traceCell) * seamMask;
-    vec3 traceColor = texture2D(colorRamp, vec2(1.0, 0.5)).rgb;
-    color += traceColor * traceLine * 0.8;
-
-    // Metallic lighting: tight specular, moderate diffuse, Fresnel edge glint
+    // Metallic lighting
     vec3 tLightDir = normalize(lightPosition - vWorldPosition);
     float diff = max(dot(vNormal, tLightDir), 0.0) * 0.6;
     vec3 tHalfDir = normalize(tLightDir + viewDir);
     float spec = pow(max(dot(vNormal, tHalfDir), 0.0), 128.0) * 1.5 * uSpecular;
-    float glint = fresnelEdge(vNormal, viewDir, 3.5) * 0.3;
 
-    color = color * (0.3 + diff + glint) + vec3(spec);
+    // Fresnel edge accent (metallic silhouette glint)
+    float fres = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0) * 0.18;
+
+    vec3 color = base * (0.3 + diff) + emissive + accentCol * fres * 0.25 + vec3(spec);
     gl_FragColor = vec4(color, uOpacity);
     return;
   }
