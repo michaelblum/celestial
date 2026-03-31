@@ -87,36 +87,10 @@
             <!-- ═══════ FX TAB ═══════ -->
             <div id="ctx-effects" class="ctx-panel">
                 <h3>Effects</h3>
-                <div class="ctx-row">
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-pulsar"> Pulsar</label>
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-accretion"> Accretion</label>
-                </div>
-                <div class="ctx-row">
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-gamma"> Gamma</label>
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-neutrino"> Neutrino</label>
-                </div>
-                <div class="ctx-row">
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-lightning-toggle"> Lightning</label>
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-magnetic"> Magnetic</label>
-                </div>
-                <div class="ctx-row">
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-swarm"> Swarm</label>
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-blackhole"> Black Hole</label>
-                </div>
+                <div class="fx-grid" id="fxGrid"></div>
                 <div class="ctx-divider"></div>
-                <label class="checkbox-label"><input type="checkbox" id="ctx-aura-toggle"> Aura Glow</label>
-                <label>Aura Reach</label>
-                <input type="range" id="ctx-reach" min="0" max="3" step="0.01">
-                <label>Aura Intensity</label>
-                <input type="range" id="ctx-intensity" min="0" max="3" step="0.01">
                 <label>Spin Speed</label>
                 <input type="range" id="ctx-spin" min="0" max="0.1" step="0.001">
-                <div class="ctx-divider"></div>
-                <button class="ctx-trigger" data-ctx-open="ctx-sub-swarm">Swarm Settings</button>
-                <button class="ctx-trigger" data-ctx-open="ctx-sub-lightning">Lightning Settings</button>
-                <button class="ctx-trigger" data-ctx-open="ctx-sub-magnetic">Magnetic Settings</button>
-                <button class="ctx-trigger" data-ctx-open="ctx-sub-aura">Aura & Actions</button>
-                <button class="ctx-trigger" data-ctx-open="ctx-sub-path">Path & Trail</button>
             </div>
 
             <!-- ═══════ WORLD TAB ═══════ -->
@@ -262,6 +236,10 @@
         <!-- Aura & Actions sub -->
         <div id="ctx-sub-aura" class="ctx-menu-card ctx-sub">
             <h3>Aura & Actions</h3>
+            <label>Aura Reach</label>
+            <input type="range" id="ctx-reach" min="0" max="3" step="0.01">
+            <label>Aura Intensity</label>
+            <input type="range" id="ctx-intensity" min="0" max="3" step="0.01">
             <label>Pulse Rate</label>
             <input type="range" id="ctx-pulse-rate" min="0.001" max="0.02" step="0.001">
             <label>Spike Multiplier</label>
