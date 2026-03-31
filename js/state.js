@@ -205,14 +205,17 @@ const state = {
     grid3dTimeScale: 1.0,
     grid3dRelativeMotion: false,
     grid3dTime: 0,
-    _flatZoomMultiplier: 1,
-    _flatEffectiveDensity: 16,
-    grid3dFatLines: true,
     // 3D Grid object refs (set during init)
     grid3dMesh: null,
     grid3dPointCloud: null,
     grid3dProbeMesh: null,
     grid3dGlobeMesh: null,
+
+    // Skybox refs
+    skyboxVisible: true,
+    skyboxNebula: null,
+    skyboxStars: null,
+    skyboxHeroStars: null,
 
     // Scale / Depth
     depth_range: { min: 0.25, max: 3.0 },

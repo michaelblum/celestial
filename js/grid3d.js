@@ -1,18 +1,16 @@
 // 3D Volumetric Spacetime Grid Module
-// Gravity-warped voxel grid, probe sphere, and snow globe boundary
+// CPU-warped voxel grid (3D), multi-segment flat grid (2D), probe, and snow globe
 import state from './state.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const UNIVERSE_SIZE = 24.0;
-const DEFAULT_CAMERA_Z = 7.5;
-const MAX_EFFECTIVE_DENSITY = 128;
 
 // ── Scratch vectors (reused per-frame, never allocate in loops) ────────────
 const _v = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _toMass = new THREE.Vector3();
 
-// ── Module-level references ────────────────────────────────────────────────
+// ── 3D grid module-level refs ──────────────────────────────────────────────
 let basePositions = null;   // Float32Array — immutable grid template
 let positions = null;       // Float32Array — warped each frame
 let colors = null;          // Float32Array — recolored each frame
@@ -20,25 +18,30 @@ let gridGeo = null;
 let pointGeo = null;
 let vertexCount = 0;
 
-// Probe
+// Grid offset for relative-motion mode
+const gridOffset = new THREE.Vector3();
+
+// ── Flat grid (2D mode) ────────────────────────────────────────────────────
+const FLAT_SCALE = 4.0;
+const FLAT_Z = -8.0;
+const FLAT_SEGS = 64;  // segments per line — enough for smooth warp curves
+
+let flatBasePos = null;
+let flatPos = null;
+let flatCol = null;
+let flatGeo = null;
+let flatMesh = null;
+let flatVertCount = 0;
+let _flatLastDensity = -1;
+let _flatC1 = null;
+let _flatC2 = null;
+
+// ── Probe ──────────────────────────────────────────────────────────────────
 let probeBasePositions = null;
 let probeVelocity = new THREE.Vector3();
 
 // Cloud texture (for grid points)
 let cloudTexture = null;
-
-// Grid offset for relative-motion mode
-const gridOffset = new THREE.Vector3();
-
-// Cached flat-mode colors (reset when colors change)
-let _flatColor1 = null;
-let _flatColor2 = null;
-
-// Fat line data (flat mode only — LineSegments2)
-let segmentPairs = null;      // Int32Array of [a, b, a, b, ...] vertex index pairs
-let linePositions = null;     // Float32Array — interleaved start/end positions
-let lineColors = null;        // Float32Array — interleaved start/end colors
-let useFatLines = false;      // Whether current build uses fat lines
 
 // ── Texture generation ─────────────────────────────────────────────────────
 function makeCloudTexture() {
@@ -82,174 +85,70 @@ function hslToRgb(h, s, l) {
     return [r, g, b];
 }
 
-// ── Zoom-adaptive density (flat mode only) ────────────────────────────────
-function computeFlatZoomMultiplier() {
-    const cameraZ = state.perspCamera
-        ? state.perspCamera.position.z
-        : DEFAULT_CAMERA_Z;
-    const raw = DEFAULT_CAMERA_Z / Math.max(cameraZ, 0.5);
-    // Quantize to nearest power-of-2 (1, 2, 4, 8, …)
-    const pow2 = Math.pow(2, Math.round(Math.log2(raw)));
-    const multiplier = Math.max(1, pow2);
-    // Clamp so effectiveDensity stays within budget
-    const maxMult = Math.floor(MAX_EFFECTIVE_DENSITY / state.grid3dDensity);
-    return Math.min(multiplier, maxMult);
-}
-
-// ── Grid construction ──────────────────────────────────────────────────────
-function buildGrid3dInternal(density, stride = 1) {
-    const isFlat = state.gridMode === 'flat';
+// ── 3D Grid construction (CPU-warped point lattice) ────────────────────────
+function buildGrid3dInternal(density) {
     const spacing = UNIVERSE_SIZE / density;
     const halfSize = UNIVERSE_SIZE / 2;
-    const yLayers = isFlat ? 1 : density;
-    vertexCount = density * yLayers * density;
+    vertexCount = density * density * density;
 
     basePositions = new Float32Array(vertexCount * 3);
     positions = new Float32Array(vertexCount * 3);
     colors = new Float32Array(vertexCount * 3);
 
-    // Fill base positions
-    // Flat mode: XY plane at z=-8 (backdrop like old 2D grid), larger scale
-    const flatZ = -8;
-    const flatScale = isFlat ? 4.0 : 1.0; // Flat grid is 4x larger to fill backdrop
     let idx = 0;
     for (let ix = 0; ix < density; ix++) {
-        for (let iy = 0; iy < yLayers; iy++) {
+        for (let iy = 0; iy < density; iy++) {
             for (let iz = 0; iz < density; iz++) {
-                if (isFlat) {
-                    // XY plane at z=flatZ
-                    basePositions[idx]     = (-halfSize + ix * spacing + spacing * 0.5) * flatScale;
-                    basePositions[idx + 1] = (-halfSize + iz * spacing + spacing * 0.5) * flatScale;
-                    basePositions[idx + 2] = flatZ;
-                } else {
-                    basePositions[idx]     = -halfSize + ix * spacing + spacing * 0.5;
-                    basePositions[idx + 1] = -halfSize + iy * spacing + spacing * 0.5;
-                    basePositions[idx + 2] = -halfSize + iz * spacing + spacing * 0.5;
-                }
+                basePositions[idx]     = -halfSize + ix * spacing + spacing * 0.5;
+                basePositions[idx + 1] = -halfSize + iy * spacing + spacing * 0.5;
+                basePositions[idx + 2] = -halfSize + iz * spacing + spacing * 0.5;
                 idx += 3;
             }
         }
     }
-    // Copy base to warped
     positions.set(basePositions);
-    // Default color: dim blue
     for (let i = 0; i < vertexCount * 3; i += 3) {
         colors[i] = 0.15;
         colors[i + 1] = 0.2;
         colors[i + 2] = 0.6;
     }
 
-    // Build index buffer for line segments
-    // In flat mode with stride > 1: only draw gridlines at stride intervals,
-    // but connect ALL consecutive vertices along each visible line for smooth curves.
+    // Index buffer: connect adjacent vertices along X, Y, Z axes
     const indices = [];
     for (let ix = 0; ix < density; ix++) {
-        for (let iy = 0; iy < yLayers; iy++) {
+        for (let iy = 0; iy < density; iy++) {
             for (let iz = 0; iz < density; iz++) {
-                const current = ix * yLayers * density + iy * density + iz;
-
-                if (isFlat && stride > 1) {
-                    // X-direction lines: draw along rows where iz is stride-aligned
-                    if (iz % stride === 0 && ix < density - 1) {
-                        indices.push(current, (ix + 1) * yLayers * density + iy * density + iz);
-                    }
-                    // Z-direction lines: draw along columns where ix is stride-aligned
-                    if (ix % stride === 0 && iz < density - 1) {
-                        indices.push(current, ix * yLayers * density + iy * density + (iz + 1));
-                    }
-                } else {
-                    // Default: connect every vertex to its neighbors
-                    if (ix < density - 1) {
-                        indices.push(current, (ix + 1) * yLayers * density + iy * density + iz);
-                    }
-                    if (!isFlat && iy < yLayers - 1) {
-                        indices.push(current, ix * yLayers * density + (iy + 1) * density + iz);
-                    }
-                    if (iz < density - 1) {
-                        indices.push(current, ix * yLayers * density + iy * density + (iz + 1));
-                    }
-                }
+                const current = ix * density * density + iy * density + iz;
+                if (ix < density - 1) indices.push(current, (ix + 1) * density * density + iy * density + iz);
+                if (iy < density - 1) indices.push(current, ix * density * density + (iy + 1) * density + iz);
+                if (iz < density - 1) indices.push(current, ix * density * density + iy * density + (iz + 1));
             }
         }
     }
 
-    // Standard buffer attributes (used by point cloud, and by thin lines in 3D mode)
     const posAttr = new THREE.BufferAttribute(positions, 3);
     posAttr.setUsage(THREE.DynamicDrawUsage);
     const colAttr = new THREE.BufferAttribute(colors, 3);
     colAttr.setUsage(THREE.DynamicDrawUsage);
 
-    // ── Line segments: fat lines for flat mode, thin lines for 3D ─────
-    if (isFlat && state.grid3dFatLines && typeof THREE.LineSegmentsGeometry !== 'undefined') {
-        useFatLines = true;
-        gridGeo = null;
+    gridGeo = new THREE.BufferGeometry();
+    gridGeo.setAttribute('position', posAttr);
+    gridGeo.setAttribute('color', colAttr);
+    gridGeo.setIndex(new THREE.BufferAttribute(
+        vertexCount > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), 1
+    ));
 
-        // Store segment pairs for per-frame buffer copy
-        segmentPairs = new Int32Array(indices);
-        const numSegments = indices.length / 2;
-        linePositions = new Float32Array(numSegments * 6);
-        lineColors = new Float32Array(numSegments * 6);
+    const lineMat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    state.grid3dMesh = new THREE.LineSegments(gridGeo, lineMat);
+    state.grid3dMesh.frustumCulled = false;
 
-        // Fill initial interleaved positions/colors
-        for (let s = 0; s < numSegments; s++) {
-            const a = segmentPairs[s * 2], b = segmentPairs[s * 2 + 1];
-            const s6 = s * 6, a3 = a * 3, b3 = b * 3;
-            linePositions[s6]     = positions[a3];
-            linePositions[s6 + 1] = positions[a3 + 1];
-            linePositions[s6 + 2] = positions[a3 + 2];
-            linePositions[s6 + 3] = positions[b3];
-            linePositions[s6 + 4] = positions[b3 + 1];
-            linePositions[s6 + 5] = positions[b3 + 2];
-            lineColors[s6]     = colors[a3];
-            lineColors[s6 + 1] = colors[a3 + 1];
-            lineColors[s6 + 2] = colors[a3 + 2];
-            lineColors[s6 + 3] = colors[b3];
-            lineColors[s6 + 4] = colors[b3 + 1];
-            lineColors[s6 + 5] = colors[b3 + 2];
-        }
-
-        const fatGeo = new THREE.LineSegmentsGeometry();
-        fatGeo.setPositions(linePositions);
-        fatGeo.setColors(lineColors);
-
-        const fatMat = new THREE.LineMaterial({
-            vertexColors: true,
-            linewidth: 1.5,
-            transparent: true,
-            opacity: 0.5,
-            resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-
-        state.grid3dMesh = new THREE.LineSegments2(fatGeo, fatMat);
-        state.grid3dMesh.frustumCulled = false;
-    } else {
-        // Standard thin lines (3D mode or fallback)
-        useFatLines = false;
-        segmentPairs = null;
-        linePositions = null;
-        lineColors = null;
-
-        gridGeo = new THREE.BufferGeometry();
-        gridGeo.setAttribute('position', posAttr);
-        gridGeo.setAttribute('color', colAttr);
-        gridGeo.setIndex(new THREE.BufferAttribute(
-            vertexCount > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), 1
-        ));
-
-        const lineMat = new THREE.LineBasicMaterial({
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.35,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        state.grid3dMesh = new THREE.LineSegments(gridGeo, lineMat);
-        state.grid3dMesh.frustumCulled = false;
-    }
-
-    // ── Points geometry (always uses standard attributes) ─────────────
+    // Points geometry (shares same data)
     pointGeo = new THREE.BufferGeometry();
     pointGeo.setAttribute('position', posAttr);
     pointGeo.setAttribute('color', colAttr);
@@ -270,6 +169,73 @@ function buildGrid3dInternal(density, stride = 1) {
     state.grid3dPointCloud.frustumCulled = false;
 }
 
+// ── Flat grid construction (multi-segment lines for smooth curves) ─────────
+function buildFlatGrid(density) {
+    const halfSize = UNIVERSE_SIZE * FLAT_SCALE / 2;
+    const step = UNIVERSE_SIZE * FLAT_SCALE / density;
+
+    const lineCount = (density + 1) * 2;
+    flatVertCount = lineCount * (FLAT_SEGS + 1);
+
+    flatBasePos = new Float32Array(flatVertCount * 3);
+    flatPos = new Float32Array(flatVertCount * 3);
+    flatCol = new Float32Array(flatVertCount * 3);
+
+    const indices = [];
+    let v = 0;
+
+    // Horizontal lines (fixed y, varying x)
+    for (let i = 0; i <= density; i++) {
+        const y = -halfSize + i * step;
+        for (let s = 0; s <= FLAT_SEGS; s++) {
+            const x = -halfSize + (s / FLAT_SEGS) * (UNIVERSE_SIZE * FLAT_SCALE);
+            flatBasePos[v * 3]     = x;
+            flatBasePos[v * 3 + 1] = y;
+            flatBasePos[v * 3 + 2] = FLAT_Z;
+            if (s > 0) indices.push(v - 1, v);
+            v++;
+        }
+    }
+
+    // Vertical lines (fixed x, varying y)
+    for (let i = 0; i <= density; i++) {
+        const x = -halfSize + i * step;
+        for (let s = 0; s <= FLAT_SEGS; s++) {
+            const y = -halfSize + (s / FLAT_SEGS) * (UNIVERSE_SIZE * FLAT_SCALE);
+            flatBasePos[v * 3]     = x;
+            flatBasePos[v * 3 + 1] = y;
+            flatBasePos[v * 3 + 2] = FLAT_Z;
+            if (s > 0) indices.push(v - 1, v);
+            v++;
+        }
+    }
+
+    flatPos.set(flatBasePos);
+
+    const posAttr = new THREE.BufferAttribute(flatPos, 3);
+    posAttr.setUsage(THREE.DynamicDrawUsage);
+    const colAttr = new THREE.BufferAttribute(flatCol, 3);
+    colAttr.setUsage(THREE.DynamicDrawUsage);
+
+    flatGeo = new THREE.BufferGeometry();
+    flatGeo.setAttribute('position', posAttr);
+    flatGeo.setAttribute('color', colAttr);
+    flatGeo.setIndex(new THREE.BufferAttribute(
+        flatVertCount > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), 1
+    ));
+
+    const mat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.45,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+    flatMesh = new THREE.LineSegments(flatGeo, mat);
+    flatMesh.frustumCulled = false;
+    _flatLastDensity = density;
+}
+
 // ── Probe construction ─────────────────────────────────────────────────────
 function buildProbe() {
     const geo = new THREE.SphereGeometry(2, 24, 24);
@@ -284,19 +250,16 @@ function buildProbe() {
     state.grid3dProbeMesh = new THREE.Mesh(geo, mat);
     state.grid3dProbeMesh.frustumCulled = false;
 
-    // Store original vertex positions
     const posArr = geo.attributes.position.array;
     probeBasePositions = new Float32Array(posArr.length);
     probeBasePositions.set(posArr);
 
-    // Initial position: distance 25 from origin
     state.grid3dProbeMesh.position.set(25, 0, 0);
     probeVelocity.set(-0.3, 0.1, 0.05);
 }
 
 // ── Accessory construction ─────────────────────────────────────────────────
 function buildAccessories() {
-    // Snow globe
     const globeGeo = new THREE.SphereGeometry(1, 64, 64);
     const globeMat = new THREE.MeshBasicMaterial({
         color: 0x4488ff,
@@ -313,40 +276,26 @@ function buildAccessories() {
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function createGrid3d() {
-    // 1. Build the initial 3D grid (zoom-adaptive for flat mode)
-    const isFlat = state.gridMode === 'flat';
-    let effectiveDensity = state.grid3dDensity;
-    let stride = 1;
-    if (isFlat && state.perspCamera) {
-        const mult = computeFlatZoomMultiplier();
-        effectiveDensity = state.grid3dDensity * mult;
-        stride = mult;
-        state._flatZoomMultiplier = mult;
-        state._flatEffectiveDensity = effectiveDensity;
-    }
-    buildGrid3dInternal(effectiveDensity, stride);
-
-    // 2. Create probe sphere
+    buildGrid3dInternal(state.grid3dDensity);
     buildProbe();
-
-    // 3. Create accessories (globe)
     buildAccessories();
 
-    // 4. Add everything to scene
     state.scene.add(state.grid3dMesh);
     state.scene.add(state.grid3dPointCloud);
     state.scene.add(state.grid3dProbeMesh);
     state.scene.add(state.grid3dGlobeMesh);
 
-    // 5. Set all invisible initially
     state.grid3dMesh.visible = false;
     state.grid3dPointCloud.visible = false;
     state.grid3dProbeMesh.visible = false;
     state.grid3dGlobeMesh.visible = false;
+
+    buildFlatGrid(state.grid3dDensity);
+    state.scene.add(flatMesh);
+    flatMesh.visible = false;
 }
 
 export function rebuildGrid3d() {
-    // Remove old grid meshes from scene and dispose
     if (state.grid3dMesh) {
         state.scene.remove(state.grid3dMesh);
         state.grid3dMesh.geometry.dispose();
@@ -360,24 +309,11 @@ export function rebuildGrid3d() {
         state.grid3dPointCloud = null;
     }
 
-    // Compute zoom-adaptive density for flat mode
-    const isFlat = state.gridMode === 'flat';
-    let effectiveDensity = state.grid3dDensity;
-    let stride = 1;
-    if (isFlat) {
-        const mult = computeFlatZoomMultiplier();
-        effectiveDensity = state.grid3dDensity * mult;
-        stride = mult;
-        state._flatZoomMultiplier = mult;
-        state._flatEffectiveDensity = effectiveDensity;
-    }
-    buildGrid3dInternal(effectiveDensity, stride);
+    buildGrid3dInternal(state.grid3dDensity);
 
-    // Re-add to scene
     state.scene.add(state.grid3dMesh);
     state.scene.add(state.grid3dPointCloud);
 
-    // Apply current visibility
     const isWireframe = state.grid3dRenderMode === 'wireframe';
     state.grid3dMesh.visible = state.gridMode !== 'off' && isWireframe;
     state.grid3dPointCloud.visible = state.gridMode !== 'off' && !isWireframe;
@@ -386,38 +322,93 @@ export function rebuildGrid3d() {
 export function animateGrid3d(dt) {
     // ── Visibility gate ────────────────────────────────────────────────
     if (state.gridMode === 'off') {
-        const meshes = [
-            state.grid3dMesh, state.grid3dPointCloud,
-            state.grid3dProbeMesh, state.grid3dGlobeMesh
-        ];
-        for (let i = 0; i < meshes.length; i++) {
-            if (meshes[i]) meshes[i].visible = false;
-        }
+        const meshes = [state.grid3dMesh, state.grid3dPointCloud, state.grid3dProbeMesh, state.grid3dGlobeMesh];
+        for (let i = 0; i < meshes.length; i++) { if (meshes[i]) meshes[i].visible = false; }
+        if (flatMesh) flatMesh.visible = false;
         return;
     }
 
-    const isFlat = state.gridMode === 'flat';
+    // ── Flat mode ──────────────────────────────────────────────────────
+    if (state.gridMode === 'flat') {
+        if (state.grid3dMesh) state.grid3dMesh.visible = false;
+        if (state.grid3dPointCloud) state.grid3dPointCloud.visible = false;
+        if (state.grid3dProbeMesh) state.grid3dProbeMesh.visible = false;
+        if (state.grid3dGlobeMesh) state.grid3dGlobeMesh.visible = false;
 
-    // ── Zoom-adaptive rebuild check (flat mode only) ──────────────────
-    if (isFlat) {
-        const newMult = computeFlatZoomMultiplier();
-        if (newMult !== state._flatZoomMultiplier) {
-            rebuildGrid3d();
-            return; // skip this frame; rebuilt geometry will animate next frame
+        // Rebuild if density changed
+        if (state.grid3dDensity !== _flatLastDensity) {
+            if (flatMesh) {
+                state.scene.remove(flatMesh);
+                flatGeo.dispose();
+                flatMesh.material.dispose();
+                flatMesh = null;
+            }
+            buildFlatGrid(state.grid3dDensity);
+            state.scene.add(flatMesh);
         }
+
+        if (!flatMesh) return;
+        flatMesh.visible = true;
+
+        const massPos = (state.grid3dRelativeMotion && state._grid3dLogicalPos)
+            ? state._grid3dLogicalPos
+            : state.polyGroup.position;
+
+        // Gaussian warp — localized bowl ("bowling ball on a trampoline")
+        const gridMass = Math.min(state.swarmGravity * 0.05, 3.0);
+        const warpDepth = gridMass * 10.0;
+        const influenceRadius = Math.max(gridMass * 2.5, 1.0);
+        const invInfluenceSq = 1.0 / (influenceRadius * influenceRadius);
+
+        _flatC1 = _flatC1 || new THREE.Color();
+        _flatC2 = _flatC2 || new THREE.Color();
+        _flatC1.set(state.colors.grid[0]);
+        _flatC2.set(state.colors.grid[1]);
+
+        const ox = state.grid3dRelativeMotion ? -massPos.x : 0;
+        const oy = state.grid3dRelativeMotion ? -massPos.y : 0;
+
+        for (let i = 0; i < flatVertCount; i++) {
+            const i3 = i * 3;
+            const bx = flatBasePos[i3]     + ox;
+            const by = flatBasePos[i3 + 1] + oy;
+            const dx = bx - massPos.x;
+            const dy = by - massPos.y;
+            const distSq = dx * dx + dy * dy;
+            const zOffset = -warpDepth * Math.exp(-distSq * invInfluenceSq);
+
+            flatPos[i3]     = bx;
+            flatPos[i3 + 1] = by;
+            flatPos[i3 + 2] = FLAT_Z + zOffset;
+
+            // Color: distance from origin for stable gradient
+            const originDist = Math.sqrt(bx * bx + by * by);
+            const t = Math.min(originDist / 50.0, 1.0);
+            const cr = _flatC1.r + (_flatC2.r - _flatC1.r) * t;
+            const cg = _flatC1.g + (_flatC2.g - _flatC1.g) * t;
+            const cb = _flatC1.b + (_flatC2.b - _flatC1.b) * t;
+            const warpBright = Math.min(1.0, Math.abs(zOffset) / Math.max(warpDepth, 0.01));
+            flatCol[i3]     = Math.min(1, cr + warpBright * 0.35);
+            flatCol[i3 + 1] = Math.min(1, cg + warpBright * 0.12);
+            flatCol[i3 + 2] = Math.min(1, cb + warpBright * 0.45);
+        }
+
+        flatGeo.attributes.position.needsUpdate = true;
+        flatGeo.attributes.color.needsUpdate = true;
+        return;
     }
 
-    // Flat mode: much weaker gravity (backdrop effect), 3D mode: full strength
-    const mass = isFlat ? Math.min(state.swarmGravity * 0.05, 3.0) : state.swarmGravity;
+    // ── 3D mode ────────────────────────────────────────────────────────
+    if (flatMesh) flatMesh.visible = false;
+
+    const mass = state.swarmGravity;
     const eventHorizon = state.z_depth * state.novaScale;
-    const renderRadius = isFlat ? 999 : state.grid3dRenderRadius; // Flat grid always fully visible
+    const renderRadius = state.grid3dRenderRadius;
     const isBlackHole = state.isBlackHoleMode;
     const isSnowGlobe = state.grid3dSnowGlobe;
     const isWireframe = state.grid3dRenderMode === 'wireframe';
     const timeScale = state.grid3dTimeScale;
 
-    // Mass center
-    // In relative motion mode, use the logical position (polyGroup stays at origin visually)
     const massPos = (state.grid3dRelativeMotion && state._grid3dLogicalPos)
         ? state._grid3dLogicalPos
         : state.polyGroup.position;
@@ -425,8 +416,8 @@ export function animateGrid3d(dt) {
     // ── Toggle mesh visibility ─────────────────────────────────────────
     if (state.grid3dMesh) state.grid3dMesh.visible = isWireframe;
     if (state.grid3dPointCloud) state.grid3dPointCloud.visible = !isWireframe;
-    if (state.grid3dProbeMesh) state.grid3dProbeMesh.visible = !isFlat && state.grid3dShowProbe;
-    if (state.grid3dGlobeMesh) state.grid3dGlobeMesh.visible = !isFlat && isSnowGlobe;
+    if (state.grid3dProbeMesh) state.grid3dProbeMesh.visible = state.grid3dShowProbe;
+    if (state.grid3dGlobeMesh) state.grid3dGlobeMesh.visible = isSnowGlobe;
 
     // ── Relative motion offset ─────────────────────────────────────────
     if (state.grid3dRelativeMotion) {
@@ -435,172 +426,88 @@ export function animateGrid3d(dt) {
         gridOffset.set(0, 0, 0);
     }
 
-    // ── Warp grid vertices ─────────────────────────────────────────────
+    // ── CPU warp grid vertices ─────────────────────────────────────────
     if (basePositions && positions && colors) {
-        const renderRadSq = renderRadius * renderRadius;
-
         for (let i = 0; i < vertexCount; i++) {
             const i3 = i * 3;
-
-            // Base position + offset for relative motion
             const bx = basePositions[i3]     + gridOffset.x;
             const by = basePositions[i3 + 1] + gridOffset.y;
             const bz = basePositions[i3 + 2] + gridOffset.z;
 
-            let dx, dy, dz, dist, distSq, pull, nx, ny, nz;
+            let dx, dy, dz, dist, distSq, pull;
 
-            if (isFlat) {
-                // Flat mode: "bowling ball on a trampoline" — 1/r funnel well
-                // The whole surface slopes toward the mass, with a deep well at center
-                dx = bx - massPos.x;
-                dy = by - massPos.y;
-                distSq = dx * dx + dy * dy;
-                dist = Math.sqrt(distSq);
-                const depth = mass * 8.0;
-                const softening = Math.max(mass * 0.5, 0.3);
-                const zOffset = -depth / Math.sqrt(distSq + softening * softening);
-                nx = bx;
-                ny = by;
-                nz = bz + zOffset;
-                pull = Math.abs(zOffset) / 10.0; // For color intensity
+            if (state.grid3dRelativeMotion) {
+                dx = -bx; dy = -by; dz = -bz;
             } else {
-                // 3D mode: radial pull toward mass center
-                if (state.grid3dRelativeMotion) {
-                    dx = -bx; dy = -by; dz = -bz;
-                } else {
-                    dx = massPos.x - bx;
-                    dy = massPos.y - by;
-                    dz = massPos.z - bz;
-                }
+                dx = massPos.x - bx;
+                dy = massPos.y - by;
+                dz = massPos.z - bz;
+            }
 
-                distSq = dx * dx + dy * dy + dz * dz;
-                dist = Math.sqrt(distSq);
+            distSq = dx * dx + dy * dy + dz * dz;
+            dist = Math.sqrt(distSq);
 
-                if (isBlackHole) {
-                    pull = (mass / 2) / (Math.pow(dist, 1.5) + 1);
-                } else {
-                    pull = (mass / 10) / (distSq + 1);
-                }
+            if (isBlackHole) {
+                pull = (mass / 2) / (Math.pow(dist, 1.5) + 1);
+            } else {
+                pull = (mass / 10) / (distSq + 1);
+            }
+            if (pull > dist - eventHorizon) {
+                pull = Math.max(0, dist - eventHorizon);
+            }
 
-                if (pull > dist - eventHorizon) {
-                    pull = Math.max(0, dist - eventHorizon);
-                }
-
-                if (dist > 0.001) {
-                    const invDist = 1 / dist;
-                    nx = bx + dx * invDist * pull;
-                    ny = by + dy * invDist * pull;
-                    nz = bz + dz * invDist * pull;
-                } else {
-                    nx = bx; ny = by; nz = bz;
-                }
+            let nx, ny, nz;
+            if (dist > 0.001) {
+                const invDist = 1 / dist;
+                nx = bx + dx * invDist * pull;
+                ny = by + dy * invDist * pull;
+                nz = bz + dz * invDist * pull;
+            } else {
+                nx = bx; ny = by; nz = bz;
             }
 
             positions[i3]     = nx;
             positions[i3 + 1] = ny;
             positions[i3 + 2] = nz;
 
-            // ── Color ──────────────────────────────────────────────────
-            if (isFlat) {
-                // Flat mode: use grid gradient colors with distance-based fade
-                _flatColor1 = _flatColor1 || new THREE.Color();
-                _flatColor2 = _flatColor2 || new THREE.Color();
-                _flatColor1.set(state.colors.grid[0]);
-                _flatColor2.set(state.colors.grid[1]);
-                const c1 = _flatColor1;
-                const c2 = _flatColor2;
-                const xyDist = Math.sqrt((bx - massPos.x) ** 2 + (by - massPos.y) ** 2);
-                const t = Math.min(xyDist / 50.0, 1.0);
-                const cr = c1.r + (c2.r - c1.r) * t;
-                const cg = c1.g + (c2.g - c1.g) * t;
-                const cb = c1.b + (c2.b - c1.b) * t;
-                // Brighten near gravity well
-                const warpBright = Math.min(1.0, pull * 3.0);
-                colors[i3]     = cr + warpBright * 0.3;
-                colors[i3 + 1] = cg + warpBright * 0.1;
-                colors[i3 + 2] = cb + warpBright * 0.4;
+            // Color: HSL based on warp intensity
+            const intensity = Math.min(pull / (dist + 0.5), 1.0);
+            let hue, sat, light;
+            if (isBlackHole) {
+                hue = 0.15 - intensity * 0.15;
+                sat = 1.0;
+                light = 0.1 + intensity * 0.6;
+                if (dist < eventHorizon * 2) {
+                    light = Math.min(1.0, light + 0.3 * (1 - dist / (eventHorizon * 2)));
+                }
             } else {
-                const intensity = Math.min(pull / (dist + 0.5), 1.0);
-                let hue, sat, light;
-                if (isBlackHole) {
-                    hue = 0.15 - intensity * 0.15;
-                    sat = 1.0;
-                    light = 0.1 + intensity * 0.6;
-                    if (dist < eventHorizon * 2) {
-                        light = Math.min(1.0, light + 0.3 * (1 - dist / (eventHorizon * 2)));
-                    }
-                } else {
-                    hue = 0.6 - intensity * 0.6;
-                    sat = 1.0;
-                    light = 0.08 + intensity * 0.45;
-                }
-
-                let alpha = 1.0;
-                const distFromMass = dist;
-                if (isSnowGlobe) {
-                    if (distFromMass > renderRadius) alpha = 0.0;
-                } else {
-                    if (distFromMass > renderRadius * 0.7) {
-                        alpha = Math.max(0, 1.0 - (distFromMass - renderRadius * 0.7) / (renderRadius * 0.3));
-                    }
-                }
-
-                const [cr, cg, cb] = hslToRgb(hue, sat, light);
-                colors[i3]     = cr * alpha;
-                colors[i3 + 1] = cg * alpha;
-                colors[i3 + 2] = cb * alpha;
+                hue = 0.6 - intensity * 0.6;
+                sat = 1.0;
+                light = 0.08 + intensity * 0.45;
             }
+
+            let alpha = 1.0;
+            if (isSnowGlobe) {
+                if (dist > renderRadius) alpha = 0.0;
+            } else if (dist > renderRadius * 0.7) {
+                alpha = Math.max(0, 1.0 - (dist - renderRadius * 0.7) / (renderRadius * 0.3));
+            }
+
+            const [cr, cg, cb] = hslToRgb(hue, sat, light);
+            colors[i3]     = cr * alpha;
+            colors[i3 + 1] = cg * alpha;
+            colors[i3 + 2] = cb * alpha;
         }
 
-        // Mark attributes for GPU upload
-        if (useFatLines) {
-            // Copy warped positions/colors into fat line interleaved buffers
-            const numSegments = segmentPairs.length / 2;
-            for (let s = 0; s < numSegments; s++) {
-                const a = segmentPairs[s * 2], b = segmentPairs[s * 2 + 1];
-                const s6 = s * 6, a3 = a * 3, b3 = b * 3;
-                linePositions[s6]     = positions[a3];
-                linePositions[s6 + 1] = positions[a3 + 1];
-                linePositions[s6 + 2] = positions[a3 + 2];
-                linePositions[s6 + 3] = positions[b3];
-                linePositions[s6 + 4] = positions[b3 + 1];
-                linePositions[s6 + 5] = positions[b3 + 2];
-                lineColors[s6]     = colors[a3];
-                lineColors[s6 + 1] = colors[a3 + 1];
-                lineColors[s6 + 2] = colors[a3 + 2];
-                lineColors[s6 + 3] = colors[b3];
-                lineColors[s6 + 4] = colors[b3 + 1];
-                lineColors[s6 + 5] = colors[b3 + 2];
-            }
-            const geo = state.grid3dMesh.geometry;
-            geo.attributes.instanceStart.data.array.set(linePositions);
-            geo.attributes.instanceStart.data.needsUpdate = true;
-            if (geo.attributes.instanceColorStart) {
-                geo.attributes.instanceColorStart.data.array.set(lineColors);
-                geo.attributes.instanceColorStart.data.needsUpdate = true;
-            }
-            // Keep LineMaterial resolution in sync
-            state.grid3dMesh.material.resolution.set(window.innerWidth, window.innerHeight);
-            // Point cloud uses separate attributes — mark dirty
-            pointGeo.attributes.position.needsUpdate = true;
-            pointGeo.attributes.color.needsUpdate = true;
-        } else {
-            gridGeo.attributes.position.needsUpdate = true;
-            gridGeo.attributes.color.needsUpdate = true;
-            // pointGeo shares the same attributes, no separate update needed
-        }
+        gridGeo.attributes.position.needsUpdate = true;
+        gridGeo.attributes.color.needsUpdate = true;
     }
 
     // ── Probe physics ──────────────────────────────────────────────────
     if (state.grid3dShowProbe && state.grid3dProbeMesh) {
         const probePos = state.grid3dProbeMesh.position;
 
-        // Drift toward mass
-        _toMass.set(
-            massPos.x - probePos.x,
-            massPos.y - probePos.y,
-            massPos.z - probePos.z
-        );
+        _toMass.set(massPos.x - probePos.x, massPos.y - probePos.y, massPos.z - probePos.z);
         const probeDist = _toMass.length();
 
         if (probeDist > 0.001) {
@@ -611,10 +518,8 @@ export function animateGrid3d(dt) {
 
         probePos.add(_v.copy(probeVelocity).multiplyScalar(dt * timeScale));
 
-        // Absorbed? Respawn
         const distToMass = probePos.distanceTo(massPos);
         if (distToMass < eventHorizon * 0.8) {
-            // Respawn at distance 25, velocity pointing inward
             const angle = Math.random() * Math.PI * 2;
             const elevation = (Math.random() - 0.5) * Math.PI;
             probePos.set(
@@ -622,48 +527,39 @@ export function animateGrid3d(dt) {
                 massPos.y + 25 * Math.sin(elevation),
                 massPos.z + 25 * Math.cos(elevation) * Math.sin(angle)
             );
-            _dir.set(
-                massPos.x - probePos.x,
-                massPos.y - probePos.y,
-                massPos.z - probePos.z
-            ).normalize().multiplyScalar(0.5);
+            _dir.set(massPos.x - probePos.x, massPos.y - probePos.y, massPos.z - probePos.z).normalize().multiplyScalar(0.5);
             probeVelocity.copy(_dir);
         }
 
-        // Warp probe vertices with gravity
         const geo = state.grid3dProbeMesh.geometry;
         const posArr = geo.attributes.position.array;
         const count = posArr.length / 3;
 
         for (let i = 0; i < count; i++) {
             const i3 = i * 3;
-            // World position of this probe vertex
             const wx = probeBasePositions[i3]     + probePos.x;
             const wy = probeBasePositions[i3 + 1] + probePos.y;
             const wz = probeBasePositions[i3 + 2] + probePos.z;
 
-            const dx = massPos.x - wx;
-            const dy = massPos.y - wy;
-            const dz = massPos.z - wz;
-            const distSq = dx * dx + dy * dy + dz * dz;
-            const dist = Math.sqrt(distSq);
+            const pdx = massPos.x - wx;
+            const pdy = massPos.y - wy;
+            const pdz = massPos.z - wz;
+            const pDistSq = pdx * pdx + pdy * pdy + pdz * pdz;
+            const pDist = Math.sqrt(pDistSq);
 
-            let pull;
+            let pPull;
             if (isBlackHole) {
-                pull = (mass / 2) / (Math.pow(dist, 1.5) + 1);
+                pPull = (mass / 2) / (Math.pow(pDist, 1.5) + 1);
             } else {
-                pull = (mass / 10) / (distSq + 1);
+                pPull = (mass / 10) / (pDistSq + 1);
             }
-            if (pull > dist - eventHorizon) {
-                pull = Math.max(0, dist - eventHorizon);
-            }
+            if (pPull > pDist - eventHorizon) pPull = Math.max(0, pDist - eventHorizon);
 
-            if (dist > 0.001) {
-                const invDist = 1 / dist;
-                // Local offset (subtract probePos to keep in local space)
-                posArr[i3]     = probeBasePositions[i3]     + dx * invDist * pull;
-                posArr[i3 + 1] = probeBasePositions[i3 + 1] + dy * invDist * pull;
-                posArr[i3 + 2] = probeBasePositions[i3 + 2] + dz * invDist * pull;
+            if (pDist > 0.001) {
+                const inv = 1 / pDist;
+                posArr[i3]     = probeBasePositions[i3]     + pdx * inv * pPull;
+                posArr[i3 + 1] = probeBasePositions[i3 + 1] + pdy * inv * pPull;
+                posArr[i3 + 2] = probeBasePositions[i3 + 2] + pdz * inv * pPull;
             } else {
                 posArr[i3]     = probeBasePositions[i3];
                 posArr[i3 + 1] = probeBasePositions[i3 + 1];
@@ -674,8 +570,6 @@ export function animateGrid3d(dt) {
     }
 
     // ── Accessories ────────────────────────────────────────────────────
-
-    // Snow globe: scales to render radius, positioned at mass
     if (state.grid3dGlobeMesh) {
         if (state.grid3dRelativeMotion) {
             state.grid3dGlobeMesh.position.set(0, 0, 0);

@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Celestial</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="stylesheet" href="css/controls.css">
@@ -17,29 +14,146 @@
     <!-- Hidden file input for load function -->
     <input type="file" id="file-loader" style="display:none;" accept=".json">
 
-    <!-- Unified Context Menu -->
-    <div id="ctx-unified" class="context-menu">
-        <!-- Tab row -->
-        <div class="ctx-tabs">
-            <div class="ctx-tab active" data-ctx-tab="ctx-geom" title="Geometry">
-                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12"></rect><rect x="9" y="9" width="12" height="12"></rect><line x1="3" y1="3" x2="9" y2="9"></line><line x1="15" y1="3" x2="21" y2="9"></line><line x1="3" y1="15" x2="9" y2="21"></line><line x1="15" y1="15" x2="21" y2="21"></line></svg>
+    <!-- Context Menu Anchor -->
+    <div id="ctx-unified" class="ctx-anchor">
+        <!-- Root menu card (the whole thing is one card) -->
+        <div id="ctx-root" class="ctx-menu-card active">
+            <div class="ctx-tabs">
+                <div class="ctx-tab active" data-ctx-tab="ctx-geom" title="Shape">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12"></rect><rect x="9" y="9" width="12" height="12"></rect><line x1="3" y1="3" x2="9" y2="9"></line><line x1="15" y1="3" x2="21" y2="9"></line><line x1="3" y1="15" x2="9" y2="21"></line><line x1="15" y1="15" x2="21" y2="21"></line></svg>
+                </div>
+                <div class="ctx-tab" data-ctx-tab="ctx-colors" title="Look">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 2v10l8.5-5.5"></path><path d="M12 12l-8.5 5.5"></path><path d="M12 12l-8.5-5.5"></path><path d="M12 12v10"></path><path d="M12 12l8.5 5.5"></path></svg>
+                </div>
+                <div class="ctx-tab" data-ctx-tab="ctx-effects" title="FX">
+                    <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </div>
+                <div class="ctx-tab" data-ctx-tab="ctx-environ" title="World">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+                </div>
             </div>
-            <div class="ctx-tab" data-ctx-tab="ctx-colors" title="Appearance">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 2v10l8.5-5.5"></path><path d="M12 12l-8.5 5.5"></path><path d="M12 12l-8.5-5.5"></path><path d="M12 12v10"></path><path d="M12 12l8.5 5.5"></path></svg>
+
+            <!-- ═══════ SHAPE TAB ═══════ -->
+            <div id="ctx-geom" class="ctx-panel active">
+                <h3>Shape</h3>
+                <label>Geometry</label>
+                <select id="ctx-shape">
+                    <option value="4">Tetrahedron</option>
+                    <option value="6">Hexahedron (Cube)</option>
+                    <option value="8">Octahedron</option>
+                    <option value="12">Dodecahedron</option>
+                    <option value="20">Icosahedron</option>
+                    <option value="90">Tetartoid (Pseudo)</option>
+                    <option value="91">Torus Knot</option>
+                    <option value="100">Sphere</option>
+                </select>
+                <label>Stellation</label>
+                <input type="range" id="ctx-stellation" min="-1" max="2" step="0.05">
+                <label>Face Opacity</label>
+                <input type="range" id="ctx-opacity" min="0" max="1" step="0.01">
+                <label>Edge Opacity</label>
+                <input type="range" id="ctx-edge-opacity" min="0" max="1" step="0.01">
+                <div class="ctx-row">
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-mask"> Hollow Core</label>
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-interior"> Interior</label>
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-specular"> Specular</label>
+                </div>
+                <div class="ctx-divider"></div>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-omega">Omega Shape</button>
             </div>
-            <div class="ctx-tab" data-ctx-tab="ctx-effects" title="Effects">
-                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+
+            <!-- ═══════ LOOK TAB ═══════ -->
+            <div id="ctx-colors" class="ctx-panel">
+                <h3>Appearance</h3>
+                <label>Preset</label>
+                <select id="ctx-preset">
+                    <option value="default">Default Theme</option>
+                    <option value="blackhole">Black Hole</option>
+                    <option value="crystal">Pure Crystal</option>
+                    <option value="neon">Neon Ghost</option>
+                </select>
+                <label>Primary Color</label>
+                <input type="color" id="ctx-color">
+                <label>Master Gradient</label>
+                <div style="display:flex; gap:4px;">
+                    <input type="color" id="ctx-master1" style="flex:1; height:28px;">
+                    <input type="color" id="ctx-master2" style="flex:1; height:28px;">
+                </div>
+                <div class="ctx-divider"></div>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-core-colors">Core Colors</button>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-fx-colors">Effect Colors</button>
             </div>
-            <div class="ctx-tab" data-ctx-tab="ctx-environ" title="Environment">
-                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+
+            <!-- ═══════ FX TAB ═══════ -->
+            <div id="ctx-effects" class="ctx-panel">
+                <h3>Effects</h3>
+                <div class="ctx-row">
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-pulsar"> Pulsar</label>
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-accretion"> Accretion</label>
+                </div>
+                <div class="ctx-row">
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-gamma"> Gamma</label>
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-neutrino"> Neutrino</label>
+                </div>
+                <div class="ctx-row">
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-lightning-toggle"> Lightning</label>
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-magnetic"> Magnetic</label>
+                </div>
+                <div class="ctx-row">
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-swarm"> Swarm</label>
+                    <label class="checkbox-label"><input type="checkbox" id="ctx-blackhole"> Black Hole</label>
+                </div>
+                <div class="ctx-divider"></div>
+                <label class="checkbox-label"><input type="checkbox" id="ctx-aura-toggle"> Aura Glow</label>
+                <label>Aura Reach</label>
+                <input type="range" id="ctx-reach" min="0" max="3" step="0.01">
+                <label>Aura Intensity</label>
+                <input type="range" id="ctx-intensity" min="0" max="3" step="0.01">
+                <label>Spin Speed</label>
+                <input type="range" id="ctx-spin" min="0" max="0.1" step="0.001">
+                <div class="ctx-divider"></div>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-swarm">Swarm Settings</button>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-lightning">Lightning Settings</button>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-magnetic">Magnetic Settings</button>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-aura">Aura & Actions</button>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-path">Path & Trail</button>
+            </div>
+
+            <!-- ═══════ WORLD TAB ═══════ -->
+            <div id="ctx-environ" class="ctx-panel">
+                <h3>World</h3>
+                <label>Grid Mode</label>
+                <select id="ctx-grid-mode">
+                    <option value="flat">2D Flat</option>
+                    <option value="3d">3D Volumetric</option>
+                    <option value="off">Off</option>
+                </select>
+                <label class="checkbox-label" style="margin-top:4px;"><input type="checkbox" id="ctx-ortho"> Orthographic Camera</label>
+                <label>FOV</label>
+                <input type="range" id="ctx-fov" min="10" max="120" step="1">
+                <label>Z-Depth Scale</label>
+                <input type="range" id="ctx-zdepth" min="0.25" max="3" step="0.01">
+                <div class="ctx-divider"></div>
+                <button class="ctx-trigger" data-ctx-open="ctx-sub-grid">Grid Settings</button>
+                <div class="ctx-divider"></div>
+                <div class="ctx-actions">
+                    <button id="ctx-btn-randomize" title="Randomize"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle></svg></button>
+                    <button id="ctx-btn-snapshot" title="Snapshot"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></button>
+                    <button id="ctx-btn-share" title="Copy Link"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></button>
+                    <button id="ctx-btn-save" title="Save"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg></button>
+                    <button id="ctx-btn-load" title="Load"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></button>
+                </div>
             </div>
         </div>
 
-        <!-- Geometry panel -->
-        <div id="ctx-geom" class="ctx-panel active">
-            <h3>Alpha Shape</h3>
-            <label>Geometry</label>
-            <select id="ctx-shape">
+        <!-- ═══════ SUB-MENUS (siblings of root, each a full card) ═══════ -->
+
+        <!-- Omega Shape sub -->
+        <div id="ctx-sub-omega" class="ctx-menu-card ctx-sub">
+            <h3>Omega Shape</h3>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-omega-toggle"> Enable Omega</label>
+            <label>Shape</label>
+            <select id="ctx-omega-shape">
                 <option value="4">Tetrahedron</option>
                 <option value="6">Hexahedron (Cube)</option>
                 <option value="8">Octahedron</option>
@@ -49,148 +163,157 @@
                 <option value="91">Torus Knot</option>
                 <option value="100">Sphere</option>
             </select>
-            <label>Primary Color</label>
-            <input type="color" id="ctx-color">
-            <label>Face Opacity</label>
-            <input type="range" id="ctx-opacity" min="0" max="1" step="0.01">
-            <label>Edge Opacity</label>
-            <input type="range" id="ctx-edge-opacity" min="0" max="1" step="0.01">
+            <label>Scale</label>
+            <input type="range" id="ctx-omega-scale" min="0.1" max="5" step="0.05">
             <label>Stellation</label>
-            <input type="range" id="ctx-stellation" min="-1" max="2" step="0.05">
+            <input type="range" id="ctx-omega-stellation" min="-1" max="2" step="0.05">
+            <label>Face Opacity</label>
+            <input type="range" id="ctx-omega-opacity" min="0" max="1" step="0.01">
+            <label>Edge Opacity</label>
+            <input type="range" id="ctx-omega-edge-opacity" min="0" max="1" step="0.01">
+            <div class="ctx-row">
+                <label class="checkbox-label"><input type="checkbox" id="ctx-omega-mask"> Hollow</label>
+                <label class="checkbox-label"><input type="checkbox" id="ctx-omega-interior"> Interior</label>
+                <label class="checkbox-label"><input type="checkbox" id="ctx-omega-specular"> Specular</label>
+            </div>
+            <div class="ctx-divider"></div>
+            <div class="ctx-row">
+                <label class="checkbox-label"><input type="checkbox" id="ctx-omega-counterspin"> Counter Spin</label>
+                <label class="checkbox-label"><input type="checkbox" id="ctx-omega-lock"> Lock Pos</label>
+            </div>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-omega-interdim"> Inter-dimensional</label>
+        </div>
 
-            <div class="ctx-submenu-trigger">
-                <span>Omega Shape &#9656;</span>
-                <div class="ctx-submenu">
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-omega-toggle"> Enable</label>
-                    <label>Shape</label>
-                    <select id="ctx-omega-shape">
-                        <option value="4">Tetrahedron</option>
-                        <option value="6">Hexahedron (Cube)</option>
-                        <option value="8">Octahedron</option>
-                        <option value="12">Dodecahedron</option>
-                        <option value="20">Icosahedron</option>
-                        <option value="90">Tetartoid (Pseudo)</option>
-                        <option value="91">Torus Knot</option>
-                        <option value="100">Sphere</option>
-                    </select>
-                    <label>Scale</label>
-                    <input type="range" id="ctx-omega-scale" min="0.1" max="5" step="0.05">
-                    <label>Stellation</label>
-                    <input type="range" id="ctx-omega-stellation" min="-1" max="2" step="0.05">
-                </div>
+        <!-- Core Colors sub -->
+        <div id="ctx-sub-core-colors" class="ctx-menu-card ctx-sub">
+            <h3>Core Colors</h3>
+            <label>Faces</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-face1" style="flex:1; height:24px;"><input type="color" id="ctx-face2" style="flex:1; height:24px;"></div>
+            <label>Edges</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-edge1" style="flex:1; height:24px;"><input type="color" id="ctx-edge2" style="flex:1; height:24px;"></div>
+            <label>Aura</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-aura1" style="flex:1; height:24px;"><input type="color" id="ctx-aura2" style="flex:1; height:24px;"></div>
+            <label>Omega Face</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-omega-face1" style="flex:1; height:24px;"><input type="color" id="ctx-omega-face2" style="flex:1; height:24px;"></div>
+            <label>Omega Edge</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-omega-edge1" style="flex:1; height:24px;"><input type="color" id="ctx-omega-edge2" style="flex:1; height:24px;"></div>
+        </div>
+
+        <!-- Effect Colors sub -->
+        <div id="ctx-sub-fx-colors" class="ctx-menu-card ctx-sub">
+            <h3>Effect Colors</h3>
+            <label>Pulsar</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-pulsar-c1" style="flex:1; height:24px;"><input type="color" id="ctx-pulsar-c2" style="flex:1; height:24px;"></div>
+            <label>Accretion</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-accretion-c1" style="flex:1; height:24px;"><input type="color" id="ctx-accretion-c2" style="flex:1; height:24px;"></div>
+            <label>Gamma</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-gamma-c1" style="flex:1; height:24px;"><input type="color" id="ctx-gamma-c2" style="flex:1; height:24px;"></div>
+            <label>Neutrino</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-neutrino-c1" style="flex:1; height:24px;"><input type="color" id="ctx-neutrino-c2" style="flex:1; height:24px;"></div>
+            <label>Lightning</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-lightning-c1" style="flex:1; height:24px;"><input type="color" id="ctx-lightning-c2" style="flex:1; height:24px;"></div>
+            <label>Magnetic</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-magnetic-c1" style="flex:1; height:24px;"><input type="color" id="ctx-magnetic-c2" style="flex:1; height:24px;"></div>
+            <label>Grid</label>
+            <div style="display:flex; gap:4px;"><input type="color" id="ctx-grid-c1" style="flex:1; height:24px;"><input type="color" id="ctx-grid-c2" style="flex:1; height:24px;"></div>
+        </div>
+
+        <!-- Swarm Settings sub -->
+        <div id="ctx-sub-swarm" class="ctx-menu-card ctx-sub">
+            <h3>Swarm Settings</h3>
+            <label>Count</label>
+            <input type="range" id="ctx-swarm-count" min="100" max="5000" step="100">
+            <label>Gravity</label>
+            <input type="range" id="ctx-swarm-gravity" min="0" max="300" step="1">
+            <label>Event Horizon</label>
+            <input type="range" id="ctx-swarm-horizon" min="0.5" max="5" step="0.1">
+            <label>Time Scale</label>
+            <input type="range" id="ctx-swarm-time" min="0" max="10" step="0.1">
+        </div>
+
+        <!-- Lightning Settings sub -->
+        <div id="ctx-sub-lightning" class="ctx-menu-card ctx-sub">
+            <h3>Lightning Settings</h3>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-lightning-center"> Origin Center</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-lightning-solid"> Solid Block</label>
+            <label>Bolt Length</label>
+            <input type="range" id="ctx-lightning-length" min="5" max="200" step="1">
+            <label>Frequency</label>
+            <input type="range" id="ctx-lightning-freq" min="0.1" max="5" step="0.1">
+            <label>Duration</label>
+            <input type="range" id="ctx-lightning-dur" min="0.1" max="2" step="0.1">
+            <label>Branching</label>
+            <input type="range" id="ctx-lightning-branch" min="0" max="0.3" step="0.01">
+            <label>Brightness</label>
+            <input type="range" id="ctx-lightning-bright" min="0.1" max="2" step="0.1">
+        </div>
+
+        <!-- Magnetic Settings sub -->
+        <div id="ctx-sub-magnetic" class="ctx-menu-card ctx-sub">
+            <h3>Magnetic Settings</h3>
+            <label>Tentacle Count</label>
+            <input type="range" id="ctx-magnetic-count" min="1" max="20" step="1">
+            <label>Speed</label>
+            <input type="range" id="ctx-magnetic-speed" min="0.1" max="3" step="0.1">
+            <label>Wander</label>
+            <input type="range" id="ctx-magnetic-wander" min="1" max="10" step="0.5">
+        </div>
+
+        <!-- Aura & Actions sub -->
+        <div id="ctx-sub-aura" class="ctx-menu-card ctx-sub">
+            <h3>Aura & Actions</h3>
+            <label>Pulse Rate</label>
+            <input type="range" id="ctx-pulse-rate" min="0.001" max="0.02" step="0.001">
+            <label>Spike Multiplier</label>
+            <input type="number" id="ctx-spike-mult" min="1.1" max="50" step="0.1" style="width:60px; background:rgba(30,15,50,0.9); color:#fff; border:1px solid rgba(209,135,255,0.4); border-radius:4px; padding:3px;">
+            <div class="ctx-actions" style="border:none; padding:0; margin:0;">
+                <button id="ctx-btn-spike" title="Spike"><svg viewBox="0 0 24 24"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polyline></svg></button>
+                <button id="ctx-btn-supercharge" title="Supercharge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
+                <button id="ctx-btn-quickspin" title="Quick Spin"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></button>
             </div>
         </div>
 
-        <!-- Appearance panel -->
-        <div id="ctx-colors" class="ctx-panel">
-            <h3>Appearance</h3>
-            <label>Preset</label>
-            <select id="ctx-preset">
-                <option value="default">Default Theme</option>
-                <option value="blackhole">Black Hole</option>
-                <option value="crystal">Pure Crystal</option>
-                <option value="neon">Neon Ghost</option>
+        <!-- Path & Trail sub -->
+        <div id="ctx-sub-path" class="ctx-menu-card ctx-sub">
+            <h3>Path & Trail</h3>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-path-toggle"> Auto-Path</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-path-centered"> Keep Centered</label>
+            <label>Path Type</label>
+            <select id="ctx-path-type">
+                <option value="direct">Direct</option>
+                <option value="smooth">Smooth</option>
+                <option value="figure8">Figure 8</option>
+                <option value="orbit">Orbit</option>
             </select>
-            <label>Master Gradient</label>
-            <div style="display:flex; gap:4px;">
-                <input type="color" id="ctx-master1" style="flex:1; height:28px;">
-                <input type="color" id="ctx-master2" style="flex:1; height:28px;">
-            </div>
-            <div class="ctx-submenu-trigger">
-                <span>Component Colors &#9656;</span>
-                <div class="ctx-submenu">
-                    <label>Faces</label>
-                    <div style="display:flex; gap:4px;">
-                        <input type="color" id="ctx-face1" style="flex:1; height:24px;">
-                        <input type="color" id="ctx-face2" style="flex:1; height:24px;">
-                    </div>
-                    <label>Edges</label>
-                    <div style="display:flex; gap:4px;">
-                        <input type="color" id="ctx-edge1" style="flex:1; height:24px;">
-                        <input type="color" id="ctx-edge2" style="flex:1; height:24px;">
-                    </div>
-                    <label>Aura</label>
-                    <div style="display:flex; gap:4px;">
-                        <input type="color" id="ctx-aura1" style="flex:1; height:24px;">
-                        <input type="color" id="ctx-aura2" style="flex:1; height:24px;">
-                    </div>
-                </div>
-            </div>
+            <label>Speed</label>
+            <input type="range" id="ctx-path-speed" min="0.1" max="10" step="0.1">
+            <div class="ctx-divider"></div>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-show-path"> Show Path Line</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-trail-toggle"> Leave Trail</label>
+            <label>Trail Length</label>
+            <input type="range" id="ctx-trail-length" min="10" max="200" step="1">
         </div>
 
-        <!-- Effects panel -->
-        <div id="ctx-effects" class="ctx-panel">
-            <h3>Effects</h3>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-pulsar"> Pulsar Beams</label>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-accretion"> Accretion Disk</label>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-gamma"> Gamma Rays</label>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-neutrino"> Neutrino Jets</label>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-lightning-toggle"> Lightning Arcs</label>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-magnetic"> Magnetic Field</label>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-swarm"> Particle Swarm</label>
-            <label class="checkbox-label"><input type="checkbox" id="ctx-blackhole"> Black Hole Mode</label>
-            <label>Aura Reach</label>
-            <input type="range" id="ctx-reach" min="0" max="3" step="0.01">
-            <label>Aura Intensity</label>
-            <input type="range" id="ctx-intensity" min="0" max="3" step="0.01">
-            <label>Base Spin Speed</label>
-            <input type="range" id="ctx-spin" min="0" max="0.1" step="0.001">
-            <div class="ctx-submenu-trigger">
-                <span>Swarm Settings &#9656;</span>
-                <div class="ctx-submenu">
-                    <label>Count</label>
-                    <input type="range" id="ctx-swarm-count" min="100" max="5000" step="100">
-                    <label>Gravity</label>
-                    <input type="range" id="ctx-swarm-gravity" min="0" max="300" step="1">
-                    <label>Event Horizon</label>
-                    <input type="range" id="ctx-swarm-horizon" min="0.5" max="5" step="0.1">
-                </div>
-            </div>
-            <div class="ctx-submenu-trigger">
-                <span>Lightning Settings &#9656;</span>
-                <div class="ctx-submenu">
-                    <label>Bolt Length</label>
-                    <input type="range" id="ctx-lightning-length" min="5" max="200" step="1">
-                    <label>Frequency</label>
-                    <input type="range" id="ctx-lightning-freq" min="0.1" max="5" step="0.1">
-                    <label>Brightness</label>
-                    <input type="range" id="ctx-lightning-bright" min="0.1" max="2" step="0.1">
-                </div>
-            </div>
-        </div>
-
-        <!-- Environment panel -->
-        <div id="ctx-environ" class="ctx-panel">
-            <h3>Environment</h3>
-            <label>Grid Mode</label>
-            <select id="ctx-grid-mode">
-                <option value="flat">2D Flat</option>
-                <option value="3d">3D Volumetric</option>
-                <option value="off">Off</option>
+        <!-- Grid Settings sub -->
+        <div id="ctx-sub-grid" class="ctx-menu-card ctx-sub">
+            <h3>Grid Settings</h3>
+            <label>Render Mode</label>
+            <select id="ctx-grid3d-mode">
+                <option value="wireframe">Wireframe</option>
+                <option value="points">Voxel Points</option>
             </select>
-
-            <div class="ctx-submenu-trigger">
-                <span>Grid Settings &#9656;</span>
-                <div class="ctx-submenu">
-                    <label>Render Mode</label>
-                    <select id="ctx-grid3d-mode">
-                        <option value="wireframe">Wireframe</option>
-                        <option value="points">Voxel Points</option>
-                    </select>
-                    <label>Density</label>
-                    <input type="range" id="ctx-grid3d-density" min="8" max="32" step="2">
-                    <label>Render Radius</label>
-                    <input type="range" id="ctx-grid3d-radius" min="3" max="30" step="1">
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d-snowglobe"> Snow Globe</label>
-                    <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d-probe"> Show Probe</label>
-                </div>
-            </div>
-
-            <label class="checkbox-label" style="margin-top:8px;"><input type="checkbox" id="ctx-ortho"> Orthographic</label>
-            <label>Perspective FOV</label>
-            <input type="range" id="ctx-fov" min="10" max="120" step="1">
-            <label>Z-Depth Scale</label>
-            <input type="range" id="ctx-zdepth" min="0.25" max="3" step="0.01">
+            <label>Density</label>
+            <input type="range" id="ctx-grid3d-density" min="8" max="32" step="2">
+            <label>Render Radius</label>
+            <input type="range" id="ctx-grid3d-radius" min="3" max="30" step="1">
+            <label>Gravity</label>
+            <input type="range" id="ctx-grid3d-gravity" min="0" max="300" step="1">
+            <label>Time Scale</label>
+            <input type="range" id="ctx-grid3d-time" min="0" max="10" step="0.1">
+            <div class="ctx-divider"></div>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d-snowglobe"> Snow Globe</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d-probe"> Show Probe</label>
+            <label class="checkbox-label"><input type="checkbox" id="ctx-grid3d-relative"> Relative Motion</label>
         </div>
     </div>
 
@@ -228,26 +351,8 @@
                 <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
             </div>
 
-            <!-- Save & Load Buttons -->
-            <div class="nav-icon" id="btn-save" title="Save Configuration" style="stroke:currentColor; margin-top: auto; margin-bottom: 5px;">
-                <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-            </div>
-            <div class="nav-icon" id="btn-load" title="Load Configuration" style="stroke:currentColor; margin-bottom: 15px;">
-                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-            </div>
-
-            <!-- Share Button (Link) -->
-            <div class="nav-icon" id="btn-share" title="Copy Share Link" style="stroke:currentColor; margin-bottom: 15px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-            </div>
-
-            <!-- Snapshot Button (Camera) -->
-            <div class="nav-icon" id="btn-snapshot" title="Take Snapshot" style="stroke:currentColor; margin-bottom: 15px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-            </div>
-
-            <!-- Randomize Button (Die) -->
-            <div class="nav-icon" id="btn-randomize" title="Randomize Parameters" style="stroke:currentColor; margin-bottom: 20px;">
+            <!-- Action Icons: Random, Camera, Link, Download, Save -->
+            <div class="nav-icon" id="btn-randomize" title="Randomize Parameters" style="stroke:currentColor; margin-top: auto; margin-bottom: 15px;">
                 <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"></circle>
@@ -256,6 +361,18 @@
                     <circle cx="8" cy="16" r="1.5" fill="currentColor" stroke="none"></circle>
                     <circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none"></circle>
                 </svg>
+            </div>
+            <div class="nav-icon" id="btn-snapshot" title="Take Snapshot" style="stroke:currentColor; margin-bottom: 15px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            </div>
+            <div class="nav-icon" id="btn-share" title="Copy Share Link" style="stroke:currentColor; margin-bottom: 15px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            </div>
+            <div class="nav-icon" id="btn-load" title="Load Configuration" style="stroke:currentColor; margin-bottom: 15px;">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </div>
+            <div class="nav-icon" id="btn-save" title="Save Configuration" style="stroke:currentColor; margin-bottom: 20px;">
+                <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             </div>
         </div>
 
@@ -842,7 +959,6 @@
                         <label class="checkbox-label"><input type="checkbox" id="grid3dSnowGlobeToggle"> Snow Globe</label>
                         <label class="checkbox-label"><input type="checkbox" id="grid3dProbeToggle"> Show Probe</label>
                         <label class="checkbox-label"><input type="checkbox" id="grid3dRelativeToggle"> Relative Motion</label>
-                        <label class="checkbox-label"><input type="checkbox" id="grid3dFatLinesToggle" checked> Fat Lines</label>
                     </div>
                 </div>
 

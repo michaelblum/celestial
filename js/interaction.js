@@ -7,7 +7,7 @@ let cameraOrbitRadius = 7.5;    // initial camera distance
 let cameraOrbitInitialized = false;
 
 // Camera transition state (smooth reorientation on mode switch)
-let _camTransition = null;  // { startTheta, startPhi, startRadius, targetTheta, targetPhi, targetRadius, progress }
+let _camTransition = null;
 
 export function resetCameraOrbit() {
     cameraOrbitInitialized = false;
@@ -15,31 +15,27 @@ export function resetCameraOrbit() {
 
 /** Start a smooth camera transition to the head-on flat view */
 export function transitionToFlatView() {
-    // Capture current orbit state
     if (!cameraOrbitInitialized) initCameraOrbit();
-    // Normalize theta to [-π, π] for shortest-path interpolation
     let theta = cameraOrbitTheta % (2 * Math.PI);
     if (theta > Math.PI) theta -= 2 * Math.PI;
     if (theta < -Math.PI) theta += 2 * Math.PI;
-    // Clamp target radius to flat-mode zoom range [2, 50]
     const targetRadius = Math.max(2, Math.min(50, cameraOrbitRadius));
     _camTransition = {
         startTheta: theta,
         startPhi: cameraOrbitPhi,
         startRadius: cameraOrbitRadius,
         targetTheta: 0,
-        targetPhi: Math.PI / 2,   // equator = straight on
+        targetPhi: Math.PI / 2,
         targetRadius: targetRadius,
         progress: 0
     };
 }
 
-/** Advance the camera transition each frame. Returns true while active. */
+/** Advance the camera transition each frame */
 export function updateCameraTransition(dt) {
     if (!_camTransition) return false;
-    const speed = 3.0;  // ~0.33s for full transition
+    const speed = 3.0;
     _camTransition.progress = Math.min(1, _camTransition.progress + dt * speed);
-    // Smooth ease-out
     const t = 1 - Math.pow(1 - _camTransition.progress, 3);
 
     const theta = _camTransition.startTheta + (_camTransition.targetTheta - _camTransition.startTheta) * t;
@@ -58,7 +54,6 @@ export function updateCameraTransition(dt) {
     state.camera.lookAt(0, 0, 0);
 
     if (_camTransition.progress >= 1) {
-        // Snap to exact head-on and transfer to flat-mode camera z
         state.perspCamera.position.set(0, 0, radius);
         state.perspCamera.lookAt(0, 0, 0);
         cameraOrbitTheta = 0;
@@ -96,9 +91,124 @@ function handleMove(clientX, clientY) {
     }
 }
 
-// Sync sidebar values into the unified context menu
+// ── Card-based navigation (whole-card push/pop with compounding transforms) ──
+// The root menu and all sub-menus are sibling cards inside .ctx-anchor.
+// When a sub opens, the entire root card (tabs + title + controls) scales down
+// and slides up; deeper nesting compounds: scale(0.9^depth), translateY(-10%*depth).
+
+let _menuStack = [];   // stack of pushed card IDs (deepest first)
+
+function _clearInlineStyles(card) {
+    card.style.transform = '';
+    card.style.opacity = '';
+    card.style.zIndex = '';
+    card.style.filter = '';
+}
+
+function _resetMenuStack() {
+    const anchor = document.getElementById('ctx-unified');
+    if (!anchor) return;
+    // Hide all subs, clear pushed state
+    anchor.querySelectorAll('.ctx-menu-card.pushed').forEach(c => {
+        c.classList.remove('pushed');
+        _clearInlineStyles(c);
+        if (c.classList.contains('ctx-sub')) {
+            c.classList.remove('active');
+        }
+    });
+    anchor.querySelectorAll('.ctx-sub.active').forEach(c => {
+        c.classList.remove('active');
+        _clearInlineStyles(c);
+    });
+    // Restore root
+    const root = document.getElementById('ctx-root');
+    if (root) {
+        root.classList.add('active');
+        root.classList.remove('pushed');
+        _clearInlineStyles(root);
+    }
+    _menuStack = [];
+}
+
+function _applyStackTransforms() {
+    const n = _menuStack.length;
+    // _menuStack[0] is deepest (first pushed), _menuStack[last] is most recent
+    _menuStack.forEach((id, i) => {
+        const card = document.getElementById(id);
+        if (!card) return;
+        const depth = n - i;   // most recent pushed = depth 1
+        const s = Math.pow(0.9, depth);
+        const ty = -20 * depth;
+        card.style.transform = `scale(${s}) translateY(${ty}%)`;
+        card.style.opacity = Math.max(0.2, 0.55 - (depth - 1) * 0.15);
+        card.style.zIndex = 10 - depth;
+        card.style.filter = `brightness(${Math.max(0.35, 0.7 - (depth - 1) * 0.15)})`;
+    });
+    // Active card on top
+    const anchor = document.getElementById('ctx-unified');
+    const active = anchor.querySelector('.ctx-menu-card.active:not(.pushed)');
+    if (active) active.style.zIndex = 10 + n;
+}
+
+function _openSub(subId) {
+    const anchor = document.getElementById('ctx-unified');
+    const sub = document.getElementById(subId);
+    if (!anchor || !sub) return;
+
+    // Push the current active card
+    const current = anchor.querySelector('.ctx-menu-card.active:not(.pushed)');
+    if (current) {
+        current.classList.remove('active');
+        current.classList.add('pushed');
+        _menuStack.push(current.id);
+    }
+
+    sub.classList.add('active');
+    _applyStackTransforms();
+}
+
+function _popTo(cardId) {
+    const anchor = document.getElementById('ctx-unified');
+    if (!anchor) return;
+
+    // Hide the currently active card
+    const active = anchor.querySelector('.ctx-menu-card.active:not(.pushed)');
+    if (active && active.id !== cardId) {
+        active.classList.remove('active');
+        _clearInlineStyles(active);
+    }
+
+    // Pop stack until we reach cardId
+    while (_menuStack.length > 0) {
+        const topId = _menuStack[_menuStack.length - 1];
+        if (topId === cardId) {
+            _menuStack.pop();
+            break;
+        }
+        const poppedId = _menuStack.pop();
+        const popped = document.getElementById(poppedId);
+        if (popped) {
+            popped.classList.remove('pushed');
+            _clearInlineStyles(popped);
+            if (popped.classList.contains('ctx-sub')) {
+                popped.classList.remove('active');
+            }
+        }
+    }
+
+    // Restore the target card
+    const target = document.getElementById(cardId);
+    if (target) {
+        target.classList.remove('pushed');
+        target.classList.add('active');
+        _clearInlineStyles(target);
+    }
+    _applyStackTransforms();
+}
+
+// ── Sync sidebar → context menu ──────────────────────────────────────────────
 function _syncContextMenu() {
-    const sync = (ctxId, srcId) => {
+    const s = (ctxId, srcId) => {
         const ctx = document.getElementById(ctxId);
         const src = document.getElementById(srcId);
         if (!ctx || !src) return;
@@ -106,121 +216,265 @@ function _syncContextMenu() {
         else ctx.value = src.value;
     };
 
-    // Geometry tab
-    sync('ctx-shape', 'shapeSelect');
-    sync('ctx-color', 'masterColor1');
-    sync('ctx-opacity', 'opacitySlider');
-    sync('ctx-edge-opacity', 'edgeOpacitySlider');
-    sync('ctx-stellation', 'stellationSlider');
-    sync('ctx-omega-toggle', 'omegaToggle');
-    sync('ctx-omega-shape', 'omegaShapeSelect');
-    sync('ctx-omega-scale', 'omegaScaleSlider');
-    sync('ctx-omega-stellation', 'omegaStellationSlider');
+    // Shape tab
+    s('ctx-shape', 'shapeSelect');
+    s('ctx-color', 'masterColor1');
+    s('ctx-opacity', 'opacitySlider');
+    s('ctx-edge-opacity', 'edgeOpacitySlider');
+    s('ctx-stellation', 'stellationSlider');
+    s('ctx-mask', 'maskToggle');
+    s('ctx-interior', 'interiorEdgesToggle');
+    s('ctx-specular', 'specularToggle');
+    s('ctx-omega-toggle', 'omegaToggle');
+    s('ctx-omega-shape', 'omegaShapeSelect');
+    s('ctx-omega-scale', 'omegaScaleSlider');
+    s('ctx-omega-stellation', 'omegaStellationSlider');
+    s('ctx-omega-opacity', 'omegaOpacitySlider');
+    s('ctx-omega-edge-opacity', 'omegaEdgeOpacitySlider');
+    s('ctx-omega-mask', 'omegaMaskToggle');
+    s('ctx-omega-interior', 'omegaInteriorEdgesToggle');
+    s('ctx-omega-specular', 'omegaSpecularToggle');
+    s('ctx-omega-counterspin', 'omegaCounterSpin');
+    s('ctx-omega-lock', 'omegaLockPosition');
+    s('ctx-omega-interdim', 'omegaInterDimensional');
 
-    // Appearance tab
-    sync('ctx-master1', 'masterColor1');
-    sync('ctx-master2', 'masterColor2');
-    sync('ctx-preset', 'presetSelect');
-    sync('ctx-face1', 'faceColor1');
-    sync('ctx-face2', 'faceColor2');
-    sync('ctx-edge1', 'edgeColor1');
-    sync('ctx-edge2', 'edgeColor2');
-    sync('ctx-aura1', 'auraColor1');
-    sync('ctx-aura2', 'auraColor2');
+    // Look tab
+    s('ctx-master1', 'masterColor1');
+    s('ctx-master2', 'masterColor2');
+    s('ctx-preset', 'presetSelect');
+    s('ctx-face1', 'faceColor1');
+    s('ctx-face2', 'faceColor2');
+    s('ctx-edge1', 'edgeColor1');
+    s('ctx-edge2', 'edgeColor2');
+    s('ctx-aura1', 'auraColor1');
+    s('ctx-aura2', 'auraColor2');
+    s('ctx-omega-face1', 'omegaFaceColor1');
+    s('ctx-omega-face2', 'omegaFaceColor2');
+    s('ctx-omega-edge1', 'omegaEdgeColor1');
+    s('ctx-omega-edge2', 'omegaEdgeColor2');
+    s('ctx-pulsar-c1', 'pulsarColor1');
+    s('ctx-pulsar-c2', 'pulsarColor2');
+    s('ctx-accretion-c1', 'accretionColor1');
+    s('ctx-accretion-c2', 'accretionColor2');
+    s('ctx-gamma-c1', 'gammaColor1');
+    s('ctx-gamma-c2', 'gammaColor2');
+    s('ctx-neutrino-c1', 'neutrinoColor1');
+    s('ctx-neutrino-c2', 'neutrinoColor2');
+    s('ctx-lightning-c1', 'lightningColor1');
+    s('ctx-lightning-c2', 'lightningColor2');
+    s('ctx-magnetic-c1', 'magneticColor1');
+    s('ctx-magnetic-c2', 'magneticColor2');
+    s('ctx-grid-c1', 'gridColor1');
+    s('ctx-grid-c2', 'gridColor2');
 
-    // Effects tab
-    sync('ctx-pulsar', 'pulsarToggle');
-    sync('ctx-accretion', 'accretionToggle');
-    sync('ctx-gamma', 'gammaToggle');
-    sync('ctx-neutrino', 'neutrinoToggle');
-    sync('ctx-lightning-toggle', 'lightningToggle');
-    sync('ctx-magnetic', 'magneticToggle');
-    sync('ctx-swarm', 'swarmToggle');
-    sync('ctx-blackhole', 'blackHoleModeToggle');
-    sync('ctx-reach', 'auraReachSlider');
-    sync('ctx-intensity', 'auraIntensitySlider');
-    sync('ctx-spin', 'idleSpinSlider');
-    sync('ctx-swarm-count', 'swarmCountSlider');
-    sync('ctx-swarm-gravity', 'swarmGravitySlider');
-    sync('ctx-swarm-horizon', 'swarmHorizonSlider');
-    sync('ctx-lightning-length', 'lightningLengthSlider');
-    sync('ctx-lightning-freq', 'lightningFreqSlider');
-    sync('ctx-lightning-bright', 'lightningBrightSlider');
+    // FX tab
+    s('ctx-pulsar', 'pulsarToggle');
+    s('ctx-accretion', 'accretionToggle');
+    s('ctx-gamma', 'gammaToggle');
+    s('ctx-neutrino', 'neutrinoToggle');
+    s('ctx-lightning-toggle', 'lightningToggle');
+    s('ctx-magnetic', 'magneticToggle');
+    s('ctx-swarm', 'swarmToggle');
+    s('ctx-blackhole', 'blackHoleModeToggle');
+    s('ctx-aura-toggle', 'auraToggle');
+    s('ctx-reach', 'auraReachSlider');
+    s('ctx-intensity', 'auraIntensitySlider');
+    s('ctx-spin', 'idleSpinSlider');
+    s('ctx-swarm-count', 'swarmCountSlider');
+    s('ctx-swarm-gravity', 'swarmGravitySlider');
+    s('ctx-swarm-horizon', 'swarmHorizonSlider');
+    s('ctx-swarm-time', 'swarmTimeSlider');
+    s('ctx-lightning-center', 'lightningOriginCenter');
+    s('ctx-lightning-solid', 'lightningSolidBlock');
+    s('ctx-lightning-length', 'lightningLengthSlider');
+    s('ctx-lightning-freq', 'lightningFreqSlider');
+    s('ctx-lightning-dur', 'lightningDurSlider');
+    s('ctx-lightning-branch', 'lightningBranchSlider');
+    s('ctx-lightning-bright', 'lightningBrightSlider');
+    s('ctx-magnetic-count', 'magneticCountSlider');
+    s('ctx-magnetic-speed', 'magneticSpeedSlider');
+    s('ctx-magnetic-wander', 'magneticWanderSlider');
+    s('ctx-pulse-rate', 'pulseRateSlider');
+    s('ctx-spike-mult', 'spikeMultiplier');
+    s('ctx-path-toggle', 'pathToggle');
+    s('ctx-path-centered', 'centeredViewToggle');
+    s('ctx-path-type', 'pathTypeSelect');
+    s('ctx-path-speed', 'speedSlider');
+    s('ctx-show-path', 'showPathToggle');
+    s('ctx-trail-toggle', 'trailToggle');
+    s('ctx-trail-length', 'trailLengthSlider');
 
-    // Environment tab
-    sync('ctx-grid-mode', 'gridModeSelect');
-    sync('ctx-grid3d-mode', 'grid3dRenderMode');
-    sync('ctx-grid3d-density', 'grid3dDensitySlider');
-    sync('ctx-grid3d-mass', 'grid3dMassSlider');
-    sync('ctx-grid3d-radius', 'grid3dRadiusSlider');
-    sync('ctx-grid3d-snowglobe', 'grid3dSnowGlobeToggle');
-    sync('ctx-grid3d-probe', 'grid3dProbeToggle');
-    sync('ctx-ortho', 'orthoToggle');
-    sync('ctx-fov', 'fovSlider');
-    sync('ctx-zdepth', 'zDepthSlider');
+    // World tab
+    s('ctx-grid-mode', 'gridModeSelect');
+    s('ctx-grid3d-mode', 'grid3dRenderMode');
+    s('ctx-grid3d-density', 'grid3dDensitySlider');
+    s('ctx-grid3d-radius', 'grid3dRadiusSlider');
+    s('ctx-grid3d-gravity', 'grid3dGravitySlider');
+    s('ctx-grid3d-time', 'grid3dTimeSlider');
+    s('ctx-grid3d-snowglobe', 'grid3dSnowGlobeToggle');
+    s('ctx-grid3d-probe', 'grid3dProbeToggle');
+    s('ctx-grid3d-relative', 'grid3dRelativeToggle');
+    s('ctx-ortho', 'orthoToggle');
+    s('ctx-fov', 'fovSlider');
+    s('ctx-zdepth', 'zDepthSlider');
 }
 
+// ── Helper: update sidebar slider display value ──────────────────────────────
+function _syncSliderUI(sliderId, valId, isFloat) {
+    const el = document.getElementById(sliderId);
+    const valEl = document.getElementById(valId);
+    if (el && valEl) valEl.innerText = isFloat ? parseFloat(el.value).toFixed(2) : el.value;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 export function setupInteraction() {
     // Prevent default context menu
     window.addEventListener('contextmenu', e => e.preventDefault());
 
-    // Unified context menu tab switching
-    document.querySelectorAll('.ctx-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            const menu = document.getElementById('ctx-unified');
-            menu.querySelectorAll('.ctx-tab').forEach(t => t.classList.remove('active'));
-            menu.querySelectorAll('.ctx-panel').forEach(p => p.classList.remove('active'));
-            tab.classList.add('active');
-            const panel = document.getElementById(tab.getAttribute('data-ctx-tab'));
-            if (panel) panel.classList.add('active');
+    // ── Tab switching (scoped to #ctx-root, resets stack on tab change) ──
+    const root = document.getElementById('ctx-root');
+    if (root) {
+        root.querySelectorAll('.ctx-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Reset menu stack first (close any open subs)
+                _resetMenuStack();
+                root.querySelectorAll('.ctx-tab').forEach(t => t.classList.remove('active'));
+                root.querySelectorAll('.ctx-panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                const panel = document.getElementById(tab.getAttribute('data-ctx-tab'));
+                if (panel) panel.classList.add('active');
+            });
+        });
+    }
+
+    // ── Sub-menu triggers (card push) ────────────────────────────────────
+    document.querySelectorAll('.ctx-trigger[data-ctx-open]').forEach(trigger => {
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const subId = trigger.getAttribute('data-ctx-open');
+            _openSub(subId);
         });
     });
 
-    // Close context menu on click outside or Escape
+    // ── Pushed card click (pop back) ─────────────────────────────────────
+    document.querySelectorAll('.ctx-menu-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (card.classList.contains('pushed')) {
+                e.stopPropagation();
+                _popTo(card.id);
+            }
+        });
+    });
+
+    // ── Context-menu action buttons ──────────────────────────────────────
+    const _click = (id, sidebarId) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', () => {
+            const btn = document.getElementById(sidebarId);
+            if (btn) btn.click();
+        });
+    };
+    _click('ctx-btn-randomize', 'btn-randomize');
+    _click('ctx-btn-snapshot', 'btn-snapshot');
+    _click('ctx-btn-share', 'btn-share');
+    _click('ctx-btn-save', 'btn-save');
+    _click('ctx-btn-load', 'btn-load');
+    _click('ctx-btn-spike', 'btn-spike');
+    _click('ctx-btn-supercharge', 'btn-supercharge');
+    _click('ctx-btn-quickspin', 'btn-quick-spin');
+
+    // ── Close context menu on click outside or Escape ────────────────────
     window.addEventListener('mousedown', (e) => {
-        const menu = document.getElementById('ctx-unified');
-        if (menu && menu.classList.contains('visible') && !menu.contains(e.target) && e.button !== 2) {
-            menu.classList.remove('visible');
+        const anchor = document.getElementById('ctx-unified');
+        if (anchor && anchor.classList.contains('visible') && !anchor.contains(e.target) && e.button !== 2) {
+            anchor.classList.remove('visible');
             state.isMenuOpen = false;
         }
     });
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            const menu = document.getElementById('ctx-unified');
-            if (menu) menu.classList.remove('visible');
+            const anchor = document.getElementById('ctx-unified');
+            if (anchor) {
+                // If a sub-menu is open, pop back instead of closing
+                if (_menuStack.length > 0) {
+                    const parentId = _menuStack[_menuStack.length - 1];
+                    _popTo(parentId);
+                    return;
+                }
+                anchor.classList.remove('visible');
+            }
             state.isMenuOpen = false;
         }
     });
 
-    // Mouse Wheel Zoom
+    // ── Mouse Wheel — modifier-key functions ─────────────────────────────
+    // Plain scroll   = Zoom (camera z / orbit radius)
+    // SHIFT          = Z-Depth Scale (resize object)
+    // CTRL           = FOV (perspective distortion)
+    // SHIFT+CTRL     = Spin Speed
     window.addEventListener('wheel', (e) => {
-        if (e.target.closest('#sidebar') || e.target.closest('.context-menu')) return;
+        if (e.target.closest('#sidebar') || e.target.closest('.ctx-anchor')) return;
         e.preventDefault();
+        const delta = e.deltaY;
+
+        // ── SHIFT + CTRL: Spin Speed ──
+        if (e.shiftKey && (e.ctrlKey || e.metaKey)) {
+            state.idleSpinSpeed = Math.max(0, Math.min(0.1, state.idleSpinSpeed - delta * 0.00005));
+            const sl = document.getElementById('idleSpinSlider');
+            const val = document.getElementById('idleSpinVal');
+            if (sl) sl.value = state.idleSpinSpeed;
+            if (val) val.innerText = state.idleSpinSpeed.toFixed(3);
+            return;
+        }
+
+        // ── CTRL: FOV ──
+        if (e.ctrlKey || e.metaKey) {
+            if (state.camera.isPerspectiveCamera) {
+                state.perspCamera.fov = Math.max(10, Math.min(120, state.perspCamera.fov + delta * 0.05));
+                state.perspCamera.updateProjectionMatrix();
+                const sl = document.getElementById('fovSlider');
+                const val = document.getElementById('fovVal');
+                if (sl) sl.value = state.perspCamera.fov;
+                if (val) val.innerText = Math.round(state.perspCamera.fov);
+            }
+            return;
+        }
+
+        // ── SHIFT: Z-Depth ──
+        if (e.shiftKey) {
+            state.z_depth = Math.max(state.depth_range.min, Math.min(state.depth_range.max, state.z_depth - delta * 0.002));
+            const sl = document.getElementById('zDepthSlider');
+            const val = document.getElementById('zDepthVal');
+            if (sl) sl.value = state.z_depth;
+            if (val) val.innerText = state.z_depth.toFixed(2);
+            return;
+        }
+
+        // ── Plain scroll: Zoom ──
         if (state.gridMode === '3d') {
-            // Orbit zoom: adjust radius and reposition camera
             if (!cameraOrbitInitialized) initCameraOrbit();
-            cameraOrbitRadius = Math.max(3, Math.min(80, cameraOrbitRadius + e.deltaY * 0.02));
+            cameraOrbitRadius = Math.max(3, Math.min(80, cameraOrbitRadius + delta * 0.02));
             state.camera.position.set(
                 cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.sin(cameraOrbitTheta),
                 cameraOrbitRadius * Math.cos(cameraOrbitPhi),
                 cameraOrbitRadius * Math.sin(cameraOrbitPhi) * Math.cos(cameraOrbitTheta)
             );
             state.camera.lookAt(0, 0, 0);
-            return;
         } else if (state.camera.isPerspectiveCamera) {
-            state.perspCamera.position.z = Math.max(2, Math.min(50, state.perspCamera.position.z + e.deltaY * 0.01));
+            state.perspCamera.position.z = Math.max(2, Math.min(50, state.perspCamera.position.z + delta * 0.01));
         } else {
-            state.orthoCamera.zoom = Math.max(0.1, Math.min(10, state.orthoCamera.zoom - e.deltaY * 0.005));
+            state.orthoCamera.zoom = Math.max(0.1, Math.min(10, state.orthoCamera.zoom - delta * 0.005));
             state.orthoCamera.updateProjectionMatrix();
         }
     }, { passive: false });
 
-    // Mouse Down
+    // ── Mouse Down ───────────────────────────────────────────────────────
     window.addEventListener('mousedown', (e) => {
-        const isUI = e.target.closest('#sidebar') || e.target.closest('.context-menu');
+        const isUI = e.target.closest('#sidebar') || e.target.closest('.ctx-anchor');
         if (isUI) return;
 
-        document.querySelectorAll('.context-menu').forEach(m => m.classList.remove('visible'));
+        const anchor = document.getElementById('ctx-unified');
+        if (anchor) anchor.classList.remove('visible');
         state.isMenuOpen = false;
 
         const mouse = new THREE.Vector2(
@@ -242,38 +496,42 @@ export function setupInteraction() {
 
         if (e.button === 2) {
             state.isMenuOpen = true;
-            const menu = document.getElementById('ctx-unified');
-            if (!menu) return;
+            const ctxAnchor = document.getElementById('ctx-unified');
+            if (!ctxAnchor) return;
 
-            // Close any existing context menus
-            document.querySelectorAll('.context-menu').forEach(m => m.classList.remove('visible'));
+            ctxAnchor.classList.remove('visible');
+
+            // Reset menu stack (close any open subs, restore root)
+            _resetMenuStack();
 
             // Select the correct tab based on click target
+            const ctxRoot = document.getElementById('ctx-root');
             const targetTab = intersects ? 'ctx-geom' : 'ctx-environ';
-            menu.querySelectorAll('.ctx-tab').forEach(t => t.classList.remove('active'));
-            menu.querySelectorAll('.ctx-panel').forEach(p => p.classList.remove('active'));
-            const tab = menu.querySelector(`[data-ctx-tab="${targetTab}"]`);
-            const panel = document.getElementById(targetTab);
-            if (tab) tab.classList.add('active');
-            if (panel) panel.classList.add('active');
+            if (ctxRoot) {
+                ctxRoot.querySelectorAll('.ctx-tab').forEach(t => t.classList.remove('active'));
+                ctxRoot.querySelectorAll('.ctx-panel').forEach(p => p.classList.remove('active'));
+                const tab = ctxRoot.querySelector(`[data-ctx-tab="${targetTab}"]`);
+                const panel = document.getElementById(targetTab);
+                if (tab) tab.classList.add('active');
+                if (panel) panel.classList.add('active');
+            }
 
             // Sync ALL context menu values from sidebar
             _syncContextMenu();
 
-            // Position the menu
-            menu.style.left = e.clientX + 'px';
-            menu.style.top = e.clientY + 'px';
-            menu.classList.add('visible');
+            // Position the anchor at click coords
+            ctxAnchor.style.left = e.clientX + 'px';
+            ctxAnchor.style.top = e.clientY + 'px';
+            ctxAnchor.classList.add('visible');
 
             setTimeout(() => {
-                const rect = menu.getBoundingClientRect();
-                if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 10) + 'px';
-                if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 10) + 'px';
+                const rect = ctxAnchor.getBoundingClientRect();
+                if (rect.right > window.innerWidth) ctxAnchor.style.left = (window.innerWidth - rect.width - 10) + 'px';
+                if (rect.bottom > window.innerHeight) ctxAnchor.style.top = (window.innerHeight - rect.height - 10) + 'px';
             }, 0);
 
         } else if (e.button === 0) {
             if (state.gridMode === '3d') {
-                // 3D grid mode: ALL left-click = camera orbit. No object interaction.
                 state.isDraggingObject = true;
                 state.previousMouse.x = e.clientX;
                 state.previousMouse.y = e.clientY;
@@ -300,7 +558,7 @@ export function setupInteraction() {
         }
     });
 
-    // Mouse Move
+    // ── Mouse Move ───────────────────────────────────────────────────────
     window.addEventListener('mousemove', (e) => {
         let dx = e.clientX - state.previousMouse.x;
         let dy = e.clientY - state.previousMouse.y;
@@ -327,7 +585,6 @@ export function setupInteraction() {
             state.previousMouse.x = e.clientX;
             state.previousMouse.y = e.clientY;
         } else if (state.isDraggingObject && state.gridMode === '3d') {
-            // Camera orbit mode: orbit camera around the object
             if (!cameraOrbitInitialized) initCameraOrbit();
             cameraOrbitTheta -= dx * 0.005;
             cameraOrbitPhi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraOrbitPhi + dy * 0.005));
@@ -361,15 +618,14 @@ export function setupInteraction() {
         }
     });
 
-    // Mouse Up
+    // ── Mouse Up ─────────────────────────────────────────────────────────
     window.addEventListener('mouseup', (e) => {
         if (e.button === 0) {
             state.isPanningCamera = false;
             state.isPanningObject = false;
             if (state.isDraggingObject) {
                 state.isDraggingObject = false;
-                // No drag momentum in 3D grid mode (camera orbit doesn't fling the object)
-                if (!state.gridMode === '3d') {
+                if (state.gridMode !== '3d') {
                     let speed = Math.sqrt(state.dragVelocity.x ** 2 + state.dragVelocity.y ** 2);
                     if (speed > 0.05) {
                         state.dragMomentumAxis.set(state.dragVelocity.y, state.dragVelocity.x, 0).normalize();

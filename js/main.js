@@ -14,6 +14,7 @@ import { createMagneticField, animateMagneticField } from './magnetic.js';
 import { createOmega, animateOmega } from './omega.js';
 import { createGrid3d, animateGrid3d } from './grid3d.js';
 import { createSwarm, animateSwarm } from './swarm.js';
+import { animateSkybox } from './skybox.js';
 
 function init() {
     initScene();
@@ -67,6 +68,7 @@ function animate() {
     updateCameraTransition(dt);
 
     // Module animations
+    animateSkybox(dt);
     animatePathing(dt);
     // Old animateGrid() removed — unified into grid3d
     animateGrid3d(dt);
