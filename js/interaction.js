@@ -312,6 +312,12 @@ function _syncContextMenu() {
     s('ctx-accretion-turb-spd', 'aTurbSpdSlider');
     s('ctx-accretion-phase', 'aTurbMod');
 
+    // Gamma sub-menu sync
+    s('ctx-gamma-count', 'gammaCount');
+    s('ctx-gamma-turb', 'gTurbSlider');
+    s('ctx-gamma-turb-spd', 'gTurbSpdSlider');
+    s('ctx-gamma-phase', 'gTurbMod');
+
     // World tab
     s('ctx-grid-mode', 'gridModeSelect');
     s('ctx-grid3d-mode', 'grid3dRenderMode');

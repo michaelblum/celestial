@@ -777,6 +777,12 @@ export function setupUI() {
     proxyInput('ctx-accretion-turb-spd', 'aTurbSpdSlider');
     proxyInput('ctx-accretion-phase', 'aTurbMod');
 
+    // Gamma sub-menu
+    proxyInput('ctx-gamma-count', 'gammaCount');
+    proxyInput('ctx-gamma-turb', 'gTurbSlider');
+    proxyInput('ctx-gamma-turb-spd', 'gTurbSpdSlider');
+    proxyInput('ctx-gamma-phase', 'gTurbMod');
+
     // World tab
     proxyInput('ctx-grid-mode', 'gridModeSelect');
     proxyInput('ctx-grid3d-mode', 'grid3dRenderMode');
