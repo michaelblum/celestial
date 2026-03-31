@@ -169,9 +169,17 @@ export class CascadeSelect {
                 this._buildMenu(item.children, submenu);
                 parentDiv.appendChild(submenu);
 
-                // Flip detection on hover
+                // Flip detection on hover + delayed close for hover gap tolerance
+                let closeTimer = null;
                 parentDiv.addEventListener('mouseenter', () => {
+                    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+                    parentDiv.classList.add('cascade-open');
                     this._flipSubmenu(submenu);
+                });
+                parentDiv.addEventListener('mouseleave', () => {
+                    closeTimer = setTimeout(() => {
+                        parentDiv.classList.remove('cascade-open');
+                    }, 100);
                 });
 
                 parent.appendChild(parentDiv);
