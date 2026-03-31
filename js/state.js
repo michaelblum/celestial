@@ -73,6 +73,18 @@ const state = {
     tetartoidA: 1.0,
     tetartoidB: 1.5,
     tetartoidC: 2.0,
+    // Torus parameters
+    torusRadius: 1.0,
+    torusTube: 0.3,
+    torusArc: 1.0,
+    // Cylinder parameters
+    cylinderTopRadius: 1.0,
+    cylinderBottomRadius: 1.0,
+    cylinderHeight: 1.0,
+    // Box parameters
+    boxWidth: 1.0,
+    boxHeight: 1.0,
+    boxDepth: 1.0,
     isMaskEnabled: true,
     isInteriorEdgesEnabled: true,
     isSpecularEnabled: true,

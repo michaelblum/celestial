@@ -142,8 +142,10 @@ export function updateGeometry(type) {
         case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
         case 90: baseGeometry = createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC); break;
         case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
+        case 92: baseGeometry = new THREE.TorusGeometry(size * state.torusRadius, size * state.torusTube, 32, 48, state.torusArc * Math.PI * 2); break;
+        case 93: baseGeometry = new THREE.CylinderGeometry(size * state.cylinderTopRadius, size * state.cylinderBottomRadius, size * state.cylinderHeight, 32); break;
         case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
-        default: baseGeometry = new THREE.BoxGeometry(size, size, size); break;
+        default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
     }
 
     const finalGeometry = createStellatedGeometry(baseGeometry, state.stellationFactor);
@@ -197,8 +199,10 @@ export function updateOmegaGeometry(type) {
         case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
         case 90: baseGeometry = createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC); break;
         case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
+        case 92: baseGeometry = new THREE.TorusGeometry(size * state.torusRadius, size * state.torusTube, 32, 48, state.torusArc * Math.PI * 2); break;
+        case 93: baseGeometry = new THREE.CylinderGeometry(size * state.cylinderTopRadius, size * state.cylinderBottomRadius, size * state.cylinderHeight, 32); break;
         case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
-        default: baseGeometry = new THREE.BoxGeometry(size, size, size); break;
+        default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
     }
 
     const finalGeometry = createStellatedGeometry(baseGeometry, state.omegaStellationFactor);

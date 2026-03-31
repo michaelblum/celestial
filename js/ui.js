@@ -247,7 +247,19 @@ function getConfig() {
         // Tetartoid
         tetartoidA: state.tetartoidA,
         tetartoidB: state.tetartoidB,
-        tetartoidC: state.tetartoidC
+        tetartoidC: state.tetartoidC,
+        // Torus
+        torusRadius: state.torusRadius,
+        torusTube: state.torusTube,
+        torusArc: state.torusArc,
+        // Cylinder
+        cylinderTopRadius: state.cylinderTopRadius,
+        cylinderBottomRadius: state.cylinderBottomRadius,
+        cylinderHeight: state.cylinderHeight,
+        // Box
+        boxWidth: state.boxWidth,
+        boxHeight: state.boxHeight,
+        boxDepth: state.boxDepth
     };
 }
 
@@ -377,6 +389,18 @@ function applyConfig(c) {
     if (c.tetartoidA !== undefined) { state.tetartoidA = c.tetartoidA; setUI('tetASlider', c.tetartoidA, c.tetartoidA.toFixed(2)); }
     if (c.tetartoidB !== undefined) { state.tetartoidB = c.tetartoidB; setUI('tetBSlider', c.tetartoidB, c.tetartoidB.toFixed(2)); }
     if (c.tetartoidC !== undefined) { state.tetartoidC = c.tetartoidC; setUI('tetCSlider', c.tetartoidC, c.tetartoidC.toFixed(2)); }
+    // Torus
+    if (c.torusRadius !== undefined) { state.torusRadius = c.torusRadius; setUI('torusRadiusSlider', c.torusRadius, c.torusRadius.toFixed(2)); }
+    if (c.torusTube !== undefined) { state.torusTube = c.torusTube; setUI('torusTubeSlider', c.torusTube, c.torusTube.toFixed(2)); }
+    if (c.torusArc !== undefined) { state.torusArc = c.torusArc; setUI('torusArcSlider', c.torusArc, c.torusArc.toFixed(2)); }
+    // Cylinder
+    if (c.cylinderTopRadius !== undefined) { state.cylinderTopRadius = c.cylinderTopRadius; setUI('cylinderTopSlider', c.cylinderTopRadius, c.cylinderTopRadius.toFixed(2)); }
+    if (c.cylinderBottomRadius !== undefined) { state.cylinderBottomRadius = c.cylinderBottomRadius; setUI('cylinderBottomSlider', c.cylinderBottomRadius, c.cylinderBottomRadius.toFixed(2)); }
+    if (c.cylinderHeight !== undefined) { state.cylinderHeight = c.cylinderHeight; setUI('cylinderHeightSlider', c.cylinderHeight, c.cylinderHeight.toFixed(2)); }
+    // Box
+    if (c.boxWidth !== undefined) { state.boxWidth = c.boxWidth; setUI('boxWidthSlider', c.boxWidth, c.boxWidth.toFixed(2)); }
+    if (c.boxHeight !== undefined) { state.boxHeight = c.boxHeight; setUI('boxHeightSlider', c.boxHeight, c.boxHeight.toFixed(2)); }
+    if (c.boxDepth !== undefined) { state.boxDepth = c.boxDepth; setUI('boxDepthSlider', c.boxDepth, c.boxDepth.toFixed(2)); }
 
     updateAllColors();
 }
@@ -408,7 +432,7 @@ function randomizeAll(seed) {
         }
     };
 
-    const shapes = [4, 6, 8, 12, 20, 90, 91, 100];
+    const shapes = [4, 6, 8, 12, 20, 90, 91, 92, 93, 100];
     setUI('shapeSelect', shapes[Math.floor(rng() * shapes.length)]);
 
     let stellation = (rng() * 3 - 1).toFixed(2); setUI('stellationSlider', stellation, stellation);
@@ -437,9 +461,15 @@ function randomizeAll(seed) {
     state.pulsarRayCount = 1; state.accretionDiskCount = 1; state.gammaRayCount = 1; state.neutrinoJetCount = 1;
     updatePulsars(1); updateGammaRays(1); updateAccretion(1); updateNeutrinos(1);
 
-    // Reset tetartoid params to defaults
+    // Reset shape params to defaults
     state.tetartoidA = 1.0; state.tetartoidB = 1.5; state.tetartoidC = 2.0;
     setUI('tetASlider', 1.0, '1.00'); setUI('tetBSlider', 1.5, '1.50'); setUI('tetCSlider', 2.0, '2.00');
+    state.torusRadius = 1.0; state.torusTube = 0.3; state.torusArc = 1.0;
+    setUI('torusRadiusSlider', 1.0, '1.00'); setUI('torusTubeSlider', 0.3, '0.30'); setUI('torusArcSlider', 1.0, '1.00');
+    state.cylinderTopRadius = 1.0; state.cylinderBottomRadius = 1.0; state.cylinderHeight = 1.0;
+    setUI('cylinderTopSlider', 1.0, '1.00'); setUI('cylinderBottomSlider', 1.0, '1.00'); setUI('cylinderHeightSlider', 1.0, '1.00');
+    state.boxWidth = 1.0; state.boxHeight = 1.0; state.boxDepth = 1.0;
+    setUI('boxWidthSlider', 1.0, '1.00'); setUI('boxHeightSlider', 1.0, '1.00'); setUI('boxDepthSlider', 1.0, '1.00');
 
     // Randomize turbulence
     ['p', 'a', 'g', 'n'].forEach(k => {
@@ -682,6 +712,15 @@ export function setupUI() {
     proxyInput('ctx-tet-a', 'tetASlider');
     proxyInput('ctx-tet-b', 'tetBSlider');
     proxyInput('ctx-tet-c', 'tetCSlider');
+    proxyInput('ctx-torus-radius', 'torusRadiusSlider');
+    proxyInput('ctx-torus-tube', 'torusTubeSlider');
+    proxyInput('ctx-torus-arc', 'torusArcSlider');
+    proxyInput('ctx-cyl-top', 'cylinderTopSlider');
+    proxyInput('ctx-cyl-bottom', 'cylinderBottomSlider');
+    proxyInput('ctx-cyl-height', 'cylinderHeightSlider');
+    proxyInput('ctx-box-width', 'boxWidthSlider');
+    proxyInput('ctx-box-height', 'boxHeightSlider');
+    proxyInput('ctx-box-depth', 'boxDepthSlider');
     proxyInput('ctx-mask', 'maskToggle');
     proxyInput('ctx-interior', 'interiorEdgesToggle');
     proxyInput('ctx-specular', 'specularToggle');
@@ -700,23 +739,32 @@ export function setupUI() {
     proxyInput('ctx-omega-tet-a', 'tetASlider');
     proxyInput('ctx-omega-tet-b', 'tetBSlider');
     proxyInput('ctx-omega-tet-c', 'tetCSlider');
+    proxyInput('ctx-omega-torus-radius', 'torusRadiusSlider');
+    proxyInput('ctx-omega-torus-tube', 'torusTubeSlider');
+    proxyInput('ctx-omega-torus-arc', 'torusArcSlider');
+    proxyInput('ctx-omega-cyl-top', 'cylinderTopSlider');
+    proxyInput('ctx-omega-cyl-bottom', 'cylinderBottomSlider');
+    proxyInput('ctx-omega-cyl-height', 'cylinderHeightSlider');
+    proxyInput('ctx-omega-box-width', 'boxWidthSlider');
+    proxyInput('ctx-omega-box-height', 'boxHeightSlider');
+    proxyInput('ctx-omega-box-depth', 'boxDepthSlider');
 
-    // Show/hide tetartoid settings in context menu when shape changes
+    // Show/hide parameterized shape settings in context menus
+    const ctxShapeSettingsMap = { 90: 'ctx-tetartoid-settings', 92: 'ctx-torus-settings', 93: 'ctx-cylinder-settings', 6: 'ctx-box-settings' };
+    const ctxOmegaShapeSettingsMap = { 90: 'ctx-omega-tetartoid-settings', 92: 'ctx-omega-torus-settings', 93: 'ctx-omega-cylinder-settings', 6: 'ctx-omega-box-settings' };
+    const showCtxShapeSettings = (code, map) => {
+        Object.entries(map).forEach(([k, id]) => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = (parseInt(k) === code) ? '' : 'none';
+        });
+    };
     const ctxShape = document.getElementById('ctx-shape');
     if (ctxShape) {
-        ctxShape.addEventListener('change', () => {
-            const isTet = parseInt(ctxShape.value) === 90;
-            const el = document.getElementById('ctx-tetartoid-settings');
-            if (el) el.style.display = isTet ? '' : 'none';
-        });
+        ctxShape.addEventListener('change', () => showCtxShapeSettings(parseInt(ctxShape.value), ctxShapeSettingsMap));
     }
     const ctxOmegaShape = document.getElementById('ctx-omega-shape');
     if (ctxOmegaShape) {
-        ctxOmegaShape.addEventListener('change', () => {
-            const isTet = parseInt(ctxOmegaShape.value) === 90;
-            const el = document.getElementById('ctx-omega-tetartoid-settings');
-            if (el) el.style.display = isTet ? '' : 'none';
-        });
+        ctxOmegaShape.addEventListener('change', () => showCtxShapeSettings(parseInt(ctxOmegaShape.value), ctxOmegaShapeSettingsMap));
     }
 
     // Look tab
@@ -848,12 +896,21 @@ export function setupUI() {
     // Preset select
     document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));
 
+    // Shape param settings: map shape code -> settings container ID
+    const shapeSettingsMap = { 90: 'tetartoidSettings', 92: 'torusSettings', 93: 'cylinderSettings', 6: 'boxSettings' };
+    const showShapeSettings = (code, prefix) => {
+        const pfx = prefix || '';
+        Object.entries(shapeSettingsMap).forEach(([k, id]) => {
+            const el = document.getElementById(pfx + id);
+            if (el) el.style.display = (parseInt(k) === code) ? '' : 'none';
+        });
+    };
+
     // Shape
     document.getElementById('shapeSelect').addEventListener('change', (e) => {
         state.currentGeometryType = parseInt(e.target.value);
         updateGeometry(state.currentGeometryType);
-        const tetSettings = document.getElementById('tetartoidSettings');
-        if (tetSettings) tetSettings.style.display = (state.currentGeometryType === 90) ? '' : 'none';
+        showShapeSettings(state.currentGeometryType);
     });
     document.getElementById('stellationSlider').addEventListener('input', (e) => {
         state.stellationFactor = parseFloat(e.target.value);
@@ -871,6 +928,51 @@ export function setupUI() {
             state[`tetartoid${p}`] = val;
             if (valSpan) valSpan.textContent = val.toFixed(2);
             if (state.currentGeometryType === 90) updateGeometry(90);
+        });
+    });
+
+    // Torus parameter sliders
+    [['torusRadiusSlider', 'torusRadiusVal', 'torusRadius'],
+     ['torusTubeSlider', 'torusTubeVal', 'torusTube'],
+     ['torusArcSlider', 'torusArcVal', 'torusArc']].forEach(([sliderId, valId, stateKey]) => {
+        const slider = document.getElementById(sliderId);
+        if (!slider) return;
+        slider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            state[stateKey] = val;
+            const valSpan = document.getElementById(valId);
+            if (valSpan) valSpan.textContent = val.toFixed(2);
+            if (state.currentGeometryType === 92) updateGeometry(92);
+        });
+    });
+
+    // Cylinder parameter sliders
+    [['cylinderTopSlider', 'cylinderTopVal', 'cylinderTopRadius'],
+     ['cylinderBottomSlider', 'cylinderBottomVal', 'cylinderBottomRadius'],
+     ['cylinderHeightSlider', 'cylinderHeightVal', 'cylinderHeight']].forEach(([sliderId, valId, stateKey]) => {
+        const slider = document.getElementById(sliderId);
+        if (!slider) return;
+        slider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            state[stateKey] = val;
+            const valSpan = document.getElementById(valId);
+            if (valSpan) valSpan.textContent = val.toFixed(2);
+            if (state.currentGeometryType === 93) updateGeometry(93);
+        });
+    });
+
+    // Box parameter sliders
+    [['boxWidthSlider', 'boxWidthVal', 'boxWidth'],
+     ['boxHeightSlider', 'boxHeightVal', 'boxHeight'],
+     ['boxDepthSlider', 'boxDepthVal', 'boxDepth']].forEach(([sliderId, valId, stateKey]) => {
+        const slider = document.getElementById(sliderId);
+        if (!slider) return;
+        slider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            state[stateKey] = val;
+            const valSpan = document.getElementById(valId);
+            if (valSpan) valSpan.textContent = val.toFixed(2);
+            if (state.currentGeometryType === 6) updateGeometry(6);
         });
     });
 
