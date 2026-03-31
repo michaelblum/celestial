@@ -875,6 +875,9 @@ export function setupUI() {
             document.getElementById('opacitySlider').dispatchEvent(new Event('input'));
             document.getElementById('edgeOpacitySlider').value = 0;
             document.getElementById('edgeOpacitySlider').dispatchEvent(new Event('input'));
+        } else {
+            // Revert to vertex colors and restore default look
+            updateAllColors();
         }
     });
     document.getElementById('stellationSlider').addEventListener('input', (e) => {
@@ -1073,6 +1076,8 @@ export function setupUI() {
             document.getElementById('omegaOpacitySlider').dispatchEvent(new Event('input'));
             document.getElementById('omegaEdgeOpacitySlider').value = 0;
             document.getElementById('omegaEdgeOpacitySlider').dispatchEvent(new Event('input'));
+        } else {
+            updateAllColors();
         }
     });
     document.getElementById('omegaStellationSlider').addEventListener('input', (e) => {
