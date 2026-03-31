@@ -1,5 +1,6 @@
 import state from './state.js';
 import { drawAuraTexture, drawWhiteDwarf, updateMaterialTexture } from './colors.js';
+import { updatePulsars, updateGammaRays } from './phenomena.js';
 
 export function createAuraObjects() {
     // 1. Glow Sprite (Reach)
@@ -69,19 +70,29 @@ export function animateAura(dt) {
 
         if (state.chargeLevel >= 1.0) {
             document.getElementById('btn-supercharge').classList.add('vibrate');
-            if (Math.random() < 0.6) {
+        }
+
+        // --- Inward particles (spawn rate increases over time) ---
+        if (state.chargeLevel >= 0.7) {
+            let spawnRate = 0.4 + state.chargeLevel * 0.3 + Math.min(state.chargeTime * 0.1, 2.0);
+            let spawnCount = Math.floor(spawnRate);
+            if (Math.random() < (spawnRate - spawnCount)) spawnCount++;
+            for (let j = 0; j < spawnCount; j++) {
                 let p = new THREE.Sprite(new THREE.SpriteMaterial({
                     map: state.glowSprite.material.map, color: 0xffffff,
                     blending: THREE.AdditiveBlending, depthWrite: false
                 }));
                 let dir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
-                let spawnPos = state.polyGroup.position.clone().add(dir.multiplyScalar(4 + Math.random() * 3));
+                let dist = 3 + Math.random() * 4;
+                let spawnPos = state.polyGroup.position.clone().add(dir.multiplyScalar(dist * state.z_depth));
                 p.position.copy(spawnPos);
-                p.scale.set(0.15, 0.15, 1);
+                let s = (0.3 + Math.random() * 0.4) * state.z_depth;
+                p.scale.set(s, s, 1);
                 state.scene.add(p);
                 state.inwardParticles.push({ mesh: p, start: spawnPos, life: 1.0 });
             }
         }
+
         document.getElementById('charge-fill').style.width = (state.chargeLevel * 100) + '%';
 
         state.forceAuraVisible = true;
@@ -98,7 +109,7 @@ export function animateAura(dt) {
         state.chargeSpheroid.userData.currentScale = sScale;
         state.chargeSpheroid.scale.set(sScale * auraScaleMult, sScale * auraScaleMult, 1);
 
-        // Tandem Flare Setup (6 Total Solid Spikes)
+        // --- Charge flare spires ---
         for (let i = 0; i < 6; i++) {
             let startTime = i * 0.4;
             if (state.chargeTime > startTime) {
@@ -126,6 +137,71 @@ export function animateAura(dt) {
                 else state.chargeFlares[i].rotateZ(-speed * dt * 50);
             } else {
                 state.chargeFlares[i].visible = false;
+            }
+        }
+
+        // --- Charge beam sequence ---
+        // Save pre-charge state on first frame
+        if (!state.chargeSequence) {
+            state.chargeSequence = {
+                prePulsarEnabled: state.isPulsarEnabled,
+                prePulsarCount: state.pulsarRayCount,
+                preGammaEnabled: state.isGammaEnabled,
+                preGammaCount: state.gammaRayCount,
+                prePulsarTurb: { ...state.turbState.p },
+                preGammaTurb: { ...state.turbState.g },
+                beamCount: 0
+            };
+            // Force pulsars visible with 0 count initially
+            state.isPulsarEnabled = true;
+            state.pulsarRayCount = 0;
+            if (state.pulsarGroup) state.pulsarGroup.visible = true;
+            updatePulsars(0);
+            // Set turbulence for charge effect
+            state.turbState.p.val = 0.6;
+            state.turbState.p.spd = 1.0;
+            state.turbState.p.mod = 'uniform';
+        }
+
+        // Beam schedule: one every 500ms
+        let targetBeams = Math.floor(state.chargeTime / 0.5);
+        let seq = state.chargeSequence;
+
+        if (targetBeams > seq.beamCount) {
+            seq.beamCount = targetBeams;
+
+            if (seq.beamCount <= 10) {
+                // Phase 1: Pulsars 1-10, uniform
+                state.pulsarRayCount = seq.beamCount;
+                updatePulsars(seq.beamCount);
+                state.turbState.p.spd = 1.0 + seq.beamCount * 0.5;
+            } else if (seq.beamCount <= 15) {
+                // Phase 2: Pulsars 11-15, random
+                if (seq.beamCount === 11) state.turbState.p.mod = 'random';
+                state.pulsarRayCount = seq.beamCount;
+                updatePulsars(seq.beamCount);
+                state.turbState.p.spd = 1.0 + seq.beamCount * 0.5;
+            } else if (seq.beamCount <= 25) {
+                // Phase 3: Gamma rays 1-10, uniform
+                let gammaCount = seq.beamCount - 15;
+                if (gammaCount === 1) {
+                    state.isGammaEnabled = true;
+                    state.gammaRayCount = 0;
+                    if (state.gammaRaysGroup) state.gammaRaysGroup.visible = true;
+                    state.turbState.g.val = 0.6;
+                    state.turbState.g.spd = 1.0;
+                    state.turbState.g.mod = 'uniform';
+                }
+                state.gammaRayCount = gammaCount;
+                updateGammaRays(gammaCount);
+                state.turbState.g.spd = 1.0 + gammaCount * 0.5;
+            } else if (seq.beamCount <= 30) {
+                // Phase 4: Gamma rays 11-15, random
+                let gammaCount = seq.beamCount - 15;
+                if (seq.beamCount === 26) state.turbState.g.mod = 'random';
+                state.gammaRayCount = gammaCount;
+                updateGammaRays(gammaCount);
+                state.turbState.g.spd = 1.0 + gammaCount * 0.5;
             }
         }
 
@@ -185,6 +261,24 @@ export function animateAura(dt) {
                 f.visible = false;
                 f.rotation.set(f.userData.baseX, f.userData.baseY, f.userData.baseZ);
             });
+
+            // Restore pre-charge beam state
+            if (state.chargeSequence) {
+                let seq = state.chargeSequence;
+                state.isPulsarEnabled = seq.prePulsarEnabled;
+                state.pulsarRayCount = seq.prePulsarCount;
+                if (state.pulsarGroup) state.pulsarGroup.visible = seq.prePulsarEnabled;
+                updatePulsars(seq.prePulsarCount);
+                state.turbState.p = { ...seq.prePulsarTurb };
+
+                state.isGammaEnabled = seq.preGammaEnabled;
+                state.gammaRayCount = seq.preGammaCount;
+                if (state.gammaRaysGroup) state.gammaRaysGroup.visible = seq.preGammaEnabled;
+                updateGammaRays(seq.preGammaCount);
+                state.turbState.g = { ...seq.preGammaTurb };
+
+                state.chargeSequence = null;
+            }
 
             if (state.wasFullCharge) {
                 state.isShockwaveActive = true;

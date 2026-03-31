@@ -5,17 +5,30 @@ import { updateAllColors } from './colors.js';
 import { createAuraObjects, animateAura } from './aura.js';
 import { createPhenomena, animatePhenomena } from './phenomena.js';
 import { createParticleObjects, animateParticles, animateTrails, fireExplosion, fireSuperNova } from './particles.js';
-import { buildGrid, animateGrid } from './grid.js';
-import { setupInteraction } from './interaction.js';
+// grid.js removed — unified into grid3d.js
+import { setupInteraction, updateCameraTransition } from './interaction.js';
 import { animatePathing } from './pathing.js';
 import { setupUI, setupEditableLabels } from './ui.js';
+import { createLightning, animateLightning } from './lightning.js';
+import { createMagneticField, animateMagneticField } from './magnetic.js';
+import { createOmega, animateOmega } from './omega.js';
+import { createGrid3d, animateGrid3d } from './grid3d.js';
+import { createSwarm, animateSwarm } from './swarm.js';
+import { animateSkybox } from './skybox.js';
+import { animateSkins } from './skins.js';
+import Stats from './lib/stats.module.js';
 
 function init() {
     initScene();
-    buildGrid();
+    // Old 2D grid removed — unified into grid3d
     createAuraObjects();
     createParticleObjects();
     createPhenomena();
+    createLightning();
+    createMagneticField();
+    createOmega();
+    createGrid3d();
+    createSwarm();
 
     updateGeometry(state.currentGeometryType);
     updateAllColors();
@@ -26,12 +39,27 @@ function init() {
     setupUI();
     setupEditableLabels();
 
+    // Performance stats (toggle with 'P' key)
+    state.stats = new Stats();
+    state.stats.dom.style.cssText = 'position:fixed;top:0;right:0;z-index:10000;';
+    state.stats.dom.style.display = 'none';
+    document.body.appendChild(state.stats.dom);
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'p' && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+            state.statsVisible = !state.statsVisible;
+            state.stats.dom.style.display = state.statsVisible ? '' : 'none';
+        }
+    });
+
     animate();
 }
 
 function animate() {
     requestAnimationFrame(animate);
     const dt = 0.016;
+
+    // Advance global turbulence clock
+    state.globalTime += dt;
 
     // Nova scale calculation
     if (state.collapseTime > 0 && state.wasFullCharge) {
@@ -50,12 +78,22 @@ function animate() {
         state.novaScale = 1.0;
     }
 
+    // Camera transition (smooth reorientation on mode switch)
+    updateCameraTransition(dt);
+
     // Module animations
+    animateSkybox(dt);
     animatePathing(dt);
-    animateGrid();
+    // Old animateGrid() removed — unified into grid3d
+    animateGrid3d(dt);
+    animateSwarm(dt);
     animateParticles(dt);
     animatePhenomena(dt);
     animateAura(dt);
+    animateLightning(dt);
+    animateMagneticField(dt);
+    animateOmega(dt);
+    animateSkins(dt);
     animateTrails(dt);
 
     // Check for deferred fire signals from aura collapse
@@ -83,6 +121,7 @@ function animate() {
     state.polyGroup.scale.setScalar(state.z_depth * state.novaScale);
 
     state.renderer.render(state.scene, state.camera);
+    if (state.stats) state.stats.update();
 }
 
 window.onload = init;

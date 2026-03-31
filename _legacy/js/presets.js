@@ -1,5 +1,6 @@
 import state from './state.js';
 import { updateAllColors } from './colors.js';
+import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 
 export function applyPreset(preset) {
     const setUI = (id, val) => {
@@ -8,6 +9,16 @@ export function applyPreset(preset) {
         if (el.type === 'checkbox') { el.checked = val; el.dispatchEvent(new Event('change')); }
         else { el.value = val; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
     };
+
+    // Reset counts to 1 on any preset
+    ['pulsarCount', 'accretionCount', 'gammaCount', 'neutrinoCount'].forEach(id => setUI(id, 1));
+    state.pulsarRayCount = 1; state.accretionDiskCount = 1; state.gammaRayCount = 1; state.neutrinoJetCount = 1;
+    updatePulsars(1); updateGammaRays(1); updateAccretion(1); updateNeutrinos(1);
+
+    // Reset lightning, magnetic, omega
+    setUI('lightningToggle', false);
+    setUI('magneticToggle', false);
+    setUI('omegaToggle', false);
 
     if (preset === 'blackhole') {
         setUI('shapeSelect', 100);

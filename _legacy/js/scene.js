@@ -1,4 +1,5 @@
 import state from './state.js';
+import { createSkybox } from './skybox.js';
 
 export function initScene() {
     state.scene = new THREE.Scene();
@@ -20,12 +21,7 @@ export function initScene() {
     state.renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(state.renderer.domElement);
 
-    // Starfield
-    const starGeo = new THREE.BufferGeometry();
-    const posArray = new Float32Array(2000 * 3);
-    for (let i = 0; i < 6000; i++) posArray[i] = (Math.random() - 0.5) * 200;
-    starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-    state.scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.04, color: 0xffffff })));
+    createSkybox();
 
     // Poly group
     state.polyGroup = new THREE.Group();

@@ -130,17 +130,17 @@ export function animateParticles(dt) {
         }
     }
 
-    // Inward particles
+    // Inward particles (sucking toward center, accelerating)
     for (let i = state.inwardParticles.length - 1; i >= 0; i--) {
         let p = state.inwardParticles[i];
-        p.life -= dt * 2.0;
+        p.life -= dt * (0.4 + (1.0 - p.life) * 1.5);
         if (p.life <= 0) {
             state.scene.remove(p.mesh);
             p.mesh.material.dispose();
             state.inwardParticles.splice(i, 1);
         } else {
             p.mesh.position.lerpVectors(state.polyGroup.position, p.start, p.life);
-            p.mesh.material.opacity = p.life;
+            p.mesh.material.opacity = Math.min(1.0, p.life * 1.5);
         }
     }
 

@@ -1,5 +1,8 @@
 import state from './state.js';
 
+// Fixed spin axis — avoids gimbal lock from Euler accumulation
+const _spinAxis = new THREE.Vector3(0.5, 1.0, 0).normalize();
+
 export function updatePathVisual() {
     if (state.pathLine) {
         state.scene.remove(state.pathLine);
@@ -22,6 +25,35 @@ export function updatePathVisual() {
 }
 
 export function animatePathing(dt) {
+    // In 3D grid mode, the object stays at origin — no spinning, no pathing, no momentum
+    if (state.gridMode === '3d') {
+        // Auto-move: sinusoidal drift like the 3D grid demo
+        if (state.isPathEnabled) {
+            state.grid3dTime = (state.grid3dTime || 0) + dt * state.grid3dTimeScale;
+            const t = state.grid3dTime;
+            const ox = Math.sin(t) * 6;
+            const oy = Math.sin(t * 1.5) * 3;
+            const oz = Math.cos(t * 0.8) * 6;
+
+            if (state.grid3dRelativeMotion) {
+                // Relative motion: polyGroup stays at origin visually,
+                // but we store the "logical" position so grid3d can offset the grid
+                state._grid3dLogicalPos = state._grid3dLogicalPos || new THREE.Vector3();
+                state._grid3dLogicalPos.set(ox, oy, oz);
+                state.polyGroup.position.set(0, 0, 0);
+            } else {
+                // Normal: mass moves through the grid
+                state.polyGroup.position.set(ox, oy, oz);
+                state._grid3dLogicalPos = null;
+            }
+        } else {
+            state._grid3dLogicalPos = null;
+        }
+        // Keep camera looking at origin
+        state.camera.lookAt(0, 0, 0);
+        return;
+    }
+
     const isMotionPaused = state.isPaused || state.isMenuOpen || state.isDraggingObject || state.isPanningObject || state.isPanningCamera;
 
     // Camera tracking
@@ -94,8 +126,7 @@ export function animatePathing(dt) {
             if (!state.isPathEnabled) state.moveRotationSpeed *= 0.96;
         }
 
-        state.polyGroup.rotation.x += activeRotationSpeed;
-        state.polyGroup.rotation.y += activeRotationSpeed;
+        state.polyGroup.rotateOnWorldAxis(_spinAxis, activeRotationSpeed);
     }
 
     // Residual momentum
@@ -103,4 +134,7 @@ export function animatePathing(dt) {
         state.polyGroup.rotateOnWorldAxis(state.dragMomentumAxis, state.dragMomentumSpeed);
         state.dragMomentumSpeed *= 0.95;
     }
+
+    // Normalize quaternion to prevent floating-point drift
+    state.polyGroup.quaternion.normalize();
 }
