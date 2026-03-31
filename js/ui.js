@@ -870,6 +870,12 @@ export function setupUI() {
     });
     document.getElementById('skinSelect').addEventListener('change', (e) => {
         applySkin(e.target.value, false);
+        if (e.target.value !== 'none') {
+            document.getElementById('opacitySlider').value = 1.0;
+            document.getElementById('opacitySlider').dispatchEvent(new Event('input'));
+            document.getElementById('edgeOpacitySlider').value = 0;
+            document.getElementById('edgeOpacitySlider').dispatchEvent(new Event('input'));
+        }
     });
     document.getElementById('stellationSlider').addEventListener('input', (e) => {
         state.stellationFactor = parseFloat(e.target.value);
@@ -1062,6 +1068,12 @@ export function setupUI() {
     });
     document.getElementById('omegaSkinSelect').addEventListener('change', (e) => {
         applySkin(e.target.value, true);
+        if (e.target.value !== 'none') {
+            document.getElementById('omegaOpacitySlider').value = 1.0;
+            document.getElementById('omegaOpacitySlider').dispatchEvent(new Event('input'));
+            document.getElementById('omegaEdgeOpacitySlider').value = 0;
+            document.getElementById('omegaEdgeOpacitySlider').dispatchEvent(new Event('input'));
+        }
     });
     document.getElementById('omegaStellationSlider').addEventListener('input', (e) => {
         state.omegaStellationFactor = parseFloat(e.target.value);
