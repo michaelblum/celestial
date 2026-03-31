@@ -82,6 +82,8 @@ const state = {
     cylinderBottomRadius: 1.0,
     cylinderHeight: 1.0,
     cylinderSides: 32,
+    // Sphere parameters
+    sphereSegments: 32,
     // Box parameters
     boxWidth: 1.0,
     boxHeight: 1.0,

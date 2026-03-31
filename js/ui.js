@@ -210,7 +210,8 @@ function getConfig() {
         // Box
         boxWidth: state.boxWidth,
         boxHeight: state.boxHeight,
-        boxDepth: state.boxDepth
+        boxDepth: state.boxDepth,
+        sphereSegments: state.sphereSegments
     };
 }
 
@@ -351,6 +352,7 @@ function applyConfig(c) {
     if (c.boxWidth !== undefined) { state.boxWidth = c.boxWidth; setUI('boxWidthSlider', c.boxWidth, c.boxWidth.toFixed(2)); }
     if (c.boxHeight !== undefined) { state.boxHeight = c.boxHeight; setUI('boxHeightSlider', c.boxHeight, c.boxHeight.toFixed(2)); }
     if (c.boxDepth !== undefined) { state.boxDepth = c.boxDepth; setUI('boxDepthSlider', c.boxDepth, c.boxDepth.toFixed(2)); }
+    if (c.sphereSegments !== undefined) { state.sphereSegments = c.sphereSegments; setUI('sphereSegmentsSlider', c.sphereSegments, c.sphereSegments); }
 
     updateAllColors();
 }
@@ -424,6 +426,8 @@ function randomizeAll(seed) {
     setUI('cylinderTopSlider', 1.0, '1.00'); setUI('cylinderBottomSlider', 1.0, '1.00'); setUI('cylinderHeightSlider', 1.0, '1.00'); setUI('cylinderSidesSlider', 32, '32');
     state.boxWidth = 1.0; state.boxHeight = 1.0; state.boxDepth = 1.0;
     setUI('boxWidthSlider', 1.0, '1.00'); setUI('boxHeightSlider', 1.0, '1.00'); setUI('boxDepthSlider', 1.0, '1.00');
+    state.sphereSegments = 32;
+    setUI('sphereSegmentsSlider', 32, '32');
 
     // Randomize turbulence
     ['p', 'a', 'g', 'n'].forEach(k => {
@@ -675,6 +679,7 @@ export function setupUI() {
     proxyInput('ctx-box-width', 'boxWidthSlider');
     proxyInput('ctx-box-height', 'boxHeightSlider');
     proxyInput('ctx-box-depth', 'boxDepthSlider');
+    proxyInput('ctx-sphere-segments', 'sphereSegmentsSlider');
     proxyInput('ctx-skin', 'skinSelect');
     proxyInput('ctx-interior', 'interiorEdgesToggle');
     proxyInput('ctx-specular', 'specularToggle');
@@ -704,10 +709,11 @@ export function setupUI() {
     proxyInput('ctx-omega-box-width', 'boxWidthSlider');
     proxyInput('ctx-omega-box-height', 'boxHeightSlider');
     proxyInput('ctx-omega-box-depth', 'boxDepthSlider');
+    proxyInput('ctx-omega-sphere-segments', 'sphereSegmentsSlider');
 
     // Show/hide parameterized shape settings in context menus
-    const ctxShapeSettingsMap = { 90: 'ctx-tetartoid-settings', 92: 'ctx-torus-settings', 93: 'ctx-cylinder-settings', 6: 'ctx-box-settings' };
-    const ctxOmegaShapeSettingsMap = { 90: 'ctx-omega-tetartoid-settings', 92: 'ctx-omega-torus-settings', 93: 'ctx-omega-cylinder-settings', 6: 'ctx-omega-box-settings' };
+    const ctxShapeSettingsMap = { 90: 'ctx-tetartoid-settings', 92: 'ctx-torus-settings', 93: 'ctx-cylinder-settings', 6: 'ctx-box-settings', 100: 'ctx-sphere-settings' };
+    const ctxOmegaShapeSettingsMap = { 90: 'ctx-omega-tetartoid-settings', 92: 'ctx-omega-torus-settings', 93: 'ctx-omega-cylinder-settings', 6: 'ctx-omega-box-settings', 100: 'ctx-omega-sphere-settings' };
     const showCtxShapeSettings = (code, map) => {
         Object.entries(map).forEach(([k, id]) => {
             const el = document.getElementById(id);
@@ -853,7 +859,7 @@ export function setupUI() {
     document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));
 
     // Shape param settings: map shape code -> settings container ID
-    const shapeSettingsMap = { 90: 'tetartoidSettings', 92: 'torusSettings', 93: 'cylinderSettings', 6: 'boxSettings' };
+    const shapeSettingsMap = { 90: 'tetartoidSettings', 92: 'torusSettings', 93: 'cylinderSettings', 6: 'boxSettings', 100: 'sphereSettings' };
     const showShapeSettings = (code, prefix) => {
         const pfx = prefix || '';
         Object.entries(shapeSettingsMap).forEach(([k, id]) => {
@@ -944,6 +950,18 @@ export function setupUI() {
             if (state.currentGeometryType === 6) updateGeometry(6);
         });
     });
+
+    // Sphere segments slider
+    const sphereSegSlider = document.getElementById('sphereSegmentsSlider');
+    if (sphereSegSlider) {
+        sphereSegSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.sphereSegments = val;
+            const valSpan = document.getElementById('sphereSegmentsVal');
+            if (valSpan) valSpan.textContent = val;
+            if (state.currentGeometryType === 100) updateGeometry(100);
+        });
+    }
 
     // Opacity
     document.getElementById('opacitySlider').addEventListener('input', (e) => {
