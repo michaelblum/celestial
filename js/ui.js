@@ -256,6 +256,7 @@ function getConfig() {
         cylinderTopRadius: state.cylinderTopRadius,
         cylinderBottomRadius: state.cylinderBottomRadius,
         cylinderHeight: state.cylinderHeight,
+        cylinderSides: state.cylinderSides,
         // Box
         boxWidth: state.boxWidth,
         boxHeight: state.boxHeight,
@@ -397,6 +398,7 @@ function applyConfig(c) {
     if (c.cylinderTopRadius !== undefined) { state.cylinderTopRadius = c.cylinderTopRadius; setUI('cylinderTopSlider', c.cylinderTopRadius, c.cylinderTopRadius.toFixed(2)); }
     if (c.cylinderBottomRadius !== undefined) { state.cylinderBottomRadius = c.cylinderBottomRadius; setUI('cylinderBottomSlider', c.cylinderBottomRadius, c.cylinderBottomRadius.toFixed(2)); }
     if (c.cylinderHeight !== undefined) { state.cylinderHeight = c.cylinderHeight; setUI('cylinderHeightSlider', c.cylinderHeight, c.cylinderHeight.toFixed(2)); }
+    if (c.cylinderSides !== undefined) { state.cylinderSides = c.cylinderSides; setUI('cylinderSidesSlider', c.cylinderSides, c.cylinderSides); }
     // Box
     if (c.boxWidth !== undefined) { state.boxWidth = c.boxWidth; setUI('boxWidthSlider', c.boxWidth, c.boxWidth.toFixed(2)); }
     if (c.boxHeight !== undefined) { state.boxHeight = c.boxHeight; setUI('boxHeightSlider', c.boxHeight, c.boxHeight.toFixed(2)); }
@@ -466,8 +468,8 @@ function randomizeAll(seed) {
     setUI('tetASlider', 1.0, '1.00'); setUI('tetBSlider', 1.5, '1.50'); setUI('tetCSlider', 2.0, '2.00');
     state.torusRadius = 1.0; state.torusTube = 0.3; state.torusArc = 1.0;
     setUI('torusRadiusSlider', 1.0, '1.00'); setUI('torusTubeSlider', 0.3, '0.30'); setUI('torusArcSlider', 1.0, '1.00');
-    state.cylinderTopRadius = 1.0; state.cylinderBottomRadius = 1.0; state.cylinderHeight = 1.0;
-    setUI('cylinderTopSlider', 1.0, '1.00'); setUI('cylinderBottomSlider', 1.0, '1.00'); setUI('cylinderHeightSlider', 1.0, '1.00');
+    state.cylinderTopRadius = 1.0; state.cylinderBottomRadius = 1.0; state.cylinderHeight = 1.0; state.cylinderSides = 32;
+    setUI('cylinderTopSlider', 1.0, '1.00'); setUI('cylinderBottomSlider', 1.0, '1.00'); setUI('cylinderHeightSlider', 1.0, '1.00'); setUI('cylinderSidesSlider', 32, '32');
     state.boxWidth = 1.0; state.boxHeight = 1.0; state.boxDepth = 1.0;
     setUI('boxWidthSlider', 1.0, '1.00'); setUI('boxHeightSlider', 1.0, '1.00'); setUI('boxDepthSlider', 1.0, '1.00');
 
@@ -718,6 +720,7 @@ export function setupUI() {
     proxyInput('ctx-cyl-top', 'cylinderTopSlider');
     proxyInput('ctx-cyl-bottom', 'cylinderBottomSlider');
     proxyInput('ctx-cyl-height', 'cylinderHeightSlider');
+    proxyInput('ctx-cyl-sides', 'cylinderSidesSlider');
     proxyInput('ctx-box-width', 'boxWidthSlider');
     proxyInput('ctx-box-height', 'boxHeightSlider');
     proxyInput('ctx-box-depth', 'boxDepthSlider');
@@ -745,6 +748,7 @@ export function setupUI() {
     proxyInput('ctx-omega-cyl-top', 'cylinderTopSlider');
     proxyInput('ctx-omega-cyl-bottom', 'cylinderBottomSlider');
     proxyInput('ctx-omega-cyl-height', 'cylinderHeightSlider');
+    proxyInput('ctx-omega-cyl-sides', 'cylinderSidesSlider');
     proxyInput('ctx-omega-box-width', 'boxWidthSlider');
     proxyInput('ctx-omega-box-height', 'boxHeightSlider');
     proxyInput('ctx-omega-box-depth', 'boxDepthSlider');
@@ -947,16 +951,17 @@ export function setupUI() {
     });
 
     // Cylinder parameter sliders
-    [['cylinderTopSlider', 'cylinderTopVal', 'cylinderTopRadius'],
-     ['cylinderBottomSlider', 'cylinderBottomVal', 'cylinderBottomRadius'],
-     ['cylinderHeightSlider', 'cylinderHeightVal', 'cylinderHeight']].forEach(([sliderId, valId, stateKey]) => {
+    [['cylinderTopSlider', 'cylinderTopVal', 'cylinderTopRadius', false],
+     ['cylinderBottomSlider', 'cylinderBottomVal', 'cylinderBottomRadius', false],
+     ['cylinderHeightSlider', 'cylinderHeightVal', 'cylinderHeight', false],
+     ['cylinderSidesSlider', 'cylinderSidesVal', 'cylinderSides', true]].forEach(([sliderId, valId, stateKey, isInt]) => {
         const slider = document.getElementById(sliderId);
         if (!slider) return;
         slider.addEventListener('input', (e) => {
-            const val = parseFloat(e.target.value);
+            const val = isInt ? parseInt(e.target.value) : parseFloat(e.target.value);
             state[stateKey] = val;
             const valSpan = document.getElementById(valId);
-            if (valSpan) valSpan.textContent = val.toFixed(2);
+            if (valSpan) valSpan.textContent = isInt ? val : val.toFixed(2);
             if (state.currentGeometryType === 93) updateGeometry(93);
         });
     });
