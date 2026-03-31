@@ -171,7 +171,7 @@ export function updateGeometry(type) {
     });
     state.coreMesh = new THREE.Mesh(finalGeometry, coreMat);
     state.coreMesh.renderOrder = 3;
-    state.coreMesh.visible = !state.isMaskEnabled;
+    state.coreMesh.visible = true;
     state.polyGroup.add(state.coreMesh);
 
     const edgeGeo = new THREE.EdgesGeometry(finalGeometry);

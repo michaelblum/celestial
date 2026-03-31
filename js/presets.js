@@ -22,7 +22,7 @@ export function applyPreset(preset) {
 
     if (preset === 'blackhole') {
         setUI('shapeSelect', 100);
-        setUI('maskToggle', false); setUI('interiorEdgesToggle', false); setUI('specularToggle', false);
+        setUI('interiorEdgesToggle', false); setUI('specularToggle', false);
         setUI('opacitySlider', 1.0); setUI('edgeOpacitySlider', 0.0);
         setUI('gridToggle', true); setUI('gridBendToggle', true); setUI('gridMassSlider', 3.0); setUI('gridDivsSlider', 100);
         setUI('gammaToggle', true); setUI('pulsarToggle', true); setUI('accretionToggle', true); setUI('neutrinoToggle', true);
@@ -35,7 +35,7 @@ export function applyPreset(preset) {
         setUI('edgeColor1', '#000000'); setUI('edgeColor2', '#000000');
     } else if (preset === 'crystal') {
         setUI('shapeSelect', 20);
-        setUI('maskToggle', false); setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
+        setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
         setUI('opacitySlider', 0.15); setUI('edgeOpacitySlider', 0.8);
         setUI('auraToggle', true); setUI('auraReachSlider', 0.8); setUI('auraIntensitySlider', 1.5); setUI('pulseRateSlider', 0.002);
         setUI('accretionToggle', false); setUI('pulsarToggle', false); setUI('gammaToggle', false); setUI('neutrinoToggle', false);
@@ -43,7 +43,7 @@ export function applyPreset(preset) {
         setUI('edgeColor1', '#ffffff'); setUI('edgeColor2', '#ffffff');
         setUI('auraColor1', '#00e5ff'); setUI('auraColor2', '#004488');
     } else if (preset === 'neon') {
-        setUI('maskToggle', true); setUI('interiorEdgesToggle', true); setUI('specularToggle', false);
+        setUI('interiorEdgesToggle', true); setUI('specularToggle', false);
         setUI('opacitySlider', 0.0); setUI('edgeOpacitySlider', 1.0);
         setUI('auraToggle', true); setUI('auraReachSlider', 1.5); setUI('auraIntensitySlider', 2.0); setUI('pulseRateSlider', 0.008);
         setUI('pulsarToggle', true); setUI('neutrinoToggle', true); setUI('accretionToggle', false); setUI('gammaToggle', false);
@@ -54,7 +54,7 @@ export function applyPreset(preset) {
     } else {
         // Default
         setUI('shapeSelect', 6);
-        setUI('maskToggle', true); setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
+        setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
         setUI('opacitySlider', 0.25); setUI('edgeOpacitySlider', 1.0);
         setUI('auraToggle', true); setUI('auraReachSlider', 1.0); setUI('auraIntensitySlider', 1.0);
         setUI('accretionToggle', false); setUI('pulsarToggle', false); setUI('gammaToggle', false); setUI('neutrinoToggle', false);

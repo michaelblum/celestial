@@ -35,21 +35,6 @@ export function computeAuraPosition() {
     let auraPos = state.polyGroup.position.clone();
     let auraScaleMult = 1.0;
 
-    if (state.isMaskEnabled) {
-        const pushBackDist = 5.0;
-        if (state.camera.isPerspectiveCamera) {
-            const sightLine = new THREE.Vector3().subVectors(state.polyGroup.position, state.camera.position).normalize();
-            auraPos.addScaledVector(sightLine, pushBackDist);
-            const distToObject = state.camera.position.distanceTo(state.polyGroup.position);
-            const distToAura = state.camera.position.distanceTo(auraPos);
-            auraScaleMult = (distToAura / distToObject);
-        } else {
-            let camDir = new THREE.Vector3();
-            state.camera.getWorldDirection(camDir);
-            auraPos.addScaledVector(camDir, pushBackDist);
-        }
-    }
-
     return { auraPos, auraScaleMult };
 }
 

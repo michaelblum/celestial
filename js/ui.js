@@ -74,30 +74,26 @@ function updateOpacity(val) {
     state.currentOpacity = val;
     if (state.coreMesh) {
         const isSolid = state.currentOpacity >= 0.99;
-        if (state.isMaskEnabled) {
-            state.coreMesh.visible = false;
+        state.coreMesh.visible = true;
+        if (state.skinMaterial) {
+            // Shader material — update uniforms
+            state.skinMaterial.uniforms.uOpacity.value = state.currentOpacity;
+            state.skinMaterial.uniforms.uSpecular.value = state.isSpecularEnabled ? 1.0 : 0.0;
+            state.skinMaterial.transparent = !isSolid;
+            state.skinMaterial.depthWrite = isSolid;
+            state.skinMaterial.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
         } else {
-            state.coreMesh.visible = true;
-            if (state.skinMaterial) {
-                // Shader material — update uniforms
-                state.skinMaterial.uniforms.uOpacity.value = state.currentOpacity;
-                state.skinMaterial.uniforms.uSpecular.value = state.isSpecularEnabled ? 1.0 : 0.0;
-                state.skinMaterial.transparent = !isSolid;
-                state.skinMaterial.depthWrite = isSolid;
-                state.skinMaterial.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
+            // MeshPhongMaterial — direct property updates
+            state.coreMesh.material.opacity = state.currentOpacity;
+            state.coreMesh.material.transparent = !isSolid;
+            state.coreMesh.material.depthWrite = isSolid;
+            state.coreMesh.material.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
+            if (state.isSpecularEnabled) {
+                state.coreMesh.material.specular = new THREE.Color(0x333333);
+                state.coreMesh.material.shininess = 80;
             } else {
-                // MeshPhongMaterial — direct property updates
-                state.coreMesh.material.opacity = state.currentOpacity;
-                state.coreMesh.material.transparent = !isSolid;
-                state.coreMesh.material.depthWrite = isSolid;
-                state.coreMesh.material.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
-                if (state.isSpecularEnabled) {
-                    state.coreMesh.material.specular = new THREE.Color(0x333333);
-                    state.coreMesh.material.shininess = 80;
-                } else {
-                    state.coreMesh.material.specular = new THREE.Color(0x000000);
-                    state.coreMesh.material.shininess = 0;
-                }
+                state.coreMesh.material.specular = new THREE.Color(0x000000);
+                state.coreMesh.material.shininess = 0;
             }
         }
         state.coreMesh.material.needsUpdate = true;
@@ -125,7 +121,6 @@ function getConfig() {
         stellation: state.stellationFactor,
         opacity: state.currentOpacity,
         edgeOpacity: state.currentEdgeOpacity,
-        mask: state.isMaskEnabled,
         interiorEdges: state.isInteriorEdgesEnabled,
         specular: state.isSpecularEnabled,
         skin: state.currentSkin,
@@ -241,7 +236,6 @@ function applyConfig(c) {
     if (c.stellation !== undefined) setUI('stellationSlider', c.stellation, c.stellation.toFixed(2));
     if (c.opacity !== undefined) setUI('opacitySlider', c.opacity, c.opacity.toFixed(2));
     if (c.edgeOpacity !== undefined) setUI('edgeOpacitySlider', c.edgeOpacity, c.edgeOpacity.toFixed(2));
-    if (c.mask !== undefined) setUI('maskToggle', c.mask);
     if (c.interiorEdges !== undefined) setUI('interiorEdgesToggle', c.interiorEdges);
     if (c.specular !== undefined) setUI('specularToggle', c.specular);
     if (c.skin !== undefined) setUI('skinSelect', c.skin);
@@ -447,7 +441,6 @@ function randomizeAll(seed) {
     let tailLen = Math.floor(rng() * 190 + 10); setUI('trailLengthSlider', tailLen, tailLen);
     let spd = (rng() * 9.9 + 0.1).toFixed(1); setUI('speedSlider', spd, spd);
 
-    setUI('maskToggle', rng() > 0.5);
     setUI('interiorEdgesToggle', rng() > 0.5);
     setUI('specularToggle', rng() > 0.5);
     setUI('gridModeSelect', rng() > 0.5 ? '3d' : 'flat');
@@ -683,7 +676,6 @@ export function setupUI() {
     proxyInput('ctx-box-height', 'boxHeightSlider');
     proxyInput('ctx-box-depth', 'boxDepthSlider');
     proxyInput('ctx-skin', 'skinSelect');
-    proxyInput('ctx-mask', 'maskToggle');
     proxyInput('ctx-interior', 'interiorEdgesToggle');
     proxyInput('ctx-specular', 'specularToggle');
     proxyInput('ctx-omega-toggle', 'omegaToggle');
@@ -955,7 +947,6 @@ export function setupUI() {
         document.getElementById('edgeOpacityVal').innerText = val.toFixed(2);
         updateEdgeOpacity(val);
     });
-    document.getElementById('maskToggle').addEventListener('change', (e) => { state.isMaskEnabled = e.target.checked; updateOpacity(state.currentOpacity); });
     document.getElementById('interiorEdgesToggle').addEventListener('change', (e) => {
         state.isInteriorEdgesEnabled = e.target.checked;
         if (state.depthMesh) state.depthMesh.visible = !state.isInteriorEdgesEnabled;

@@ -86,7 +86,6 @@ const state = {
     boxWidth: 1.0,
     boxHeight: 1.0,
     boxDepth: 1.0,
-    isMaskEnabled: true,
     isInteriorEdgesEnabled: true,
     isSpecularEnabled: true,
     // Skin system

@@ -231,7 +231,6 @@ function _syncContextMenu() {
         const isTet = parseInt(document.getElementById('shapeSelect')?.value) === 90;
         ctxTetSettings.style.display = isTet ? '' : 'none';
     }
-    s('ctx-mask', 'maskToggle');
     s('ctx-interior', 'interiorEdgesToggle');
     s('ctx-specular', 'specularToggle');
     s('ctx-omega-toggle', 'omegaToggle');
