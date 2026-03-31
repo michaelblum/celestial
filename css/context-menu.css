@@ -296,7 +296,7 @@
     border: 1px solid rgba(209, 135, 255, 0.15);
     background: rgba(30, 15, 50, 0.6);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
     user-select: none;
 }
 
@@ -343,7 +343,7 @@
     font-size: 9px;
     color: rgba(209, 135, 255, 0.4);
     border-radius: 3px;
-    transition: all 0.15s;
+    transition: color 0.15s, background 0.15s;
     z-index: 2;
 }
 .fx-tile-gear:hover {
