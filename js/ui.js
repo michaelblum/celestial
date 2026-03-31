@@ -765,6 +765,11 @@ export function setupUI() {
     proxyInput('ctx-show-path', 'showPathToggle');
     proxyInput('ctx-trail-toggle', 'trailToggle');
     proxyInput('ctx-trail-length', 'trailLengthSlider');
+    // Pulsar sub-menu
+    proxyInput('ctx-pulsar-count', 'pulsarCount');
+    proxyInput('ctx-pulsar-turb', 'pTurbSlider');
+    proxyInput('ctx-pulsar-turb-spd', 'pTurbSpdSlider');
+    proxyInput('ctx-pulsar-phase', 'pTurbMod');
 
     // World tab
     proxyInput('ctx-grid-mode', 'gridModeSelect');

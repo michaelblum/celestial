@@ -300,6 +300,11 @@ function _syncContextMenu() {
     s('ctx-show-path', 'showPathToggle');
     s('ctx-trail-toggle', 'trailToggle');
     s('ctx-trail-length', 'trailLengthSlider');
+    // Pulsar sub-menu sync
+    s('ctx-pulsar-count', 'pulsarCount');
+    s('ctx-pulsar-turb', 'pTurbSlider');
+    s('ctx-pulsar-turb-spd', 'pTurbSpdSlider');
+    s('ctx-pulsar-phase', 'pTurbMod');
 
     // World tab
     s('ctx-grid-mode', 'gridModeSelect');
