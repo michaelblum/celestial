@@ -502,7 +502,7 @@ function buildFxGrid() {
 
         // Click tile (not gear) = toggle effect via sidebar checkbox
         tile.addEventListener('click', (e) => {
-            if (e.target.classList.contains('fx-tile-gear')) return;
+            if (e.target.closest('.fx-tile-gear')) return;
             const sideEl = document.getElementById(fx.sidebarId);
             if (!sideEl) return;
             sideEl.checked = !sideEl.checked;
