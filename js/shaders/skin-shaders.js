@@ -99,8 +99,8 @@ float runePattern2D(vec2 p, float scale) {
   float spokeGlow = (1.0 - smoothstep(0.0, 0.06, spoke)) * step(0.08, dist) * step(dist, 0.35);
 
   // Cross-lines in some cells
-  float cross = min(abs(uv.x), abs(uv.y));
-  float crossGlow = (1.0 - smoothstep(0.0, 0.015, cross)) * step(0.65, h) * step(dist, 0.4);
+  float crossDist = min(abs(uv.x), abs(uv.y));
+  float crossGlow = (1.0 - smoothstep(0.0, 0.015, crossDist)) * step(0.65, h) * step(dist, 0.4);
 
   return max(max(ringGlow, spokeGlow * 0.6), crossGlow * 0.5) * active;
 }
