@@ -6,6 +6,5 @@ export const EFFECTS = [
     { id: 'lightning', emoji: '\u26A1',        label: 'Lightning',  sidebarId: 'lightningToggle',  subMenuId: 'ctx-sub-lightning' },
     { id: 'magnetic',  emoji: '\uD83E\uDDF2', label: 'Magnetic',   sidebarId: 'magneticToggle',   subMenuId: 'ctx-sub-magnetic' },
     { id: 'swarm',     emoji: '\u2728',        label: 'Swarm',      sidebarId: 'swarmToggle',      subMenuId: 'ctx-sub-swarm' },
-    { id: 'blackhole', emoji: '\u26AB',        label: 'Black Hole', sidebarId: 'blackHoleModeToggle' },
     { id: 'aura',      emoji: '\uD83D\uDD2E', label: 'Aura',       sidebarId: 'auraToggle',       subMenuId: 'ctx-sub-aura' },
 ];

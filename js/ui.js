@@ -1270,7 +1270,8 @@ export function setupUI() {
             });
         }
     });
-    document.getElementById('blackHoleModeToggle').addEventListener('change', (e) => { state.isBlackHoleMode = e.target.checked; });
+    const bhToggle = document.getElementById('blackHoleModeToggle');
+    if (bhToggle) bhToggle.addEventListener('change', (e) => { state.isBlackHoleMode = e.target.checked; });
 
     // Camera
     document.getElementById('orthoToggle').addEventListener('change', (e) => {
