@@ -10,7 +10,8 @@ const SKIN_TYPE_MAP = {
     'ice': 2,
     'volcanic': 3,
     'solar': 4,
-    'portal': 5
+    'portal': 5,
+    'tech': 6
 };
 
 /** Create a 256x1 DataTexture interpolating between two hex colors */

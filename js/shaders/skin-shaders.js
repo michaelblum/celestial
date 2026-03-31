@@ -32,7 +32,7 @@ uniform float noiseScale;
 uniform int noiseOctaves;
 uniform float roughness;
 uniform sampler2D colorRamp;
-uniform int skinType;        // 0=rocky, 1=gas-giant, 2=ice, 3=volcanic, 4=solar, 5=portal
+uniform int skinType;        // 0=rocky, 1=gas-giant, 2=ice, 3=volcanic, 4=solar, 5=portal, 6=tech
 uniform vec3 lightPosition;
 uniform float uOpacity;
 uniform float uSpecular;
@@ -41,6 +41,12 @@ varying vec3 vPosition;
 varying vec3 vNormal;
 varying vec3 vWorldPosition;
 varying vec2 vUv;
+
+// Returns 0 at cell boundary, 1 in cell interior — avoids swapped-edge smoothstep UB
+float gridSeam(float u, float gap) {
+  float fr = fract(u);
+  return min(smoothstep(0.0, gap, fr), 1.0 - smoothstep(1.0 - gap, 1.0, fr));
+}
 
 void main() {
   vec3 viewDir = normalize(cameraPosition - vWorldPosition);
@@ -100,6 +106,72 @@ void main() {
     portalColor += edgeColor * rimDist * 0.6;
 
     gl_FragColor = vec4(portalColor, 1.0);
+    return;
+  }
+
+  // ── Tech (type 6): metallic sci-fi panel surface ──
+  if (skinType == 6) {
+    // Triplanar blend weights — panels stick to the object surface (not world space)
+    vec3 bw = abs(vNormal);
+    bw = pow(bw, vec3(4.0));
+    bw /= (bw.x + bw.y + bw.z + 0.001);
+
+    // Coarse panel grid at object-space coordinates
+    float ps = noiseScale * 2.5;
+    vec2 uvX = vPosition.yz * ps;
+    vec2 uvY = vPosition.xz * ps;
+    vec2 uvZ = vPosition.xy * ps;
+
+    // Seam mask: 0 at cell edge, 1 in panel interior
+    float gap = 0.06;
+    float sX = min(gridSeam(uvX.x, gap), gridSeam(uvX.y, gap));
+    float sY = min(gridSeam(uvY.x, gap), gridSeam(uvY.y, gap));
+    float sZ = min(gridSeam(uvZ.x, gap), gridSeam(uvZ.y, gap));
+    float seamMask = sX * bw.x + sY * bw.y + sZ * bw.z;
+
+    // Per-cell tone variation via cell-coordinate hash
+    float pvX = snoise(vec3(floor(uvX.x), floor(uvX.y), 0.5) * 0.6) * 0.5 + 0.5;
+    float pvY = snoise(vec3(floor(uvY.x), floor(uvY.y), 1.5) * 0.6) * 0.5 + 0.5;
+    float pvZ = snoise(vec3(floor(uvZ.x), floor(uvZ.y), 2.5) * 0.6) * 0.5 + 0.5;
+    float panelVar = pvX * bw.x + pvY * bw.y + pvZ * bw.z;
+
+    // Base metallic color from ramp, nearly black at seams
+    vec3 panelColor = texture2D(colorRamp, vec2(panelVar, 0.5)).rgb;
+    vec3 color = mix(panelColor * 0.15, panelColor, seamMask);
+
+    // Fine sub-panel lines at 5× density
+    float fs = ps * 5.0;
+    vec2 fuvX = vPosition.yz * fs;
+    vec2 fuvY = vPosition.xz * fs;
+    vec2 fuvZ = vPosition.xy * fs;
+
+    float fg = 0.1;
+    float fX = min(gridSeam(fuvX.x, fg), gridSeam(fuvX.y, fg));
+    float fY = min(gridSeam(fuvY.x, fg), gridSeam(fuvY.y, fg));
+    float fZ = min(gridSeam(fuvZ.x, fg), gridSeam(fuvZ.y, fg));
+    float fineMask = fX * bw.x + fY * bw.y + fZ * bw.z;
+
+    color = mix(color * 0.7, color, fineMask);
+
+    // Emissive circuit traces — glowing lines in randomly-selected fine cells
+    float trX = snoise(vec3(floor(fuvX.x), floor(fuvX.y), 3.5) * 0.45);
+    float trY = snoise(vec3(floor(fuvY.x), floor(fuvY.y), 3.5) * 0.45);
+    float trZ = snoise(vec3(floor(fuvZ.x), floor(fuvZ.y), 3.5) * 0.45);
+    float traceCell = trX * bw.x + trY * bw.y + trZ * bw.z;
+    // Traces appear in the fine lines of cells above threshold
+    float traceLine = (1.0 - fineMask) * step(0.6, traceCell) * seamMask;
+    vec3 traceColor = texture2D(colorRamp, vec2(1.0, 0.5)).rgb;
+    color += traceColor * traceLine * 0.8;
+
+    // Metallic lighting: tight specular, moderate diffuse, Fresnel edge glint
+    vec3 tLightDir = normalize(lightPosition - vWorldPosition);
+    float diff = max(dot(vNormal, tLightDir), 0.0) * 0.6;
+    vec3 tHalfDir = normalize(tLightDir + viewDir);
+    float spec = pow(max(dot(vNormal, tHalfDir), 0.0), 128.0) * 1.5 * uSpecular;
+    float glint = fresnelEdge(vNormal, viewDir, 3.5) * 0.3;
+
+    color = color * (0.3 + diff + glint) + vec3(spec);
+    gl_FragColor = vec4(color, uOpacity);
     return;
   }
 

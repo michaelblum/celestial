@@ -414,7 +414,7 @@ function randomizeAll(seed) {
     updatePulsars(1); updateGammaRays(1); updateAccretion(1); updateNeutrinos(1);
 
     // Randomize skin (weighted toward 'none')
-    const skins = ['none', 'none', 'none', 'rocky', 'gas-giant', 'ice', 'volcanic', 'solar'];
+    const skins = ['none', 'none', 'none', 'rocky', 'gas-giant', 'ice', 'volcanic', 'solar', 'tech'];
     setUI('skinSelect', skins[Math.floor(rng() * skins.length)]);
 
     // Reset shape params to defaults
