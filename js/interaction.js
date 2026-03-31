@@ -318,6 +318,12 @@ function _syncContextMenu() {
     s('ctx-gamma-turb-spd', 'gTurbSpdSlider');
     s('ctx-gamma-phase', 'gTurbMod');
 
+    // Neutrino sub-menu sync
+    s('ctx-neutrino-count', 'neutrinoCount');
+    s('ctx-neutrino-turb', 'nTurbSlider');
+    s('ctx-neutrino-turb-spd', 'nTurbSpdSlider');
+    s('ctx-neutrino-phase', 'nTurbMod');
+
     // World tab
     s('ctx-grid-mode', 'gridModeSelect');
     s('ctx-grid3d-mode', 'grid3dRenderMode');

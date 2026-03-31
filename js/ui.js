@@ -783,6 +783,12 @@ export function setupUI() {
     proxyInput('ctx-gamma-turb-spd', 'gTurbSpdSlider');
     proxyInput('ctx-gamma-phase', 'gTurbMod');
 
+    // Neutrino sub-menu
+    proxyInput('ctx-neutrino-count', 'neutrinoCount');
+    proxyInput('ctx-neutrino-turb', 'nTurbSlider');
+    proxyInput('ctx-neutrino-turb-spd', 'nTurbSpdSlider');
+    proxyInput('ctx-neutrino-phase', 'nTurbMod');
+
     // World tab
     proxyInput('ctx-grid-mode', 'gridModeSelect');
     proxyInput('ctx-grid3d-mode', 'grid3dRenderMode');
