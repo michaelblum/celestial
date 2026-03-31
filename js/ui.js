@@ -243,7 +243,11 @@ function getConfig() {
         grid3dSnowGlobe: state.grid3dSnowGlobe,
         grid3dShowProbe: state.grid3dShowProbe,
         grid3dRelativeMotion: state.grid3dRelativeMotion,
-        grid3dTimeScale: state.grid3dTimeScale
+        grid3dTimeScale: state.grid3dTimeScale,
+        // Tetartoid
+        tetartoidA: state.tetartoidA,
+        tetartoidB: state.tetartoidB,
+        tetartoidC: state.tetartoidC
     };
 }
 
@@ -369,6 +373,11 @@ function applyConfig(c) {
     if (c.grid3dRelativeMotion !== undefined) setUI('grid3dRelativeToggle', c.grid3dRelativeMotion);
     if (c.grid3dTimeScale !== undefined) setUI('grid3dTimeSlider', c.grid3dTimeScale, c.grid3dTimeScale.toFixed(1));
 
+    // Tetartoid
+    if (c.tetartoidA !== undefined) { state.tetartoidA = c.tetartoidA; setUI('tetASlider', c.tetartoidA, c.tetartoidA.toFixed(2)); }
+    if (c.tetartoidB !== undefined) { state.tetartoidB = c.tetartoidB; setUI('tetBSlider', c.tetartoidB, c.tetartoidB.toFixed(2)); }
+    if (c.tetartoidC !== undefined) { state.tetartoidC = c.tetartoidC; setUI('tetCSlider', c.tetartoidC, c.tetartoidC.toFixed(2)); }
+
     updateAllColors();
 }
 
@@ -427,6 +436,10 @@ function randomizeAll(seed) {
     ['pulsarCount', 'accretionCount', 'gammaCount', 'neutrinoCount'].forEach(id => setUI(id, 1));
     state.pulsarRayCount = 1; state.accretionDiskCount = 1; state.gammaRayCount = 1; state.neutrinoJetCount = 1;
     updatePulsars(1); updateGammaRays(1); updateAccretion(1); updateNeutrinos(1);
+
+    // Reset tetartoid params to defaults
+    state.tetartoidA = 1.0; state.tetartoidB = 1.5; state.tetartoidC = 2.0;
+    setUI('tetASlider', 1.0, '1.00'); setUI('tetBSlider', 1.5, '1.50'); setUI('tetCSlider', 2.0, '2.00');
 
     // Randomize turbulence
     ['p', 'a', 'g', 'n'].forEach(k => {
