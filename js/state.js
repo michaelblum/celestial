@@ -89,6 +89,13 @@ const state = {
     isMaskEnabled: true,
     isInteriorEdgesEnabled: true,
     isSpecularEnabled: true,
+    // Skin system
+    currentSkin: 'none',
+    omegaSkin: 'none',
+    skinMaterial: null,
+    omegaSkinMaterial: null,
+    skinColorRamp: null,
+    omegaSkinColorRamp: null,
 
     // Aura
     isAuraEnabled: true,

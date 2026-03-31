@@ -6,6 +6,7 @@ import { updatePathVisual } from './pathing.js';
 import { applyPreset } from './presets.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateSwarmColors } from './swarm.js';
+import { applySkin } from './skins.js';
 import { updateOmegaGeometry } from './geometry.js';
 import { rebuildGrid3d } from './grid3d.js';
 import { resetCameraOrbit, transitionToFlatView, _openSub } from './interaction.js';
@@ -77,16 +78,26 @@ function updateOpacity(val) {
             state.coreMesh.visible = false;
         } else {
             state.coreMesh.visible = true;
-            state.coreMesh.material.opacity = state.currentOpacity;
-            state.coreMesh.material.transparent = !isSolid;
-            state.coreMesh.material.depthWrite = isSolid;
-            state.coreMesh.material.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
-            if (state.isSpecularEnabled) {
-                state.coreMesh.material.specular = new THREE.Color(0x333333);
-                state.coreMesh.material.shininess = 80;
+            if (state.skinMaterial) {
+                // Shader material — update uniforms
+                state.skinMaterial.uniforms.uOpacity.value = state.currentOpacity;
+                state.skinMaterial.uniforms.uSpecular.value = state.isSpecularEnabled ? 1.0 : 0.0;
+                state.skinMaterial.transparent = !isSolid;
+                state.skinMaterial.depthWrite = isSolid;
+                state.skinMaterial.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
             } else {
-                state.coreMesh.material.specular = new THREE.Color(0x000000);
-                state.coreMesh.material.shininess = 0;
+                // MeshPhongMaterial — direct property updates
+                state.coreMesh.material.opacity = state.currentOpacity;
+                state.coreMesh.material.transparent = !isSolid;
+                state.coreMesh.material.depthWrite = isSolid;
+                state.coreMesh.material.side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
+                if (state.isSpecularEnabled) {
+                    state.coreMesh.material.specular = new THREE.Color(0x333333);
+                    state.coreMesh.material.shininess = 80;
+                } else {
+                    state.coreMesh.material.specular = new THREE.Color(0x000000);
+                    state.coreMesh.material.shininess = 0;
+                }
             }
         }
         state.coreMesh.material.needsUpdate = true;
@@ -117,6 +128,7 @@ function getConfig() {
         mask: state.isMaskEnabled,
         interiorEdges: state.isInteriorEdgesEnabled,
         specular: state.isSpecularEnabled,
+        skin: state.currentSkin,
         idleSpin: state.idleSpinSpeed,
         path: state.isPathEnabled,
         centeredView: state.isCenteredView,
@@ -170,6 +182,7 @@ function getConfig() {
         omegaIsMaskEnabled: state.omegaIsMaskEnabled,
         omegaIsInteriorEdgesEnabled: state.omegaIsInteriorEdgesEnabled,
         omegaIsSpecularEnabled: state.omegaIsSpecularEnabled,
+        omegaSkin: state.omegaSkin,
         // Swarm + Black Hole
         swarm: state.isSwarmEnabled,
         swarmCount: state.swarmCount,
@@ -231,6 +244,7 @@ function applyConfig(c) {
     if (c.mask !== undefined) setUI('maskToggle', c.mask);
     if (c.interiorEdges !== undefined) setUI('interiorEdgesToggle', c.interiorEdges);
     if (c.specular !== undefined) setUI('specularToggle', c.specular);
+    if (c.skin !== undefined) setUI('skinSelect', c.skin);
     if (c.idleSpin !== undefined) setUI('idleSpinSlider', c.idleSpin, c.idleSpin.toFixed(3));
 
     if (c.colors) {
@@ -305,6 +319,7 @@ function applyConfig(c) {
     if (c.omegaIsMaskEnabled !== undefined) setUI('omegaMaskToggle', c.omegaIsMaskEnabled);
     if (c.omegaIsInteriorEdgesEnabled !== undefined) setUI('omegaInteriorEdgesToggle', c.omegaIsInteriorEdgesEnabled);
     if (c.omegaIsSpecularEnabled !== undefined) setUI('omegaSpecularToggle', c.omegaIsSpecularEnabled);
+    if (c.omegaSkin !== undefined) setUI('omegaSkinSelect', c.omegaSkin);
 
     // Swarm + Black Hole
     if (c.swarm !== undefined) setUI('swarmToggle', c.swarm);
@@ -401,6 +416,10 @@ function randomizeAll(seed) {
     ['pulsarCount', 'accretionCount', 'gammaCount', 'neutrinoCount'].forEach(id => setUI(id, 1));
     state.pulsarRayCount = 1; state.accretionDiskCount = 1; state.gammaRayCount = 1; state.neutrinoJetCount = 1;
     updatePulsars(1); updateGammaRays(1); updateAccretion(1); updateNeutrinos(1);
+
+    // Randomize skin (weighted toward 'none')
+    const skins = ['none', 'none', 'none', 'rocky', 'gas-giant', 'ice', 'volcanic', 'solar'];
+    setUI('skinSelect', skins[Math.floor(rng() * skins.length)]);
 
     // Reset shape params to defaults
     state.tetartoidA = 1.0; state.tetartoidB = 1.5; state.tetartoidC = 2.0;
@@ -663,6 +682,7 @@ export function setupUI() {
     proxyInput('ctx-box-width', 'boxWidthSlider');
     proxyInput('ctx-box-height', 'boxHeightSlider');
     proxyInput('ctx-box-depth', 'boxDepthSlider');
+    proxyInput('ctx-skin', 'skinSelect');
     proxyInput('ctx-mask', 'maskToggle');
     proxyInput('ctx-interior', 'interiorEdgesToggle');
     proxyInput('ctx-specular', 'specularToggle');
@@ -672,6 +692,7 @@ export function setupUI() {
     proxyInput('ctx-omega-stellation', 'omegaStellationSlider');
     proxyInput('ctx-omega-opacity', 'omegaOpacitySlider');
     proxyInput('ctx-omega-edge-opacity', 'omegaEdgeOpacitySlider');
+    proxyInput('ctx-omega-skin', 'omegaSkinSelect');
     proxyInput('ctx-omega-mask', 'omegaMaskToggle');
     proxyInput('ctx-omega-interior', 'omegaInteriorEdgesToggle');
     proxyInput('ctx-omega-specular', 'omegaSpecularToggle');
@@ -854,6 +875,9 @@ export function setupUI() {
         state.currentGeometryType = parseInt(e.target.value);
         updateGeometry(state.currentGeometryType);
         showShapeSettings(state.currentGeometryType);
+    });
+    document.getElementById('skinSelect').addEventListener('change', (e) => {
+        applySkin(e.target.value, false);
     });
     document.getElementById('stellationSlider').addEventListener('input', (e) => {
         state.stellationFactor = parseFloat(e.target.value);
@@ -1044,6 +1068,9 @@ export function setupUI() {
     document.getElementById('omegaShapeSelect').addEventListener('change', (e) => {
         state.omegaGeometryType = parseInt(e.target.value);
         updateOmegaGeometry(state.omegaGeometryType);
+    });
+    document.getElementById('omegaSkinSelect').addEventListener('change', (e) => {
+        applySkin(e.target.value, true);
     });
     document.getElementById('omegaStellationSlider').addEventListener('input', (e) => {
         state.omegaStellationFactor = parseFloat(e.target.value);

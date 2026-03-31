@@ -1,5 +1,6 @@
 import state from './state.js';
 import { updateFaceVertexColors, updateEdgeVertexColors } from './colors.js';
+import { applySkin, updateSkinColorRamp } from './skins.js';
 
 export function createStellatedGeometry(baseGeometry, factor) {
     const nonIndexed = baseGeometry.toNonIndexed();
@@ -183,6 +184,7 @@ export function updateGeometry(type) {
 
     updateFaceVertexColors();
     updateEdgeVertexColors();
+    if (state.currentSkin !== 'none') applySkin(state.currentSkin, false);
 }
 
 export function updateOmegaGeometry(type) {
@@ -244,10 +246,12 @@ export function updateOmegaGeometry(type) {
     // Apply vertex colors
     _updateOmegaFaceVertexColors();
     _updateOmegaEdgeVertexColors();
+    if (state.omegaSkin !== 'none') applySkin(state.omegaSkin, true);
 }
 
 function _updateOmegaFaceVertexColors() {
     if (!state.omegaCoreMesh) return;
+    if (state.omegaSkin !== 'none' && state.omegaSkinMaterial) { updateSkinColorRamp(true); return; }
     const geo = state.omegaCoreMesh.geometry;
     const count = geo.attributes.position.count;
     if (!geo.attributes.color || geo.attributes.color.count !== count) {

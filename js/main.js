@@ -15,6 +15,7 @@ import { createOmega, animateOmega } from './omega.js';
 import { createGrid3d, animateGrid3d } from './grid3d.js';
 import { createSwarm, animateSwarm } from './swarm.js';
 import { animateSkybox } from './skybox.js';
+import { animateSkins } from './skins.js';
 import Stats from './lib/stats.module.js';
 
 function init() {
@@ -92,6 +93,7 @@ function animate() {
     animateLightning(dt);
     animateMagneticField(dt);
     animateOmega(dt);
+    animateSkins(dt);
     animateTrails(dt);
 
     // Check for deferred fire signals from aura collapse
