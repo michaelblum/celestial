@@ -265,6 +265,8 @@ function _syncContextMenu() {
     s('ctx-lightning-c2', 'lightningColor2');
     s('ctx-magnetic-c1', 'magneticColor1');
     s('ctx-magnetic-c2', 'magneticColor2');
+    s('ctx-swarm-fc1', 'swarmColor1');
+    s('ctx-swarm-fc2', 'swarmColor2');
     s('ctx-grid-c1', 'gridColor1');
     s('ctx-grid-c2', 'gridColor2');
 
@@ -281,6 +283,8 @@ function _syncContextMenu() {
     s('ctx-swarm-gravity', 'swarmGravitySlider');
     s('ctx-swarm-horizon', 'swarmHorizonSlider');
     s('ctx-swarm-time', 'swarmTimeSlider');
+    s('ctx-swarm-c1', 'swarmColor1');
+    s('ctx-swarm-c2', 'swarmColor2');
     s('ctx-lightning-center', 'lightningOriginCenter');
     s('ctx-lightning-solid', 'lightningSolidBlock');
     s('ctx-lightning-length', 'lightningLengthSlider');

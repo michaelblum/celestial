@@ -5,6 +5,7 @@ import { updateAllColors } from './colors.js';
 import { updatePathVisual } from './pathing.js';
 import { applyPreset } from './presets.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
+import { updateSwarmColors } from './swarm.js';
 import { updateOmegaGeometry } from './geometry.js';
 import { rebuildGrid3d } from './grid3d.js';
 import { resetCameraOrbit, transitionToFlatView, _openSub } from './interaction.js';
@@ -705,6 +706,8 @@ export function setupUI() {
     proxyInput('ctx-lightning-c2', 'lightningColor2');
     proxyInput('ctx-magnetic-c1', 'magneticColor1');
     proxyInput('ctx-magnetic-c2', 'magneticColor2');
+    proxyInput('ctx-swarm-fc1', 'swarmColor1');
+    proxyInput('ctx-swarm-fc2', 'swarmColor2');
     proxyInput('ctx-grid-c1', 'gridColor1');
     proxyInput('ctx-grid-c2', 'gridColor2');
 
@@ -746,6 +749,8 @@ export function setupUI() {
     proxyInput('ctx-swarm-gravity', 'swarmGravitySlider');
     proxyInput('ctx-swarm-horizon', 'swarmHorizonSlider');
     proxyInput('ctx-swarm-time', 'swarmTimeSlider');
+    proxyInput('ctx-swarm-c1', 'swarmColor1');
+    proxyInput('ctx-swarm-c2', 'swarmColor2');
     proxyInput('ctx-lightning-center', 'lightningOriginCenter');
     proxyInput('ctx-lightning-solid', 'lightningSolidBlock');
     proxyInput('ctx-lightning-length', 'lightningLengthSlider');
@@ -1156,6 +1161,16 @@ export function setupUI() {
     document.getElementById('swarmTimeSlider').addEventListener('input', (e) => {
         state.swarmTimeScale = parseFloat(e.target.value);
         document.getElementById('swarmTimeVal').innerText = state.swarmTimeScale.toFixed(1);
+    });
+    ['swarmColor1', 'swarmColor2'].forEach((id, idx) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.value = state.colors.swarm[idx];
+            el.addEventListener('input', (e) => {
+                state.colors.swarm[idx] = e.target.value;
+                updateSwarmColors();
+            });
+        }
     });
     document.getElementById('blackHoleModeToggle').addEventListener('change', (e) => { state.isBlackHoleMode = e.target.checked; });
 

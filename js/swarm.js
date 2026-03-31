@@ -10,6 +10,7 @@ const EMITTER_RELOCATE_INTERVAL = 15.0; // sim-seconds
 const _v = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _emitterPos = new THREE.Vector3(25, 0, 0);
+const _c1 = new THREE.Color(), _c2 = new THREE.Color();
 
 // ── Module-level references ────────────────────────────────────────────────
 let swarmPositions = null;
@@ -132,9 +133,16 @@ function spawnParticle(i) {
     // Size: random 0.1 - 1.5
     swarmSizes[i] = 0.1 + Math.random() * 1.4;
 
-    // Color: pink/magenta base with hue variance
-    const hue = 0.85 + (Math.random() - 0.5) * 0.15; // ~magenta with variance
-    const [cr, cg, cb] = hslToRgb(hue > 1 ? hue - 1 : hue, 0.9, 0.6 + Math.random() * 0.2);
+    // Color: interpolate between swarm color1 and color2 with variance
+    const t = Math.random();
+    _c1.set(state.colors.swarm[0]);
+    _c2.set(state.colors.swarm[1]);
+    _c1.lerp(_c2, t);
+    const hsl = {};
+    _c1.getHSL(hsl);
+    hsl.h += (Math.random() - 0.5) * 0.08;
+    _c1.setHSL(hsl.h, hsl.s, hsl.l);
+    const cr = _c1.r, cg = _c1.g, cb = _c1.b;
     swarmColors[i3]     = cr;
     swarmColors[i3 + 1] = cg;
     swarmColors[i3 + 2] = cb;
@@ -360,5 +368,21 @@ export function animateSwarm(dt) {
 }
 
 export function updateSwarmColors() {
-    // No-op — colors are set per-particle at spawn time
+    if (!swarmGeo || !swarmColors) return;
+    const count = state.swarmCount;
+    for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+        const t = Math.random();
+        _c1.set(state.colors.swarm[0]);
+        _c2.set(state.colors.swarm[1]);
+        _c1.lerp(_c2, t);
+        const hsl = {};
+        _c1.getHSL(hsl);
+        hsl.h += (Math.random() - 0.5) * 0.08;
+        _c1.setHSL(hsl.h, hsl.s, hsl.l);
+        swarmColors[i3]     = _c1.r;
+        swarmColors[i3 + 1] = _c1.g;
+        swarmColors[i3 + 2] = _c1.b;
+    }
+    swarmGeo.attributes.customColor.needsUpdate = true;
 }

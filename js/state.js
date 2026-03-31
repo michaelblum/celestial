@@ -57,6 +57,7 @@ const state = {
         neutrino: ['#bc13fe', '#4a2b6e'],
         lightning: ['#ffffff', '#00ffff'],
         magnetic: ['#bc13fe', '#4a2b6e'],
+        swarm: ['#ff00aa', '#4a2b6e'],
         omegaFace: ['#4a2b6e', '#1a0b2e'],
         omegaEdge: ['#bc13fe', '#4a2b6e'],
         grid: ['#442266', '#110022']
