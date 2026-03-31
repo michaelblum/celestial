@@ -9,7 +9,8 @@ const SKIN_TYPE_MAP = {
     'gas-giant': 1,
     'ice': 2,
     'volcanic': 3,
-    'solar': 4
+    'solar': 4,
+    'portal': 5
 };
 
 /** Create a 256x1 DataTexture interpolating between two hex colors */
@@ -78,8 +79,8 @@ function createSkinMaterial(skinName, faceColors, opacity, isSpecular) {
         vertexShader: skinVertexShader,
         fragmentShader: skinFragmentShader,
         transparent: opacity < 0.99,
-        depthWrite: opacity >= 0.99,
-        side: opacity >= 0.99 ? THREE.FrontSide : THREE.DoubleSide,
+        depthWrite: skinName === 'portal' ? false : opacity >= 0.99,
+        side: skinName === 'portal' ? THREE.BackSide : (opacity >= 0.99 ? THREE.FrontSide : THREE.DoubleSide),
         polygonOffset: true,
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1

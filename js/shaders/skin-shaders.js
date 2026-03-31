@@ -32,7 +32,7 @@ uniform float noiseScale;
 uniform int noiseOctaves;
 uniform float roughness;
 uniform sampler2D colorRamp;
-uniform int skinType;        // 0=rocky, 1=gas-giant, 2=ice, 3=volcanic, 4=solar
+uniform int skinType;        // 0=rocky, 1=gas-giant, 2=ice, 3=volcanic, 4=solar, 5=portal
 uniform vec3 lightPosition;
 uniform float uOpacity;
 uniform float uSpecular;
@@ -69,6 +69,37 @@ void main() {
     surfaceColor += baseColor * edgeGlow * 0.3;
 
     gl_FragColor = vec4(surfaceColor, uOpacity);
+    return;
+  }
+
+  // ── Portal (type 5): dimensional window using view direction ──
+  if (skinType == 5) {
+    // View direction as lookup into an alternate universe
+    vec3 portalDir = normalize(cameraPosition - vWorldPosition);
+
+    // Alternate starfield — offset seed so it doesn't match the real skybox
+    vec3 altCoord = portalDir * 4.0 + vec3(42.0, 17.0, 91.0) + vec3(time * 0.005);
+    float nebula = fbm(altCoord, 4) * 0.5 + 0.5;
+
+    // Swirling vortex effect near the rim
+    float rimDist = fresnelEdge(vNormal, portalDir, 2.0);
+    float swirl = snoise(portalDir * 6.0 + vec3(time * 0.1, time * -0.07, time * 0.05));
+    nebula += swirl * rimDist * 0.3;
+    nebula = clamp(nebula, 0.0, 1.0);
+
+    // Color from the ramp — user controls the palette of the other universe
+    vec3 portalColor = texture2D(colorRamp, vec2(nebula, 0.5)).rgb;
+
+    // Bright star pinpoints in the alternate sky
+    float starField = snoise(portalDir * 80.0 + vec3(42.0));
+    float stars = smoothstep(0.92, 0.96, starField) * 2.0;
+    portalColor += vec3(stars);
+
+    // Edge glow — the boundary of the portal shimmers
+    vec3 edgeColor = texture2D(colorRamp, vec2(0.8, 0.5)).rgb;
+    portalColor += edgeColor * rimDist * 0.6;
+
+    gl_FragColor = vec4(portalColor, 1.0);
     return;
   }
 
