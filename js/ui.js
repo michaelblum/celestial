@@ -666,6 +666,9 @@ export function setupUI() {
     proxyInput('ctx-opacity', 'opacitySlider');
     proxyInput('ctx-edge-opacity', 'edgeOpacitySlider');
     proxyInput('ctx-stellation', 'stellationSlider');
+    proxyInput('ctx-tet-a', 'tetASlider');
+    proxyInput('ctx-tet-b', 'tetBSlider');
+    proxyInput('ctx-tet-c', 'tetCSlider');
     proxyInput('ctx-mask', 'maskToggle');
     proxyInput('ctx-interior', 'interiorEdgesToggle');
     proxyInput('ctx-specular', 'specularToggle');
@@ -681,6 +684,16 @@ export function setupUI() {
     proxyInput('ctx-omega-counterspin', 'omegaCounterSpin');
     proxyInput('ctx-omega-lock', 'omegaLockPosition');
     proxyInput('ctx-omega-interdim', 'omegaInterDimensional');
+
+    // Show/hide tetartoid settings in context menu when shape changes
+    const ctxShape = document.getElementById('ctx-shape');
+    if (ctxShape) {
+        ctxShape.addEventListener('change', () => {
+            const isTet = parseInt(ctxShape.value) === 90;
+            const el = document.getElementById('ctx-tetartoid-settings');
+            if (el) el.style.display = isTet ? '' : 'none';
+        });
+    }
 
     // Look tab
     proxyInput('ctx-preset', 'presetSelect');

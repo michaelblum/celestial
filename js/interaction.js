@@ -223,6 +223,14 @@ function _syncContextMenu() {
     s('ctx-opacity', 'opacitySlider');
     s('ctx-edge-opacity', 'edgeOpacitySlider');
     s('ctx-stellation', 'stellationSlider');
+    s('ctx-tet-a', 'tetASlider');
+    s('ctx-tet-b', 'tetBSlider');
+    s('ctx-tet-c', 'tetCSlider');
+    const ctxTetSettings = document.getElementById('ctx-tetartoid-settings');
+    if (ctxTetSettings) {
+        const isTet = parseInt(document.getElementById('shapeSelect')?.value) === 90;
+        ctxTetSettings.style.display = isTet ? '' : 'none';
+    }
     s('ctx-mask', 'maskToggle');
     s('ctx-interior', 'interiorEdgesToggle');
     s('ctx-specular', 'specularToggle');
