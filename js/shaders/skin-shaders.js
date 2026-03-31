@@ -32,7 +32,7 @@ uniform float noiseScale;
 uniform int noiseOctaves;
 uniform float roughness;
 uniform sampler2D colorRamp;
-uniform int skinType;        // 0=rocky, 1=gas-giant, 2=ice, 3=volcanic, 4=solar, 5=portal, 6=tech
+uniform int skinType;        // 0-3=planet, 4=solar, 5=portal, 6=tech, 7=circuit, 8=alien, 9=ancient
 uniform vec3 lightPosition;
 uniform float uOpacity;
 uniform float uSpecular;
@@ -75,6 +75,34 @@ float cityLights2D(vec2 p, float scale, float bias) {
   float win = step(bias, h);
   float tiny = step(0.42, uv.x) * step(uv.x, 0.58) * step(0.35, uv.y) * step(uv.y, 0.70);
   return win * tiny;
+}
+
+// Rune/glyph pattern: concentric rings + radial spokes in random cells
+float runePattern2D(vec2 p, float scale) {
+  vec2 cell = floor(p * scale);
+  vec2 uv = fract(p * scale) - 0.5;
+  float h = hash21(cell);
+  float active = step(0.35, h);
+
+  float dist = length(uv);
+
+  // Concentric rings
+  float ring1 = abs(dist - 0.15);
+  float ring2 = abs(dist - 0.3);
+  float rings = min(ring1, ring2);
+  float ringGlow = smoothstep(0.02, 0.0, rings) * step(dist, 0.42);
+
+  // Radial spokes (4 or 6 based on cell hash)
+  float angle = atan(uv.y, uv.x);
+  float spokes = mix(4.0, 6.0, step(0.7, h));
+  float spoke = abs(sin(angle * spokes));
+  float spokeGlow = smoothstep(0.06, 0.0, spoke) * step(0.08, dist) * step(dist, 0.35);
+
+  // Cross-lines in some cells
+  float cross = min(abs(uv.x), abs(uv.y));
+  float crossGlow = smoothstep(0.015, 0.0, cross) * step(0.65, h) * step(dist, 0.4);
+
+  return max(max(ringGlow, spokeGlow * 0.6), crossGlow * 0.5) * active;
 }
 
 void main() {
@@ -188,6 +216,154 @@ void main() {
     float fres = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0) * 0.18;
 
     vec3 color = base * (0.3 + diff) + emissive + accentCol * fres * 0.25 + vec3(spec);
+    gl_FragColor = vec4(color, uOpacity);
+    return;
+  }
+
+  // ── Circuit (type 7): neon grid lines on dark surface ──
+  if (skinType == 7) {
+    vec3 bw = abs(vNormal);
+    bw = pow(bw, vec3(4.0));
+    bw /= (bw.x + bw.y + bw.z + 0.001);
+
+    vec3 P = vPosition;
+    float scale = noiseScale * 6.0;
+
+    // Coarse grid: bright lines at cell boundaries
+    float lw = 0.04;
+    vec2 gX = abs(fract(P.yz * scale) - 0.5);
+    vec2 gY = abs(fract(P.xz * scale) - 0.5);
+    vec2 gZ = abs(fract(P.xy * scale) - 0.5);
+    float gridX = smoothstep(lw, 0.0, min(gX.x, gX.y));
+    float gridY = smoothstep(lw, 0.0, min(gY.x, gY.y));
+    float gridZ = smoothstep(lw, 0.0, min(gZ.x, gZ.y));
+    float coarseGrid = gridX * bw.x + gridY * bw.y + gridZ * bw.z;
+
+    // Fine grid at 4× density
+    float fs = scale * 4.0;
+    float fw = 0.02;
+    vec2 fgX = abs(fract(P.yz * fs) - 0.5);
+    vec2 fgY = abs(fract(P.xz * fs) - 0.5);
+    vec2 fgZ = abs(fract(P.xy * fs) - 0.5);
+    float fineGrid = smoothstep(fw, 0.0, min(fgX.x, fgX.y)) * bw.x
+                   + smoothstep(fw, 0.0, min(fgY.x, fgY.y)) * bw.y
+                   + smoothstep(fw, 0.0, min(fgZ.x, fgZ.y)) * bw.z;
+
+    float grid = max(coarseGrid, fineGrid * 0.35);
+
+    // Energy flow pulse traveling along lines
+    float flow = sin(P.x * 20.0 + P.y * 15.0 + P.z * 10.0 + time * 3.0) * 0.3 + 0.7;
+
+    // Extra brightness at intersections (coarseGrid² is brightest where lines cross)
+    float nodeBoost = coarseGrid * coarseGrid * 0.5;
+
+    // Colors from ramp
+    vec3 darkBase = texture2D(colorRamp, vec2(0.0, 0.5)).rgb * 0.04;
+    vec3 lineCol = texture2D(colorRamp, vec2(0.7, 0.5)).rgb;
+    vec3 hotCol = texture2D(colorRamp, vec2(1.0, 0.5)).rgb;
+
+    // Build: near-black base + glowing lines + hot nodes
+    vec3 glowColor = mix(lineCol, hotCol, flow * grid);
+    vec3 color = mix(darkBase, glowColor, grid);
+    color += hotCol * nodeBoost;
+
+    // Fresnel edge glow
+    float fres = fresnelEdge(vNormal, viewDir, 2.0) * 0.15;
+    color += lineCol * fres;
+
+    gl_FragColor = vec4(color, uOpacity);
+    return;
+  }
+
+  // ── Alien (type 8): bio-organic veins with bioluminescent glow ──
+  if (skinType == 8) {
+    vec3 P = vPosition * noiseScale;
+
+    // Domain warping → organic branching vein structures
+    vec3 warp = vec3(
+      snoise(P + vec3(0.0, 0.0, time * 0.05)),
+      snoise(P + vec3(5.2, 1.3, time * 0.05)),
+      snoise(P + vec3(1.7, 9.2, time * 0.05))
+    );
+    vec3 warpedP = P + warp * 1.5;
+
+    // FBM on warped coords = vein patterns
+    float pattern = fbm(warpedP, 4);
+    float veins = 1.0 - smoothstep(0.0, 0.12, abs(pattern));
+
+    // Finer capillary network
+    float capPattern = fbm(warpedP * 3.0 + vec3(3.7), 3);
+    float capillaries = 1.0 - smoothstep(0.0, 0.08, abs(capPattern));
+    veins = max(veins, capillaries * 0.5);
+
+    // Heartbeat pulse (sharp peaks)
+    float heartbeat = pow(sin(time * 1.5) * 0.5 + 0.5, 3.0);
+    float pulse = 0.6 + heartbeat * 0.4;
+
+    // Colors from ramp
+    vec3 fleshCol = texture2D(colorRamp, vec2(0.2, 0.5)).rgb;
+    vec3 veinCol = texture2D(colorRamp, vec2(0.9, 0.5)).rgb;
+    vec3 sssCol = texture2D(colorRamp, vec2(0.5, 0.5)).rgb;
+
+    // Flesh surface texture
+    float surfNoise = snoise(P * 4.0) * 0.15 + 0.5;
+    vec3 baseColor = fleshCol * surfNoise;
+
+    // Overlay glowing veins
+    vec3 color = mix(baseColor, veinCol * pulse * 1.5, veins);
+
+    // Dim diffuse lighting
+    vec3 tLightDir = normalize(lightPosition - vWorldPosition);
+    float diff = max(dot(vNormal, tLightDir), 0.0) * 0.5;
+
+    // Subsurface scattering (fresnel rim glow)
+    float sss = fresnelEdge(vNormal, viewDir, 1.5) * 0.3;
+    color = color * (0.2 + diff) + sssCol * sss;
+
+    // Emissive vein contribution
+    color += veinCol * veins * pulse * 0.5;
+
+    gl_FragColor = vec4(color, uOpacity);
+    return;
+  }
+
+  // ── Ancient (type 9): weathered stone with glowing runes ──
+  if (skinType == 9) {
+    vec3 bw = abs(vNormal);
+    bw = pow(bw, vec3(4.0));
+    bw /= (bw.x + bw.y + bw.z + 0.001);
+
+    vec3 P = vPosition;
+
+    // Weathered stone base
+    float stone = fbm(P * noiseScale * 2.0, 4) * 0.5 + 0.5;
+    float erosion = snoise(P * noiseScale * 6.0) * 0.1;
+    stone = clamp(stone + erosion, 0.0, 1.0);
+
+    // Triplanar rune glyphs
+    float runeScale = noiseScale * 3.0;
+    float rX = runePattern2D(P.yz, runeScale);
+    float rY = runePattern2D(P.xz, runeScale);
+    float rZ = runePattern2D(P.xy, runeScale);
+    float runes = rX * bw.x + rY * bw.y + rZ * bw.z;
+
+    // Slow rune pulse (phase varies by position)
+    float runePulse = sin(time * 0.5 + snoise(P * 0.5) * 6.28) * 0.3 + 0.7;
+
+    // Colors from ramp
+    vec3 stoneCol = texture2D(colorRamp, vec2(stone * 0.4, 0.5)).rgb;
+    vec3 runeCol = texture2D(colorRamp, vec2(0.9, 0.5)).rgb;
+
+    // Stone surface with standard lighting
+    vec3 tLightDir = normalize(lightPosition - vWorldPosition);
+    float diff = max(dot(vNormal, tLightDir), 0.0) * 0.8;
+    vec3 tHalfDir = normalize(tLightDir + viewDir);
+    float spec = pow(max(dot(vNormal, tHalfDir), 0.0), 16.0) * 0.2 * uSpecular;
+    vec3 color = stoneCol * (0.25 + diff) + vec3(spec * 0.5);
+
+    // Emissive rune glow
+    color += runeCol * runes * runePulse * 1.5;
+
     gl_FragColor = vec4(color, uOpacity);
     return;
   }

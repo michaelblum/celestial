@@ -3,7 +3,7 @@ import { updateGeometry } from './geometry.js';
 import { updateAllColors } from './colors.js';
 // grid.js removed — unified into grid3d.js
 import { updatePathVisual } from './pathing.js';
-import { applyPreset } from './presets.js';
+import { applyPreset, PRESET_CATEGORIES } from './presets.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateSwarmColors } from './swarm.js';
 import { applySkin } from './skins.js';
@@ -414,7 +414,7 @@ function randomizeAll(seed) {
     updatePulsars(1); updateGammaRays(1); updateAccretion(1); updateNeutrinos(1);
 
     // Randomize skin (weighted toward 'none')
-    const skins = ['none', 'none', 'none', 'rocky', 'gas-giant', 'ice', 'volcanic', 'solar', 'tech'];
+    const skins = ['none', 'none', 'none', 'rocky', 'gas-giant', 'ice', 'volcanic', 'solar', 'tech', 'circuit', 'alien', 'ancient'];
     setUI('skinSelect', skins[Math.floor(rng() * skins.length)]);
 
     // Reset shape params to defaults
@@ -854,6 +854,27 @@ export function setupUI() {
     proxyInput('ctx-ortho', 'orthoToggle');
     proxyInput('ctx-fov', 'fovSlider');
     proxyInput('ctx-zdepth', 'zDepthSlider');
+
+    // Populate preset dropdowns from category data
+    function populatePresetDropdown(selectId) {
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        sel.innerHTML = '';
+        for (const cat of PRESET_CATEGORIES) {
+            const group = document.createElement('optgroup');
+            group.label = cat.label;
+            for (const p of cat.presets) {
+                const opt = document.createElement('option');
+                opt.value = p.key;
+                opt.textContent = p.label;
+                if (p.key === 'default') opt.selected = true;
+                group.appendChild(opt);
+            }
+            sel.appendChild(group);
+        }
+    }
+    populatePresetDropdown('presetSelect');
+    populatePresetDropdown('ctx-preset');
 
     // Preset select
     document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));

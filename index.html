@@ -52,13 +52,22 @@
                 <label>Skin</label>
                 <select id="ctx-skin">
                     <option value="none">None</option>
-                    <option value="rocky">Rocky</option>
-                    <option value="gas-giant">Gas Giant</option>
-                    <option value="ice">Ice</option>
-                    <option value="volcanic">Volcanic</option>
-                    <option value="solar">Solar</option>
-                    <option value="portal">Portal</option>
-                    <option value="tech">Tech</option>
+                    <optgroup label="Natural">
+                        <option value="rocky">Rocky</option>
+                        <option value="gas-giant">Gas Giant</option>
+                        <option value="ice">Ice</option>
+                        <option value="volcanic">Volcanic</option>
+                        <option value="solar">Solar</option>
+                    </optgroup>
+                    <optgroup label="Constructed">
+                        <option value="tech">Tech</option>
+                        <option value="circuit">Circuit</option>
+                    </optgroup>
+                    <optgroup label="Anomalous">
+                        <option value="portal">Portal</option>
+                        <option value="alien">Alien</option>
+                        <option value="ancient">Ancient</option>
+                    </optgroup>
                 </select>
                 <label>Stellation</label>
                 <input type="range" id="ctx-stellation" min="-1" max="2" step="0.05">
@@ -117,10 +126,7 @@
                 <h3>Appearance</h3>
                 <label>Preset</label>
                 <select id="ctx-preset">
-                    <option value="default">Default Theme</option>
-                    <option value="blackhole">Black Hole</option>
-                    <option value="crystal">Pure Crystal</option>
-                    <option value="neon">Neon Ghost</option>
+                    <!-- Populated dynamically from PRESET_CATEGORIES -->
                 </select>
                 <label>Primary Color</label>
                 <input type="color" id="ctx-color">
@@ -192,13 +198,22 @@
             <label>Skin</label>
             <select id="ctx-omega-skin">
                 <option value="none">None</option>
-                <option value="rocky">Rocky</option>
-                <option value="gas-giant">Gas Giant</option>
-                <option value="ice">Ice</option>
-                <option value="volcanic">Volcanic</option>
-                <option value="solar">Solar</option>
-                <option value="portal">Portal</option>
-                <option value="tech">Tech</option>
+                <optgroup label="Natural">
+                    <option value="rocky">Rocky</option>
+                    <option value="gas-giant">Gas Giant</option>
+                    <option value="ice">Ice</option>
+                    <option value="volcanic">Volcanic</option>
+                    <option value="solar">Solar</option>
+                </optgroup>
+                <optgroup label="Constructed">
+                    <option value="tech">Tech</option>
+                    <option value="circuit">Circuit</option>
+                </optgroup>
+                <optgroup label="Anomalous">
+                    <option value="portal">Portal</option>
+                    <option value="alien">Alien</option>
+                    <option value="ancient">Ancient</option>
+                </optgroup>
             </select>
             <label>Scale</label>
             <input type="range" id="ctx-omega-scale" min="0.1" max="5" step="0.05">
@@ -562,13 +577,22 @@
                     <label style="margin-top:6px;">Skin</label>
                     <select id="skinSelect">
                         <option value="none" selected>None</option>
-                        <option value="rocky">Rocky</option>
-                        <option value="gas-giant">Gas Giant</option>
-                        <option value="ice">Ice</option>
-                        <option value="volcanic">Volcanic</option>
-                        <option value="solar">Solar</option>
-                        <option value="portal">Portal</option>
-                        <option value="tech">Tech</option>
+                        <optgroup label="Natural">
+                            <option value="rocky">Rocky</option>
+                            <option value="gas-giant">Gas Giant</option>
+                            <option value="ice">Ice</option>
+                            <option value="volcanic">Volcanic</option>
+                            <option value="solar">Solar</option>
+                        </optgroup>
+                        <optgroup label="Constructed">
+                            <option value="tech">Tech</option>
+                            <option value="circuit">Circuit</option>
+                        </optgroup>
+                        <optgroup label="Anomalous">
+                            <option value="portal">Portal</option>
+                            <option value="alien">Alien</option>
+                            <option value="ancient">Ancient</option>
+                        </optgroup>
                     </select>
                 </div>
 
@@ -707,13 +731,22 @@
                             <label style="margin-top:6px;">Skin</label>
                             <select id="omegaSkinSelect">
                                 <option value="none" selected>None</option>
-                                <option value="rocky">Rocky</option>
-                                <option value="gas-giant">Gas Giant</option>
-                                <option value="ice">Ice</option>
-                                <option value="volcanic">Volcanic</option>
-                                <option value="solar">Solar</option>
-                                <option value="portal">Portal</option>
-                                <option value="tech">Tech</option>
+                                <optgroup label="Natural">
+                                    <option value="rocky">Rocky</option>
+                                    <option value="gas-giant">Gas Giant</option>
+                                    <option value="ice">Ice</option>
+                                    <option value="volcanic">Volcanic</option>
+                                    <option value="solar">Solar</option>
+                                </optgroup>
+                                <optgroup label="Constructed">
+                                    <option value="tech">Tech</option>
+                                    <option value="circuit">Circuit</option>
+                                </optgroup>
+                                <optgroup label="Anomalous">
+                                    <option value="portal">Portal</option>
+                                    <option value="alien">Alien</option>
+                                    <option value="ancient">Ancient</option>
+                                </optgroup>
                             </select>
                         </div>
                         <div class="control-group">
@@ -802,10 +835,7 @@
                 <h2>Appearance</h2>
                 <div class="control-group">
                     <select id="presetSelect">
-                        <option value="default">Presets: Default Theme</option>
-                        <option value="blackhole">Presets: Black Hole</option>
-                        <option value="crystal">Presets: Pure Crystal</option>
-                        <option value="neon">Presets: Neon Ghost</option>
+                        <!-- Populated dynamically from PRESET_CATEGORIES -->
                     </select>
                 </div>
 
