@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Galaxy Studio</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            color: #ffffff;
+            pointer-events: none;
+            background: rgba(10, 15, 25, 0.7);
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(4px);
+            max-width: 300px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        #ui-overlay h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #4da8da;
+        }
+
+        #ui-overlay p {
+            margin: 5px 0;
+            font-size: 0.85rem;
+            color: #aaa;
+            line-height: 1.4;
+        }
+
+        #lod-status {
+            margin-top: 12px !important;
+            font-weight: bold;
+            font-size: 0.9rem !important;
+            padding: 6px 10px;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.5);
+            display: inline-block;
+            transition: color 0.3s;
+        }
+
+        /* dat.gui overrides for better looks */
+        .dg.ac {
+            z-index: 10 !important;
+        }
+    </style>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- dat.GUI -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
+</head>
+<body>
+
+    <div id="ui-overlay">
+        <h1>Galaxy Studio</h1>
+        <p>Use left click to orbit, right click to pan, and scroll wheel to zoom.</p>
+        <p>Observe the Level of Detail (LOD) swap when zooming out past the configured threshold.</p>
+        <p id="lod-status">LOD: High Detail (Particles)</p>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // ==========================================
+        // SCENE SETUP
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        // Explicitly set background to black (no skybox or ambient stars as requested)
+        scene.background = new THREE.Color(0x020204);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 8, 12);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 200;
+
+        // ==========================================
+        // GALAXY GENERATION PARAMETERS
+        // ==========================================
+        const parameters = {
+            type: 'Spiral', // 'Spiral', 'Elliptical', 'Ring'
+            count: 75000,
+            size: 0.04,
+            radius: 8,
+            branches: 4,
+            spin: 1.2,
+            randomness: 0.3,
+            randomnessPower: 3,
+            thickness: 0.3,
+            insideColor: '#ff6030',
+            outsideColor: '#1b3984',
+            lodDistance: 35
+        };
+
+        // State trackers for cleanup
+        let pointsGeometry = null;
+        let pointsMaterial = null;
+        let pointsObj = null;
+        let imposterGroup = null;
+        
+        // Use Three.js LOD object
+        const lod = new THREE.LOD();
+        scene.add(lod);
+
+        // ==========================================
+        // HELPER: PROCEDURAL TEXTURES
+        // ==========================================
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const context = canvas.getContext('2d');
+            const gradient = context.createRadialGradient(16, 16, 0, 16, 16, 16);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.2, 'rgba(255,255,255,0.8)');
+            gradient.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 32, 32);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createImposterGradient(color1, color2, alphaOut = 0) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const context = canvas.getContext('2d');
+            const gradient = context.createRadialGradient(256, 256, 0, 256, 256, 256);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(0.3, color2);
+            gradient.addColorStop(1, `rgba(0,0,0,${alphaOut})`);
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 512, 512);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const sharedParticleTexture = createParticleTexture();
+
+        // ==========================================
+        // CORE GENERATOR LOGIC
+        // ==========================================
+        function generateGalaxy() {
+            // Cleanup previous geometry/materials
+            if(pointsObj !== null) {
+                // THREE.LOD does not have a removeLevel method in r128. 
+                // We use standard remove() and clear the levels array to reset it.
+                lod.remove(pointsObj);
+                lod.remove(imposterGroup);
+                lod.levels.length = 0;
+                
+                pointsGeometry.dispose();
+                pointsMaterial.dispose();
+                
+                // Cleanup imposter children materials
+                imposterGroup.children.forEach(child => {
+                    if (child.material.map) child.material.map.dispose();
+                    child.material.dispose();
+                    if (child.geometry) child.geometry.dispose();
+                });
+            }
+
+            // 1. GENERATE HIGH-DETAIL PARTICLES (LOD 0)
+            pointsGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(parameters.count * 3);
+            const colors = new Float32Array(parameters.count * 3);
+
+            const colorInside = new THREE.Color(parameters.insideColor);
+            const colorOutside = new THREE.Color(parameters.outsideColor);
+
+            for(let i = 0; i < parameters.count; i++) {
+                const i3 = i * 3;
+                let x, y, z;
+                let distanceToCenter;
+
+                if (parameters.type === 'Spiral') {
+                    const radius = Math.random() * parameters.radius;
+                    const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
+                    const spinAngle = radius * parameters.spin;
+
+                    // Push points closer to core/arms based on randomnessPower
+                    const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+                    const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius * parameters.thickness;
+                    const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+
+                    x = Math.cos(branchAngle + spinAngle) * radius + randomX;
+                    y = randomY;
+                    z = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+                    distanceToCenter = radius;
+
+                } else if (parameters.type === 'Elliptical') {
+                    // Spherical/Ellipsoid distribution
+                    const u = Math.random();
+                    const v = Math.random();
+                    const theta = u * 2.0 * Math.PI;
+                    const phi = Math.acos(2.0 * v - 1.0);
+                    // Cube root clusters more particles towards the center
+                    const r = parameters.radius * Math.cbrt(Math.random()); 
+
+                    x = r * Math.sin(phi) * Math.cos(theta);
+                    y = r * Math.sin(phi) * Math.sin(theta) * parameters.thickness; // Flatten Y axis
+                    z = r * Math.cos(phi);
+                    distanceToCenter = r;
+
+                } else if (parameters.type === 'Ring') {
+                    // Dense outer ring, sparse core
+                    const isCore = Math.random() < 0.15; // 15% in core
+                    const baseRadius = isCore ? Math.random() * parameters.radius * 0.3 : (Math.random() * 0.2 + 0.8) * parameters.radius;
+                    const angle = Math.random() * Math.PI * 2;
+
+                    const randomX = (Math.random() - 0.5) * parameters.randomness;
+                    const randomY = (Math.random() - 0.5) * parameters.randomness * parameters.thickness * 2;
+                    const randomZ = (Math.random() - 0.5) * parameters.randomness;
+
+                    x = Math.cos(angle) * baseRadius + randomX;
+                    y = randomY;
+                    z = Math.sin(angle) * baseRadius + randomZ;
+                    distanceToCenter = baseRadius;
+                }
+
+                positions[i3] = x;
+                positions[i3 + 1] = y;
+                positions[i3 + 2] = z;
+
+                // Mix colors based on distance from center
+                const mixedColor = colorInside.clone();
+                // Normalize distance for color blending
+                mixedColor.lerp(colorOutside, Math.min(distanceToCenter / parameters.radius, 1));
+
+                colors[i3] = mixedColor.r;
+                colors[i3 + 1] = mixedColor.g;
+                colors[i3 + 2] = mixedColor.b;
+            }
+
+            pointsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            pointsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            pointsMaterial = new THREE.PointsMaterial({
+                size: parameters.size,
+                sizeAttenuation: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                vertexColors: true,
+                map: sharedParticleTexture,
+                transparent: true,
+                opacity: 0.9
+            });
+
+            pointsObj = new THREE.Points(pointsGeometry, pointsMaterial);
+            lod.addLevel(pointsObj, 0);
+
+            // 2. GENERATE IMPOSTER (LOD 1)
+            imposterGroup = new THREE.Group();
+            
+            // Core Bulge Imposter (Always faces camera, gives 3D volume from side)
+            const coreTex = createImposterGradient('#ffffff', parameters.insideColor, 0);
+            const coreMat = new THREE.SpriteMaterial({
+                map: coreTex,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+                opacity: 0.8
+            });
+            const coreSprite = new THREE.Sprite(coreMat);
+            // Core is generally smaller
+            coreSprite.scale.set(parameters.radius * 1.5, parameters.radius * 1.5, 1);
+            imposterGroup.add(coreSprite);
+
+            // Disk Imposter (Lays flat on XZ plane, simulates the thin disk from side angles)
+            if (parameters.type !== 'Elliptical') {
+                const diskTex = createImposterGradient(parameters.insideColor, parameters.outsideColor, 0);
+                const diskGeo = new THREE.PlaneGeometry(parameters.radius * 2.5, parameters.radius * 2.5);
+                const diskMat = new THREE.MeshBasicMaterial({
+                    map: diskTex,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    opacity: 0.6
+                });
+                const diskMesh = new THREE.Mesh(diskGeo, diskMat);
+                diskMesh.rotation.x = -Math.PI / 2; // Lay flat
+                imposterGroup.add(diskMesh);
+            } else {
+                // If Elliptical, it's generally spherical, so just expand the core sprite
+                coreSprite.scale.set(parameters.radius * 2.5, parameters.radius * 2.5, 1);
+            }
+
+            // Add the Imposter group to LOD
+            lod.addLevel(imposterGroup, parameters.lodDistance);
+        }
+
+        // ==========================================
+        // GUI SETUP
+        // ==========================================
+        const gui = new dat.GUI({ width: 320 });
+        gui.domElement.parentElement.style.zIndex = "100";
+        
+        const folderShape = gui.addFolder('Galaxy Structure');
+        folderShape.add(parameters, 'type', ['Spiral', 'Elliptical', 'Ring']).name('Shape Type').onChange(generateGalaxy);
+        folderShape.add(parameters, 'count').min(1000).max(250000).step(1000).name('Star Count').onChange(generateGalaxy);
+        folderShape.add(parameters, 'radius').min(2).max(20).step(0.5).name('Radius').onChange(generateGalaxy);
+        folderShape.add(parameters, 'thickness').min(0.05).max(1.5).step(0.05).name('Thickness').onChange(generateGalaxy);
+        folderShape.add(parameters, 'branches').min(2).max(10).step(1).name('Spiral Arms').onChange(generateGalaxy);
+        folderShape.add(parameters, 'spin').min(-3).max(3).step(0.1).name('Arm Spin').onChange(generateGalaxy);
+        folderShape.add(parameters, 'randomness').min(0).max(1).step(0.05).name('Spread').onChange(generateGalaxy);
+        folderShape.open();
+
+        const folderStyle = gui.addFolder('Aesthetics & LOD');
+        folderStyle.add(parameters, 'size').min(0.01).max(0.2).step(0.01).name('Star Size').onChange(generateGalaxy);
+        folderStyle.addColor(parameters, 'insideColor').name('Core Color').onChange(generateGalaxy);
+        folderStyle.addColor(parameters, 'outsideColor').name('Edge Color').onChange(generateGalaxy);
+        folderStyle.add(parameters, 'lodDistance').min(15).max(100).step(1).name('LOD Swap Dist.').onChange((val) => {
+            // Need to regenerate to update the LOD distance thresholds
+            generateGalaxy();
+        });
+        folderStyle.open();
+
+        // Initial Generation
+        generateGalaxy();
+
+        // ==========================================
+        // RENDER LOOP & WINDOW HANDLING
+        // ==========================================
+        const lodStatusEl = document.getElementById('lod-status');
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Rotate the entire galaxy slowly
+            if (lod) {
+                lod.rotation.y -= 0.0005;
+            }
+
+            controls.update();
+            
+            // Check LOD status for UI feedback
+            const distance = camera.position.distanceTo(lod.position);
+            lod.update(camera);
+
+            if (distance > parameters.lodDistance) {
+                lodStatusEl.innerText = 'LOD: Imposter (Performance Saver)';
+                lodStatusEl.style.color = '#ff9900';
+                lodStatusEl.style.border = '1px solid #ff9900';
+            } else {
+                lodStatusEl.innerText = 'LOD: High Detail (Particles)';
+                lodStatusEl.style.color = '#00ffaa';
+                lodStatusEl.style.border = '1px solid #00ffaa';
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

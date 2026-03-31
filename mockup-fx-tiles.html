@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FX Tile Grid Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0612;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  /* ── Context menu card (matches real app) ── */
+  .ctx-menu-card {
+    min-width: 260px;
+    max-width: 260px;
+    background: rgba(20, 10, 30, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(209, 135, 255, 0.6);
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    color: white;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+
+  /* ── Tabs (mock) ── */
+  .ctx-tabs {
+    display: flex;
+    gap: 4px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(188, 19, 254, 0.4);
+  }
+  .ctx-tab {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border-radius: 6px;
+    background: transparent; border: none;
+    color: rgba(209, 135, 255, 0.7);
+    font-size: 14px;
+    transition: background 0.15s;
+  }
+  .ctx-tab.active { background: #bc13fe; color: #fff; }
+  .ctx-tab:hover:not(.active) { background: rgba(188, 19, 254, 0.15); }
+
+  /* ── Panel header ── */
+  .panel-header {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #d187ff;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+
+  /* ── FX Tile Grid ── */
+  .fx-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .fx-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 10px 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(209, 135, 255, 0.15);
+    background: rgba(30, 15, 50, 0.6);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+  .fx-tile:hover {
+    border-color: rgba(209, 135, 255, 0.4);
+    background: rgba(40, 20, 65, 0.8);
+  }
+
+  /* ── Active state ── */
+  .fx-tile.active {
+    border-color: rgba(188, 19, 254, 0.8);
+    background: rgba(188, 19, 254, 0.15);
+    box-shadow: 0 0 12px rgba(188, 19, 254, 0.3), inset 0 0 8px rgba(188, 19, 254, 0.1);
+  }
+  .fx-tile.active .fx-tile-emoji {
+    filter: drop-shadow(0 0 6px rgba(188, 19, 254, 0.6));
+  }
+  .fx-tile.active .fx-tile-label {
+    color: #fff;
+  }
+
+  /* ── Tile content ── */
+  .fx-tile-emoji {
+    font-size: 20px;
+    line-height: 1;
+    transition: filter 0.2s;
+  }
+  .fx-tile-label {
+    font-size: 0.6rem;
+    color: rgba(209, 135, 255, 0.7);
+    text-align: center;
+    line-height: 1.1;
+    transition: color 0.2s;
+  }
+
+  /* ── Gear icon for tiles with sub-menus ── */
+  .fx-tile-gear {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: rgba(209, 135, 255, 0.4);
+    border-radius: 3px;
+    transition: all 0.15s;
+    z-index: 2;
+  }
+  .fx-tile-gear:hover {
+    color: #fff;
+    background: rgba(188, 19, 254, 0.4);
+  }
+  .fx-tile.active .fx-tile-gear {
+    color: rgba(209, 135, 255, 0.7);
+  }
+
+  /* ── Divider ── */
+  .ctx-divider {
+    height: 1px;
+    background: rgba(188, 19, 254, 0.2);
+    margin: 8px 0;
+  }
+
+  /* ── Spin speed slider (stays below grid) ── */
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 2px;
+  }
+  .slider-row label {
+    font-size: 0.65rem;
+    color: rgba(209, 135, 255, 0.6);
+  }
+  .slider-row input[type="range"] {
+    width: 100%;
+    accent-color: #bc13fe;
+    height: 4px;
+  }
+
+  /* ── State indicator badge ── */
+  .state-badge {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 10, 30, 0.9);
+    border: 1px solid rgba(209, 135, 255, 0.3);
+    border-radius: 6px;
+    padding: 8px 16px;
+    color: #d187ff;
+    font-size: 0.75rem;
+    font-family: monospace;
+  }
+</style>
+</head>
+<body>
+
+<div id="state-badge" class="state-badge">Click tiles to toggle \u2022 Click gear for settings</div>
+
+<div class="ctx-menu-card">
+  <!-- Tabs -->
+  <div class="ctx-tabs">
+    <button class="ctx-tab" title="Shape">\u25C6</button>
+    <button class="ctx-tab" title="Look">\u25CE</button>
+    <button class="ctx-tab active" title="FX">\u2728</button>
+    <button class="ctx-tab" title="World">\u2609</button>
+  </div>
+
+  <div class="panel-header">Effects</div>
+
+  <!-- FX Tile Grid -->
+  <div class="fx-grid" id="fxGrid"></div>
+
+  <div class="ctx-divider"></div>
+
+  <div class="slider-row">
+    <label>Spin Speed</label>
+    <input type="range" min="0" max="0.1" step="0.001" value="0.01">
+  </div>
+</div>
+
+<script>
+// ── DATA-DRIVEN EFFECT DEFINITIONS ──
+const EFFECTS = [
+  { id: 'pulsar',    emoji: '\uD83D\uDCA0', label: 'Pulsar' },
+  { id: 'accretion', emoji: '\uD83C\uDF00', label: 'Accretion' },
+  { id: 'gamma',     emoji: '\u2622\uFE0F',  label: 'Gamma' },
+  { id: 'neutrino',  emoji: '\uD83D\uDD35', label: 'Neutrino' },
+  { id: 'lightning', emoji: '\u26A1',        label: 'Lightning', hasSettings: true },
+  { id: 'magnetic',  emoji: '\uD83E\uDDF2', label: 'Magnetic',  hasSettings: true },
+  { id: 'swarm',     emoji: '\u2728',        label: 'Swarm',     hasSettings: true },
+  { id: 'blackhole', emoji: '\u26AB',        label: 'Black Hole' },
+  { id: 'aura',      emoji: '\uD83D\uDD2E', label: 'Aura',      hasSettings: true },
+];
+
+const activeSet = new Set();
+
+function renderGrid() {
+  const grid = document.getElementById('fxGrid');
+  grid.innerHTML = '';
+
+  EFFECTS.forEach(fx => {
+    const tile = document.createElement('div');
+    tile.className = 'fx-tile' + (activeSet.has(fx.id) ? ' active' : '');
+    tile.dataset.effect = fx.id;
+
+    let html = `<span class="fx-tile-emoji">${fx.emoji}</span>`;
+    html += `<span class="fx-tile-label">${fx.label}</span>`;
+    if (fx.hasSettings) {
+      html += `<span class="fx-tile-gear" data-gear="${fx.id}" title="${fx.label} Settings">\u2699</span>`;
+    }
+    tile.innerHTML = html;
+
+    // Click tile = toggle
+    tile.addEventListener('click', (e) => {
+      if (e.target.closest('.fx-tile-gear')) return; // let gear handle its own click
+      if (activeSet.has(fx.id)) activeSet.delete(fx.id);
+      else activeSet.add(fx.id);
+      tile.classList.toggle('active');
+      updateBadge();
+    });
+
+    // Click gear = open settings (mock)
+    const gear = tile.querySelector('.fx-tile-gear');
+    if (gear) {
+      gear.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('state-badge').textContent = `\u2699 Opening ${fx.label} settings...`;
+        setTimeout(() => updateBadge(), 1500);
+      });
+    }
+
+    grid.appendChild(tile);
+  });
+}
+
+function updateBadge() {
+  const badge = document.getElementById('state-badge');
+  if (activeSet.size === 0) {
+    badge.textContent = 'Click tiles to toggle \u2022 Click gear for settings';
+  } else {
+    badge.textContent = 'Active: ' + [...activeSet].join(', ');
+  }
+}
+
+renderGrid();
+</script>
+
+</body>
+</html>
