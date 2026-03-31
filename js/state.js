@@ -69,6 +69,10 @@ const state = {
     idleSpinSpeed: 0.01,
     currentGeometryType: 6,
     stellationFactor: 0.0,
+    // Tetartoid parameters (0 ≤ a ≤ b ≤ c)
+    tetartoidA: 1.0,
+    tetartoidB: 1.5,
+    tetartoidC: 2.0,
     isMaskEnabled: true,
     isInteriorEdgesEnabled: true,
     isSpecularEnabled: true,
