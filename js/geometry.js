@@ -30,16 +30,100 @@ export function createStellatedGeometry(baseGeometry, factor) {
     return stellatedGeometry;
 }
 
-export function createPseudoTetartoid(size) {
-    const geo = new THREE.DodecahedronGeometry(size, 0);
-    const pos = geo.attributes.position;
-    const v = new THREE.Vector3();
-    for (let i = 0; i < pos.count; i++) {
-        v.fromBufferAttribute(pos, i);
-        const angle = v.y * 0.4;
-        v.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
-        pos.setXYZ(i, v.x, v.y, v.z);
+export function createTetartoid(size, a, b, c) {
+    // Clamp to valid range and ensure a <= b <= c
+    const params = [Math.abs(a), Math.abs(b), Math.abs(c)].sort((x, y) => x - y);
+    const pa = params[0], pb = params[1], pc = params[2];
+
+    const n  = pa * pa * pc - pb * pc * pc;
+    const d1 = pa * pa - pa * pb + pb * pb + pa * pc - 2 * pb * pc;
+    const d2 = pa * pa + pa * pb + pb * pb - pa * pc - 2 * pb * pc;
+
+    // Degenerate check — fall back to regular dodecahedron
+    if (Math.abs(n * d1 * d2) < 1e-10) {
+        return new THREE.DodecahedronGeometry(size, 0);
     }
+
+    const r2 = n / d1;
+    const r3 = n / d2;
+
+    // Seed pentagon vertices
+    const seed = [
+        [pa, pb, pc],
+        [-pa, -pb, pc],
+        [-r2, -r2, r2],
+        [-pc, -pa, pb],
+        [-r3, r3, r3],
+    ];
+
+    // 12 chiral tetrahedral symmetry rotations as coordinate transforms
+    const rotations = [
+        ([x, y, z]) => [ x,  y,  z],
+        ([x, y, z]) => [-x, -y,  z],
+        ([x, y, z]) => [-x,  y, -z],
+        ([x, y, z]) => [ x, -y, -z],
+        ([x, y, z]) => [ z,  x,  y],
+        ([x, y, z]) => [-z, -x,  y],
+        ([x, y, z]) => [-z,  x, -y],
+        ([x, y, z]) => [ z, -x, -y],
+        ([x, y, z]) => [ y,  z,  x],
+        ([x, y, z]) => [-y,  z, -x],
+        ([x, y, z]) => [ y, -z, -x],
+        ([x, y, z]) => [-y, -z,  x],
+    ];
+
+    // Generate all 12 pentagons (60 vertices before dedup)
+    const faces = [];
+    for (const rot of rotations) {
+        faces.push(seed.map(v => rot(v)));
+    }
+
+    // Deduplicate vertices (20 unique from 60)
+    const EPS = 1e-8;
+    const uniqueVerts = [];
+    const vertIndex = new Map();
+
+    function getVertIndex(v) {
+        // Round for hashing
+        const key = v.map(c => Math.round(c / EPS) * EPS).join(',');
+        if (vertIndex.has(key)) return vertIndex.get(key);
+        const idx = uniqueVerts.length;
+        uniqueVerts.push(v);
+        vertIndex.set(key, idx);
+        return idx;
+    }
+
+    const faceIndices = [];
+    for (const face of faces) {
+        faceIndices.push(face.map(v => getVertIndex(v)));
+    }
+
+    // Triangulate each pentagon (fan from vertex 0): 5-gon → 3 triangles
+    const positions = [];
+    for (const fi of faceIndices) {
+        for (let t = 1; t < 4; t++) {
+            const v0 = uniqueVerts[fi[0]];
+            const v1 = uniqueVerts[fi[t]];
+            const v2 = uniqueVerts[fi[t + 1]];
+            positions.push(v0[0], v0[1], v0[2]);
+            positions.push(v1[0], v1[1], v1[2]);
+            positions.push(v2[0], v2[1], v2[2]);
+        }
+    }
+
+    // Scale to requested size (normalize to unit sphere first)
+    let maxR = 0;
+    for (const v of uniqueVerts) {
+        const r = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        if (r > maxR) maxR = r;
+    }
+    const scale = maxR > 0 ? size / maxR : size;
+    for (let i = 0; i < positions.length; i++) {
+        positions[i] *= scale;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.computeVertexNormals();
     return geo;
 }
@@ -56,7 +140,7 @@ export function updateGeometry(type) {
         case 8: baseGeometry = new THREE.OctahedronGeometry(size); break;
         case 12: baseGeometry = new THREE.DodecahedronGeometry(size); break;
         case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
-        case 90: baseGeometry = createPseudoTetartoid(size); break;
+        case 90: baseGeometry = createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC); break;
         case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
         case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
         default: baseGeometry = new THREE.BoxGeometry(size, size, size); break;
@@ -111,7 +195,7 @@ export function updateOmegaGeometry(type) {
         case 8: baseGeometry = new THREE.OctahedronGeometry(size); break;
         case 12: baseGeometry = new THREE.DodecahedronGeometry(size); break;
         case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
-        case 90: baseGeometry = createPseudoTetartoid(size); break;
+        case 90: baseGeometry = createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC); break;
         case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
         case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
         default: baseGeometry = new THREE.BoxGeometry(size, size, size); break;
