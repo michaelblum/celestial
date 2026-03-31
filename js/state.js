@@ -235,6 +235,10 @@ const state = {
     skyboxStars: null,
     skyboxHeroStars: null,
 
+    // Performance stats
+    statsVisible: false,
+    stats: null,
+
     // Scale / Depth
     depth_range: { min: 0.25, max: 3.0 },
     z_depth: 1.1,

@@ -15,6 +15,7 @@ import { createOmega, animateOmega } from './omega.js';
 import { createGrid3d, animateGrid3d } from './grid3d.js';
 import { createSwarm, animateSwarm } from './swarm.js';
 import { animateSkybox } from './skybox.js';
+import Stats from './lib/stats.module.js';
 
 function init() {
     initScene();
@@ -36,6 +37,18 @@ function init() {
     setupInteraction();
     setupUI();
     setupEditableLabels();
+
+    // Performance stats (toggle with 'P' key)
+    state.stats = new Stats();
+    state.stats.dom.style.cssText = 'position:fixed;top:0;right:0;z-index:10000;';
+    state.stats.dom.style.display = 'none';
+    document.body.appendChild(state.stats.dom);
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'p' && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+            state.statsVisible = !state.statsVisible;
+            state.stats.dom.style.display = state.statsVisible ? '' : 'none';
+        }
+    });
 
     animate();
 }
@@ -106,6 +119,7 @@ function animate() {
     state.polyGroup.scale.setScalar(state.z_depth * state.novaScale);
 
     state.renderer.render(state.scene, state.camera);
+    if (state.stats) state.stats.update();
 }
 
 window.onload = init;
