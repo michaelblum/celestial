@@ -4,6 +4,8 @@ import { updateAllColors } from './colors.js';
 // grid.js removed — unified into grid3d.js
 import { updatePathVisual } from './pathing.js';
 import { applyPreset, PRESET_CATEGORIES } from './presets.js';
+import { CascadeSelect } from './cascade-select.js';
+import { SKIN_CATEGORIES } from './skins.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateSwarmColors } from './swarm.js';
 import { applySkin } from './skins.js';
@@ -649,6 +651,57 @@ export function setupUI() {
         document.getElementById(k + 'Color2').addEventListener('input', e => { state.colors[k][1] = e.target.value; updateAllColors(); });
     });
 
+    // ── Cascade Select Menus (must init before proxyInput so hidden inputs exist) ──
+    const presetCascadeItems = PRESET_CATEGORIES.map(cat => ({
+        label: cat.label,
+        children: cat.presets.map(p => ({ label: p.label, value: p.key }))
+    }));
+
+    state.cascadeSelects = {};
+
+    // Preset cascades
+    const presetContainer = document.getElementById('presetSelectContainer');
+    if (presetContainer) {
+        state.cascadeSelects.preset = new CascadeSelect(presetContainer, {
+            id: 'presetSelect', items: presetCascadeItems, value: 'default'
+        });
+    }
+    const ctxPresetContainer = document.getElementById('ctxPresetContainer');
+    if (ctxPresetContainer) {
+        state.cascadeSelects.ctxPreset = new CascadeSelect(ctxPresetContainer, {
+            id: 'ctx-preset', items: presetCascadeItems, value: 'default'
+        });
+    }
+
+    // Skin cascades
+    const skinContainer = document.getElementById('skinSelectContainer');
+    if (skinContainer) {
+        state.cascadeSelects.skin = new CascadeSelect(skinContainer, {
+            id: 'skinSelect', items: SKIN_CATEGORIES, value: 'none'
+        });
+    }
+    const ctxSkinContainer = document.getElementById('ctxSkinContainer');
+    if (ctxSkinContainer) {
+        state.cascadeSelects.ctxSkin = new CascadeSelect(ctxSkinContainer, {
+            id: 'ctx-skin', items: SKIN_CATEGORIES, value: 'none'
+        });
+    }
+    const omegaSkinContainer = document.getElementById('omegaSkinSelectContainer');
+    if (omegaSkinContainer) {
+        state.cascadeSelects.omegaSkin = new CascadeSelect(omegaSkinContainer, {
+            id: 'omegaSkinSelect', items: SKIN_CATEGORIES, value: 'none'
+        });
+    }
+    const ctxOmegaSkinContainer = document.getElementById('ctxOmegaSkinContainer');
+    if (ctxOmegaSkinContainer) {
+        state.cascadeSelects.ctxOmegaSkin = new CascadeSelect(ctxOmegaSkinContainer, {
+            id: 'ctx-omega-skin', items: SKIN_CATEGORIES, value: 'none'
+        });
+    }
+
+    // Preset change handler
+    document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));
+
     // Unified context menu proxy inputs — safe version that skips missing elements
     const proxyInput = (ctxId, sidebarId) => {
         const el = document.getElementById(ctxId);
@@ -856,30 +909,6 @@ export function setupUI() {
     proxyInput('ctx-ortho', 'orthoToggle');
     proxyInput('ctx-fov', 'fovSlider');
     proxyInput('ctx-zdepth', 'zDepthSlider');
-
-    // Populate preset dropdowns from category data
-    function populatePresetDropdown(selectId) {
-        const sel = document.getElementById(selectId);
-        if (!sel) return;
-        sel.innerHTML = '';
-        for (const cat of PRESET_CATEGORIES) {
-            const group = document.createElement('optgroup');
-            group.label = cat.label;
-            for (const p of cat.presets) {
-                const opt = document.createElement('option');
-                opt.value = p.key;
-                opt.textContent = p.label;
-                if (p.key === 'default') opt.selected = true;
-                group.appendChild(opt);
-            }
-            sel.appendChild(group);
-        }
-    }
-    populatePresetDropdown('presetSelect');
-    populatePresetDropdown('ctx-preset');
-
-    // Preset select
-    document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));
 
     // Shape param settings: map shape code -> settings container ID
     const shapeSettingsMap = { 90: 'tetartoidSettings', 92: 'torusSettings', 93: 'cylinderSettings', 6: 'boxSettings', 100: 'sphereSettings' };

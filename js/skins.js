@@ -17,6 +17,36 @@ const SKIN_TYPE_MAP = {
     'ancient': 9
 };
 
+/** Hierarchical skin categories for cascade menus */
+export const SKIN_CATEGORIES = [
+    { label: 'None', value: 'none' },
+    {
+        label: 'Natural',
+        children: [
+            { label: 'Rocky', value: 'rocky' },
+            { label: 'Gas Giant', value: 'gas-giant' },
+            { label: 'Ice', value: 'ice' },
+            { label: 'Volcanic', value: 'volcanic' },
+            { label: 'Solar', value: 'solar' },
+        ]
+    },
+    {
+        label: 'Constructed',
+        children: [
+            { label: 'Tech', value: 'tech' },
+            { label: 'Circuit', value: 'circuit' },
+        ]
+    },
+    {
+        label: 'Anomalous',
+        children: [
+            { label: 'Portal', value: 'portal' },
+            { label: 'Alien', value: 'alien' },
+            { label: 'Ancient', value: 'ancient' },
+        ]
+    },
+];
+
 /** Create a 256x1 DataTexture interpolating between two hex colors */
 export function createColorRampTexture(hex1, hex2) {
     const data = new Uint8Array(256 * 4);

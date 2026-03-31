@@ -356,6 +356,15 @@ function _syncContextMenu() {
     s('ctx-ortho', 'orthoToggle');
     s('ctx-fov', 'fovSlider');
     s('ctx-zdepth', 'zDepthSlider');
+
+    // Skin selects (cascade hidden inputs)
+    s('ctx-skin', 'skinSelect');
+    s('ctx-omega-skin', 'omegaSkinSelect');
+
+    // Sync cascade select displays after value copies
+    if (state.cascadeSelects) {
+        Object.values(state.cascadeSelects).forEach(cs => cs.syncFromInput());
+    }
 }
 
 // ── Helper: update sidebar slider display value ──────────────────────────────

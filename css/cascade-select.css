@@ -1,0 +1,168 @@
+/* ── Cascade Select: flyout submenu dropdown component ── */
+
+.cascade-select {
+    position: relative;
+    width: 100%;
+}
+
+/* Trigger button — styled to match existing <select> elements */
+.cascade-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: #1a0b2e;
+    border: 1px solid #4a2b6e;
+    color: white;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+    text-align: left;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+}
+.cascade-trigger:hover {
+    border-color: rgba(209, 135, 255, 0.6);
+}
+.cascade-trigger:focus-visible {
+    border-color: #bc13fe;
+    box-shadow: 0 0 0 1px rgba(188, 19, 254, 0.3);
+}
+.cascade-trigger-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+.cascade-trigger-arrow {
+    margin-left: 8px;
+    opacity: 0.5;
+    font-size: 0.75em;
+    flex-shrink: 0;
+}
+
+/* ── Dropdown panel (appended to body for overflow escape) ── */
+.cascade-dropdown {
+    position: fixed;
+    min-width: 160px;
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: visible;
+    background: rgba(20, 10, 30, 0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(209, 135, 255, 0.5);
+    border-radius: 6px;
+    padding: 4px;
+    z-index: 9000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+    animation: cascade-in 0.12s ease-out;
+}
+.cascade-dropdown::-webkit-scrollbar { width: 5px; }
+.cascade-dropdown::-webkit-scrollbar-thumb {
+    background: rgba(188, 19, 254, 0.4);
+    border-radius: 3px;
+}
+
+@keyframes cascade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Menu items ── */
+.cascade-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: #d187ff;
+    white-space: nowrap;
+    transition: background 0.1s, color 0.1s;
+    user-select: none;
+}
+.cascade-item:hover {
+    background: rgba(188, 19, 254, 0.15);
+    color: #fff;
+}
+.cascade-item.selected {
+    background: rgba(188, 19, 254, 0.25);
+    color: #fff;
+}
+.cascade-arrow {
+    margin-left: 12px;
+    font-size: 0.65em;
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+
+/* ── Submenu (nested flyout) ── */
+.cascade-parent {
+    position: relative;
+}
+.cascade-submenu {
+    display: none;
+    position: absolute;
+    top: -4px;
+    left: 100%;
+    margin-left: 2px;
+    min-width: 140px;
+    background: rgba(20, 10, 30, 0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(209, 135, 255, 0.5);
+    border-radius: 6px;
+    padding: 4px;
+    z-index: 9001;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+}
+.cascade-parent:hover > .cascade-submenu,
+.cascade-parent.cascade-open > .cascade-submenu {
+    display: block;
+}
+
+/* Flip submenu to left side when near right viewport edge */
+.cascade-submenu.flip-left {
+    left: auto;
+    right: 100%;
+    margin-left: 0;
+    margin-right: 2px;
+}
+
+/* Category label (non-interactive separator) */
+.cascade-category {
+    padding: 6px 10px 2px;
+    font-size: 0.65rem;
+    color: rgba(209, 135, 255, 0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* Divider line */
+.cascade-divider {
+    height: 1px;
+    margin: 4px 6px;
+    background: rgba(209, 135, 255, 0.15);
+}
+
+/* ── Context menu variant (smaller sizing) ── */
+.ctx-menu-card .cascade-trigger,
+.ctx-panel .cascade-trigger {
+    padding: 4px 6px;
+    height: 28px;
+    font-size: 0.75rem;
+    background: rgba(30, 15, 50, 0.9);
+    border-color: rgba(209, 135, 255, 0.4);
+}
+.ctx-menu-card .cascade-item,
+.ctx-panel .cascade-item {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+}
