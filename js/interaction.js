@@ -306,6 +306,12 @@ function _syncContextMenu() {
     s('ctx-pulsar-turb-spd', 'pTurbSpdSlider');
     s('ctx-pulsar-phase', 'pTurbMod');
 
+    // Accretion sub-menu sync
+    s('ctx-accretion-count', 'accretionCount');
+    s('ctx-accretion-turb', 'aTurbSlider');
+    s('ctx-accretion-turb-spd', 'aTurbSpdSlider');
+    s('ctx-accretion-phase', 'aTurbMod');
+
     // World tab
     s('ctx-grid-mode', 'gridModeSelect');
     s('ctx-grid3d-mode', 'grid3dRenderMode');

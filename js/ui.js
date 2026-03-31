@@ -771,6 +771,12 @@ export function setupUI() {
     proxyInput('ctx-pulsar-turb-spd', 'pTurbSpdSlider');
     proxyInput('ctx-pulsar-phase', 'pTurbMod');
 
+    // Accretion sub-menu
+    proxyInput('ctx-accretion-count', 'accretionCount');
+    proxyInput('ctx-accretion-turb', 'aTurbSlider');
+    proxyInput('ctx-accretion-turb-spd', 'aTurbSpdSlider');
+    proxyInput('ctx-accretion-phase', 'aTurbMod');
+
     // World tab
     proxyInput('ctx-grid-mode', 'gridModeSelect');
     proxyInput('ctx-grid3d-mode', 'grid3dRenderMode');
